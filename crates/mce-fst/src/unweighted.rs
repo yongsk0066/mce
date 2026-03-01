@@ -4,8 +4,8 @@ use crate::config::UnweightedConfig;
 use crate::flags::{self, FlagCheckResult};
 use crate::format::{self, HEADER_SIZE};
 use crate::symbols::{self, SymbolTable};
-use crate::transition::{Transition, UNWEIGHTED_FINAL_SYM, unweighted_max_tc};
-use crate::{MAX_LOOP_COUNT, Transducer, VfstError};
+use crate::transition::{unweighted_max_tc, Transition, UNWEIGHTED_FINAL_SYM};
+use crate::{Transducer, VfstError, MAX_LOOP_COUNT};
 
 /// Unweighted VFST transducer.
 pub struct UnweightedTransducer {
@@ -27,7 +27,10 @@ impl UnweightedTransducer {
     pub fn from_bytes(data: &[u8]) -> Result<Self, VfstError> {
         let header = format::parse_header(data)?;
         if header.weighted {
-            return Err(VfstError::TypeMismatch { expected: false, actual: true });
+            return Err(VfstError::TypeMismatch {
+                expected: false,
+                actual: true,
+            });
         }
         Self::from_bytes_inner(data)
     }
@@ -35,10 +38,17 @@ impl UnweightedTransducer {
     fn from_bytes_inner(data: &[u8]) -> Result<Self, VfstError> {
         let (symbols, sym_end) = symbols::parse_symbol_table(data, HEADER_SIZE)?;
         let partial = sym_end % 8;
-        let transition_offset = if partial > 0 { sym_end + (8 - partial) } else { sym_end };
+        let transition_offset = if partial > 0 {
+            sym_end + (8 - partial)
+        } else {
+            sym_end
+        };
 
         if transition_offset > data.len() {
-            return Err(VfstError::TooShort { expected: transition_offset, actual: data.len() });
+            return Err(VfstError::TooShort {
+                expected: transition_offset,
+                actual: data.len(),
+            });
         }
 
         let remaining = &data[transition_offset..];
@@ -50,7 +60,14 @@ impl UnweightedTransducer {
             });
         }
 
-        let mut transitions = vec![Transition { sym_in: 0, sym_out: 0, trans_info: 0 }; transition_count];
+        let mut transitions = vec![
+            Transition {
+                sym_in: 0,
+                sym_out: 0,
+                trans_info: 0
+            };
+            transition_count
+        ];
         let dst_bytes = bytemuck::cast_slice_mut::<Transition, u8>(&mut transitions);
         dst_bytes.copy_from_slice(&remaining[..transition_count * size_of::<Transition>()]);
 
@@ -61,21 +78,31 @@ impl UnweightedTransducer {
         })
     }
 
-    pub fn symbols(&self) -> &SymbolTable { &self.symbols }
-    pub fn flag_feature_count(&self) -> u16 { self.symbols.flag_feature_count }
+    pub fn symbols(&self) -> &SymbolTable {
+        &self.symbols
+    }
+    pub fn flag_feature_count(&self) -> u16 {
+        self.symbols.flag_feature_count
+    }
 
     pub fn new_config(&self, buffer_size: usize) -> UnweightedConfig {
         UnweightedConfig::new(self.symbols.flag_feature_count, buffer_size)
     }
 
     pub fn next_prefix(
-        &self, config: &mut UnweightedConfig, output: &mut String, prefix_length: &mut usize,
+        &self,
+        config: &mut UnweightedConfig,
+        output: &mut String,
+        prefix_length: &mut usize,
     ) -> bool {
         self.next_inner(config, output, Some(prefix_length))
     }
 
     fn next_inner(
-        &self, config: &mut UnweightedConfig, output: &mut String, mut prefix_length: Option<&mut usize>,
+        &self,
+        config: &mut UnweightedConfig,
+        output: &mut String,
+        mut prefix_length: Option<&mut usize>,
     ) -> bool {
         let transitions = &self.transitions;
         let first_normal = self.symbols.first_normal_char;
@@ -92,7 +119,10 @@ impl UnweightedTransducer {
             let mut trans_idx = current_idx;
 
             while tc <= max_tc {
-                if tc == 1 && max_tc >= 255 { tc += 1; trans_idx += 1; }
+                if tc == 1 && max_tc >= 255 {
+                    tc += 1;
+                    trans_idx += 1;
+                }
                 let ct = &transitions[trans_idx as usize];
 
                 if ct.sym_in == UNWEIGHTED_FINAL_SYM {
@@ -103,21 +133,30 @@ impl UnweightedTransducer {
                             output.push_str(&self.symbols.symbol_strings[out_sym]);
                         }
                         config.current_transition_stack[config.stack_depth] = trans_idx + 1;
-                        if let Some(ref mut pl) = prefix_length { **pl = config.input_depth; }
+                        if let Some(ref mut pl) = prefix_length {
+                            **pl = config.input_depth;
+                        }
                         return true;
                     }
                 } else if (config.input_depth < config.input_length
                     && config.input_symbol_stack[config.input_depth] == ct.sym_in)
                     || (ct.sym_in < first_normal && self.flag_diacritic_check(config, ct.sym_in))
                 {
-                    if config.stack_depth + 2 == config.buffer_size { return false; }
-                    config.output_symbol_stack[config.stack_depth] =
-                        if ct.sym_out >= first_normal { ct.sym_out } else { 0 };
+                    if config.stack_depth + 2 == config.buffer_size {
+                        return false;
+                    }
+                    config.output_symbol_stack[config.stack_depth] = if ct.sym_out >= first_normal {
+                        ct.sym_out
+                    } else {
+                        0
+                    };
                     config.current_transition_stack[config.stack_depth] = trans_idx;
                     config.stack_depth += 1;
                     config.state_index_stack[config.stack_depth] = ct.target_state();
                     config.current_transition_stack[config.stack_depth] = ct.target_state();
-                    if ct.sym_in >= first_normal { config.input_depth += 1; }
+                    if ct.sym_in >= first_normal {
+                        config.input_depth += 1;
+                    }
                     loop_counter += 1;
                     continue 'outer;
                 }
@@ -125,7 +164,9 @@ impl UnweightedTransducer {
                 trans_idx += 1;
             }
 
-            if config.stack_depth == 0 { return false; }
+            if config.stack_depth == 0 {
+                return false;
+            }
             config.stack_depth -= 1;
             let prev_idx = config.current_transition_stack[config.stack_depth];
             let prev_sym = transitions[prev_idx as usize].sym_in;
@@ -144,21 +185,25 @@ impl UnweightedTransducer {
 
     fn flag_diacritic_check(&self, config: &mut UnweightedConfig, symbol: u16) -> bool {
         let ffc = self.symbols.flag_feature_count;
-        if ffc == 0 || symbol == 0 { return true; }
+        if ffc == 0 || symbol == 0 {
+            return true;
+        }
         let ofv = &self.symbols.symbol_to_diacritic[symbol as usize];
         let current_value = config.current_flag_values[ofv.feature as usize];
         match flags::check_flag(ofv, current_value) {
             FlagCheckResult::Reject => false,
             FlagCheckResult::AcceptAndUpdate { feature, value } => {
                 config.flag_undo_feature[config.flag_depth] = feature;
-                config.flag_undo_value[config.flag_depth] = config.current_flag_values[feature as usize];
+                config.flag_undo_value[config.flag_depth] =
+                    config.current_flag_values[feature as usize];
                 config.current_flag_values[feature as usize] = value;
                 config.flag_depth += 1;
                 true
             }
             FlagCheckResult::AcceptNoUpdate { feature } => {
                 config.flag_undo_feature[config.flag_depth] = feature;
-                config.flag_undo_value[config.flag_depth] = config.current_flag_values[feature as usize];
+                config.flag_undo_value[config.flag_depth] =
+                    config.current_flag_values[feature as usize];
                 config.flag_depth += 1;
                 true
             }
@@ -206,12 +251,19 @@ mod tests {
     fn build_symbol_table(symbols: &[&str]) -> Vec<u8> {
         let mut buf = Vec::new();
         buf.extend_from_slice(&(symbols.len() as u16).to_le_bytes());
-        for s in symbols { buf.extend_from_slice(s.as_bytes()); buf.push(0); }
+        for s in symbols {
+            buf.extend_from_slice(s.as_bytes());
+            buf.push(0);
+        }
         buf
     }
 
     fn make_transition(sym_in: u16, sym_out: u16, target: u32, more: u8) -> Transition {
-        Transition { sym_in, sym_out, trans_info: (target & 0x00FF_FFFF) | ((more as u32) << 24) }
+        Transition {
+            sym_in,
+            sym_out,
+            trans_info: (target & 0x00FF_FFFF) | ((more as u32) << 24),
+        }
     }
 
     fn build_simple_vfst() -> Vec<u8> {
@@ -219,7 +271,9 @@ mod tests {
         data.extend_from_slice(&build_header(false));
         data.extend_from_slice(&build_symbol_table(&["", "a", "b", "x", "y"]));
         let partial = data.len() % 8;
-        if partial > 0 { data.extend(std::iter::repeat_n(0u8, 8 - partial)); }
+        if partial > 0 {
+            data.extend(std::iter::repeat_n(0u8, 8 - partial));
+        }
         data.extend_from_slice(bytemuck::bytes_of(&make_transition(1, 3, 1, 0)));
         data.extend_from_slice(bytemuck::bytes_of(&make_transition(2, 4, 2, 0)));
         data.extend_from_slice(bytemuck::bytes_of(&make_transition(0xFFFF, 0, 0, 0)));
@@ -252,7 +306,9 @@ mod tests {
         data.extend_from_slice(&build_header(false));
         data.extend_from_slice(&build_symbol_table(&["", "a", "x", "y"]));
         let partial = data.len() % 8;
-        if partial > 0 { data.extend(std::iter::repeat_n(0u8, 8 - partial)); }
+        if partial > 0 {
+            data.extend(std::iter::repeat_n(0u8, 8 - partial));
+        }
         data.extend_from_slice(bytemuck::bytes_of(&make_transition(1, 2, 2, 1)));
         data.extend_from_slice(bytemuck::bytes_of(&make_transition(1, 3, 3, 0)));
         data.extend_from_slice(bytemuck::bytes_of(&make_transition(0xFFFF, 0, 0, 0)));

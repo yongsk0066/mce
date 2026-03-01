@@ -39,6 +39,17 @@ crates/
 - **원본 참조**: `~/oss/corevoikko/libvoikko/rust/` (cherry-pick 원본)
 - **참조 NLP**: `~/oss/finnishNLP/` (Omorfi, Trankit, UralicNLP, TNPP)
 
+## 빌드 및 검증
+
+커밋 전 반드시 전체 체인을 실행할 것:
+
+```bash
+cargo fmt --all --check
+cargo test --all-features
+cargo clippy --all-features -- -D warnings
+cargo audit
+```
+
 ## cherry-pick 출처
 
 corevoikko에서 ~25% cherry-pick. 적응 대상:
@@ -47,3 +58,5 @@ corevoikko에서 ~25% cherry-pick. 적응 대상:
 |-----------|----------------|------|
 | `mce-core` | `voikko-core` | Analysis, Token, Character, Case 타입 |
 | `mce-fst` | `voikko-fst` | FST 순회 알고리즘, flag diacritics |
+| `mce-tokenizer` | `voikko-fi/tokenizer` | URL/email/word/sentence 토크나이저 |
+| `mce-speller` | `voikko-fi/speller+suggestion` | cache, status, SpellResult, Speller trait |

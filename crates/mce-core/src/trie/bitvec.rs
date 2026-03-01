@@ -22,7 +22,7 @@ impl BitVec {
 
     pub fn from_bits(bits: &[bool]) -> Self {
         let len = bits.len();
-        let num_words = (len + 63) / 64;
+        let num_words = len.div_ceil(64);
         let mut data = vec![0u64; num_words];
 
         for (i, &bit) in bits.iter().enumerate() {

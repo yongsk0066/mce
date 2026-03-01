@@ -8,7 +8,7 @@
 //! detector identifies probable and possible sentence boundaries based on
 //! punctuation patterns.
 
-use mce_core::character::{CharType, get_char_type};
+use mce_core::character::{get_char_type, CharType};
 use mce_core::token::{SentenceType, TokenType};
 
 /// Check whether a character is a quotation mark commonly used in Finnish text.

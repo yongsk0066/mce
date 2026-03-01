@@ -101,8 +101,8 @@ mod tests {
     #[test]
     fn zero_copy_cast_unweighted() {
         let raw: [u8; 16] = [
-            0x01, 0x00, 0x02, 0x00, 0x03, 0x00, 0x00, 0x00,
-            0x04, 0x00, 0x05, 0x00, 0x06, 0x00, 0x00, 0x01,
+            0x01, 0x00, 0x02, 0x00, 0x03, 0x00, 0x00, 0x00, 0x04, 0x00, 0x05, 0x00, 0x06, 0x00,
+            0x00, 0x01,
         ];
         let transitions: &[Transition] = bytemuck::cast_slice(&raw);
         assert_eq!(transitions.len(), 2);
@@ -128,7 +128,10 @@ mod tests {
             sym_out: 0,
             trans_info: 0xFF_000000,
         }];
-        let oc = OverflowCell { more_transitions: 300, _padding: 0 };
+        let oc = OverflowCell {
+            more_transitions: 300,
+            _padding: 0,
+        };
         transitions.push(bytemuck::cast(oc));
         assert_eq!(unweighted_max_tc(&transitions, 0), 301);
     }

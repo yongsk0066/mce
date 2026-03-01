@@ -7,8 +7,8 @@ pub const VOWELS: &[char] = &['a', 'e', 'i', 'o', 'u', 'y', '\u{00E4}', '\u{00F6
 
 /// Finnish consonants (lowercase).
 pub const CONSONANTS: &[char] = &[
-    'b', 'c', 'd', 'f', 'g', 'h', 'j', 'k', 'l', 'm', 'n', 'p', 'q', 'r', 's', 't', 'v', 'w',
-    'x', 'z', '\u{0161}', '\u{017E}',
+    'b', 'c', 'd', 'f', 'g', 'h', 'j', 'k', 'l', 'm', 'n', 'p', 'q', 'r', 's', 't', 'v', 'w', 'x',
+    'z', '\u{0161}', '\u{017E}',
 ];
 
 /// Check if a character is a Finnish vowel (case-insensitive).

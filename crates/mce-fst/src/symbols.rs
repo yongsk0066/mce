@@ -1,7 +1,7 @@
 // Adapted from corevoikko (voikko-fst/symbols.rs)
 
-use crate::VfstError;
 use crate::flags::{FlagDiacriticParser, OpFeatureValue};
+use crate::VfstError;
 use hashbrown::HashMap;
 
 /// Parsed symbol table from a VFST binary file.
@@ -19,7 +19,10 @@ pub struct SymbolTable {
 /// Returns (table, byte offset after the symbol table).
 pub fn parse_symbol_table(data: &[u8], offset: usize) -> Result<(SymbolTable, usize), VfstError> {
     if offset + 2 > data.len() {
-        return Err(VfstError::TooShort { expected: offset + 2, actual: data.len() });
+        return Err(VfstError::TooShort {
+            expected: offset + 2,
+            actual: data.len(),
+        });
     }
 
     let symbol_count = u16::from_le_bytes([data[offset], data[offset + 1]]);
@@ -39,7 +42,9 @@ pub fn parse_symbol_table(data: &[u8], offset: usize) -> Result<(SymbolTable, us
             pos += 1;
         }
         if pos >= data.len() {
-            return Err(VfstError::InvalidSymbolTable("unterminated symbol string".to_string()));
+            return Err(VfstError::InvalidSymbolTable(
+                "unterminated symbol string".to_string(),
+            ));
         }
 
         let symbol_bytes = &data[str_start..pos];
@@ -50,8 +55,9 @@ pub fn parse_symbol_table(data: &[u8], offset: usize) -> Result<(SymbolTable, us
             symbol_lengths.push(0);
             symbol_to_diacritic.push(OpFeatureValue::default());
         } else {
-            let symbol_str = std::str::from_utf8(symbol_bytes)
-                .map_err(|_| VfstError::InvalidSymbolTable(format!("invalid UTF-8 in symbol {i}")))?;
+            let symbol_str = std::str::from_utf8(symbol_bytes).map_err(|_| {
+                VfstError::InvalidSymbolTable(format!("invalid UTF-8 in symbol {i}"))
+            })?;
             let char_len = symbol_str.chars().count();
 
             symbol_strings.push(symbol_str.to_string());

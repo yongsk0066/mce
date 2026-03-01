@@ -31,8 +31,16 @@ impl UnweightedConfig {
             input_symbol_stack: vec![0; buffer_size],
             output_symbol_stack: vec![0; buffer_size],
             current_flag_values: vec![0; fc],
-            flag_undo_value: if fc > 0 { vec![0; buffer_size] } else { Vec::new() },
-            flag_undo_feature: if fc > 0 { vec![0; buffer_size] } else { Vec::new() },
+            flag_undo_value: if fc > 0 {
+                vec![0; buffer_size]
+            } else {
+                Vec::new()
+            },
+            flag_undo_feature: if fc > 0 {
+                vec![0; buffer_size]
+            } else {
+                Vec::new()
+            },
         }
     }
 
@@ -79,7 +87,11 @@ impl WeightedConfig {
             current_transition_stack: vec![0; buffer_size],
             input_symbol_stack: vec![0; buffer_size],
             output_symbol_stack: vec![0; buffer_size],
-            flag_value_stack: if fc > 0 { vec![0; fc as usize * buffer_size] } else { Vec::new() },
+            flag_value_stack: if fc > 0 {
+                vec![0; fc as usize * buffer_size]
+            } else {
+                Vec::new()
+            },
             flag_feature_count: fc,
         }
     }
@@ -101,7 +113,9 @@ impl WeightedConfig {
     #[inline]
     pub fn current_flags(&self) -> &[u32] {
         let fc = self.flag_feature_count as usize;
-        if fc == 0 { return &[]; }
+        if fc == 0 {
+            return &[];
+        }
         let start = self.flag_depth * fc;
         &self.flag_value_stack[start..start + fc]
     }
@@ -109,7 +123,9 @@ impl WeightedConfig {
     #[inline]
     pub fn current_flags_mut(&mut self) -> &mut [u32] {
         let fc = self.flag_feature_count as usize;
-        if fc == 0 { return &mut []; }
+        if fc == 0 {
+            return &mut [];
+        }
         let start = self.flag_depth * fc;
         &mut self.flag_value_stack[start..start + fc]
     }
@@ -117,7 +133,9 @@ impl WeightedConfig {
     #[inline]
     pub fn push_flags(&mut self) {
         let fc = self.flag_feature_count as usize;
-        if fc == 0 { return; }
+        if fc == 0 {
+            return;
+        }
         let src_start = self.flag_depth * fc;
         let dst_start = src_start + fc;
         for i in 0..fc {

@@ -63,7 +63,10 @@ mod tests {
     fn reject_too_short() {
         assert!(matches!(
             parse_header(&[0u8; 8]).unwrap_err(),
-            VfstError::TooShort { expected: 16, actual: 8 }
+            VfstError::TooShort {
+                expected: 16,
+                actual: 8
+            }
         ));
     }
 
@@ -71,7 +74,10 @@ mod tests {
     fn reject_invalid_magic() {
         let mut data = make_header(false);
         data[0] = 0xFF;
-        assert!(matches!(parse_header(&data).unwrap_err(), VfstError::InvalidMagic));
+        assert!(matches!(
+            parse_header(&data).unwrap_err(),
+            VfstError::InvalidMagic
+        ));
     }
 
     #[test]
