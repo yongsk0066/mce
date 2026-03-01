@@ -8,3 +8,10 @@ license.workspace = true
 
 [dependencies]
 thiserror.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "trie_bench"
+harness = false

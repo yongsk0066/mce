@@ -3,6 +3,7 @@
 //! Adapted from corevoikko (voikko-fi/speller/, voikko-fi/suggestion/).
 
 pub mod cache;
+pub mod pipeline;
 pub mod status;
 
 /// Internal spell-checker result type.

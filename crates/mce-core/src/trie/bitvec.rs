@@ -176,6 +176,15 @@ impl BitVec {
     pub fn count_ones(&self) -> usize {
         *self.rank_index.last().unwrap_or(&0) as usize
     }
+
+    /// Approximate heap memory used by this BitVec in bytes.
+    ///
+    /// Does not include the size of the struct itself (stack allocation),
+    /// only the heap-allocated backing storage.
+    pub fn heap_size_in_bytes(&self) -> usize {
+        self.data.capacity() * std::mem::size_of::<u64>()
+            + self.rank_index.capacity() * std::mem::size_of::<u32>()
+    }
 }
 
 impl Default for BitVec {

@@ -166,6 +166,16 @@ impl SuccinctTrie {
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
+
+    /// Approximate heap memory used by this trie in bytes.
+    ///
+    /// Includes the LOUDS bit vector, labels array, and terminal bit vector.
+    /// Does not include the size of the struct itself (stack allocation).
+    pub fn heap_size_in_bytes(&self) -> usize {
+        self.tree.heap_size_in_bytes()
+            + self.labels.capacity() * std::mem::size_of::<u8>()
+            + self.is_terminal.heap_size_in_bytes()
+    }
 }
 
 /// 정렬된 키 목록에서 SuccinctTrie를 구축하는 빌더.
