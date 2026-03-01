@@ -3,3 +3,7 @@ Cargo.lock
 *.swp
 *.swo
 .DS_Store
+
+# WASM demo build artifacts
+demo/pkg/
+demo/mor.vfst

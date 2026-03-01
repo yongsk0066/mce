@@ -26,6 +26,7 @@ mce-speller = { path = "crates/mce-speller" }
 mce-disambig = { path = "crates/mce-disambig" }
 mce-comonad = { path = "crates/mce-comonad" }
 mce-fi = { path = "crates/mce-fi" }
+mce-grammar = { path = "crates/mce-grammar" }
 
 [profile.release]
 opt-level = "z"

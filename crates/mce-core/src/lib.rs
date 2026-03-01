@@ -6,6 +6,7 @@
 //! - [`character`]: 문자 분류 및 Unicode 유틸리티
 //! - [`case`]: 대소문자 패턴 감지 및 변환
 //! - [`compound`]: M3 복합어 분석 (Pushdown Transducer)
+//! - [`frequency`]: 단어 빈도 목록 (CoNLL-U 기반)
 //! - [`token`]: 토큰 및 문장 경계 타입
 //! - [`trie`]: M1 Succinct Trie (LOUDS 인코딩 사전)
 
@@ -13,5 +14,6 @@ pub mod analysis;
 pub mod case;
 pub mod character;
 pub mod compound;
+pub mod frequency;
 pub mod token;
 pub mod trie;

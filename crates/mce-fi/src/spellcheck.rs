@@ -10,13 +10,19 @@
 //   - suggest_with_context(): Like suggest(), but re-ranks candidates
 //     using POS bigram scores from the previous word's analysis.
 //
+// Frequency-based ranking:
+//   An optional FrequencyList (from UD CoNLL-U data) re-ranks suggestions
+//   so that more common words appear first among equal-distance candidates.
+//
 // This module glues together:
 //   - mce_core::trie (M1 Succinct Trie)
+//   - mce_core::frequency (FrequencyList, for frequency-based ranking)
 //   - mce_fi::morphology (FinnishAnalyzer)
 //   - mce_speller::pipeline (SpellChecker, MorphValidator, SpellCheckerBuilder)
 //   - mce_disambig::bigram (BigramModel, for context-based ranking)
 
 use mce_core::analysis::ATTR_CLASS;
+use mce_core::frequency::FrequencyList;
 use mce_core::trie::{SuccinctTrie, TrieBuilder};
 use mce_disambig::bigram::BigramModel;
 use mce_fst::unweighted::UnweightedTransducer;
@@ -76,6 +82,8 @@ impl MorphValidator for FinnishMorphValidator {
 /// ```
 pub struct FinnishSpellChecker {
     checker: SpellChecker<FinnishMorphValidator>,
+    /// Optional word frequency list for ranking suggestions.
+    freq_list: Option<FrequencyList>,
 }
 
 impl FinnishSpellChecker {
@@ -106,7 +114,31 @@ impl FinnishSpellChecker {
             .cache_size(2) // 4x base cache for production use
             .build();
 
-        Ok(Self { checker })
+        Ok(Self {
+            checker,
+            freq_list: None,
+        })
+    }
+
+    /// Attach a word frequency list for frequency-based suggestion ranking.
+    ///
+    /// When a frequency list is present, [`suggest`](Self::suggest) ranks
+    /// candidates by: (1) edit distance ascending, (2) frequency descending,
+    /// (3) alphabetical. More common words appear first among equal-distance
+    /// candidates.
+    pub fn with_frequency_list(mut self, freq_list: FrequencyList) -> Self {
+        self.freq_list = Some(freq_list);
+        self
+    }
+
+    /// Set the frequency list (mutable version).
+    pub fn set_frequency_list(&mut self, freq_list: FrequencyList) {
+        self.freq_list = Some(freq_list);
+    }
+
+    /// Access the frequency list, if set.
+    pub fn frequency_list(&self) -> Option<&FrequencyList> {
+        self.freq_list.as_ref()
     }
 
     /// Check whether a Finnish word is correctly spelled.
@@ -122,11 +154,28 @@ impl FinnishSpellChecker {
     ///
     /// Uses the trie's Levenshtein automaton to find candidates within
     /// `max_edits` edit distance of the input. Candidates are filtered
-    /// through the morph validator and returned sorted by edit distance.
+    /// through the morph validator.
+    ///
+    /// When a frequency list is present, candidates are ranked by:
+    /// (1) edit distance ascending, (2) word frequency descending,
+    /// (3) alphabetical. This ensures common words like "ja", "on",
+    /// "ei" appear before rare words at the same edit distance.
     ///
     /// Returns at most 10 suggestions.
     pub fn suggest(&self, word: &str, max_edits: usize) -> Vec<String> {
-        self.checker.suggest(word, max_edits, 10)
+        match &self.freq_list {
+            Some(fl) => {
+                let rank_fn = |candidate: &str| -> f64 {
+                    // Use log(1 + freq) so that very high frequencies don't
+                    // dominate excessively. Relative frequency is in [0, 1].
+                    let rel = fl.relative_frequency(candidate);
+                    (1.0 + rel * 1_000_000.0).ln()
+                };
+                self.checker
+                    .suggest_ranked(word, max_edits, 10, Some(rank_fn))
+            }
+            None => self.checker.suggest(word, max_edits, 10),
+        }
     }
 
     /// Generate context-aware suggestions for a misspelled word.
@@ -164,31 +213,54 @@ impl FinnishSpellChecker {
         match prev_class {
             Some(prev_cls) => {
                 let bigram_model = BigramModel::finnish_defaults();
+                let freq_list = &self.freq_list;
                 let rank_fn = |candidate: &str| -> f64 {
                     // Analyze the candidate to get its POS class.
                     let chars: Vec<char> = candidate.chars().collect();
                     let clen = chars.len();
                     let morph = self.checker.morph();
                     let analyses = morph.analyzer().analyze(&chars, clen);
-                    analyses
+                    let bigram_score = analyses
                         .iter()
                         .map(|a| {
                             let cls = a.get(ATTR_CLASS).unwrap_or("");
                             bigram_model.get_weight(&prev_cls, cls)
                         })
-                        .fold(f64::NEG_INFINITY, f64::max)
+                        .fold(f64::NEG_INFINITY, f64::max);
+
+                    // Add frequency bonus if available (weighted lower than
+                    // bigram to keep context as primary signal).
+                    let freq_bonus = freq_list
+                        .as_ref()
+                        .map(|fl| {
+                            let rel = fl.relative_frequency(candidate);
+                            (1.0 + rel * 1_000_000.0).ln() * 0.1
+                        })
+                        .unwrap_or(0.0);
+
+                    bigram_score + freq_bonus
                 };
                 self.checker
                     .suggest_ranked(word, max_edits, MAX_SUGGESTIONS, Some(rank_fn))
             }
             None => {
-                // No context available; use standard ranked suggestions.
-                self.checker.suggest_ranked(
-                    word,
-                    max_edits,
-                    MAX_SUGGESTIONS,
-                    None::<fn(&str) -> f64>,
-                )
+                // No context available; use frequency-based or plain ranking.
+                match &self.freq_list {
+                    Some(fl) => {
+                        let rank_fn = |candidate: &str| -> f64 {
+                            let rel = fl.relative_frequency(candidate);
+                            (1.0 + rel * 1_000_000.0).ln()
+                        };
+                        self.checker
+                            .suggest_ranked(word, max_edits, MAX_SUGGESTIONS, Some(rank_fn))
+                    }
+                    None => self.checker.suggest_ranked(
+                        word,
+                        max_edits,
+                        MAX_SUGGESTIONS,
+                        None::<fn(&str) -> f64>,
+                    ),
+                }
             }
         }
     }
@@ -269,5 +341,95 @@ mod tests {
         // Verify that FinnishMorphValidator implements MorphValidator.
         fn assert_morph_validator<T: MorphValidator>() {}
         assert_morph_validator::<FinnishMorphValidator>();
+    }
+
+    // ── frequency integration tests (using mock trie) ─────────────
+
+    /// Build a spell checker with a mock trie and frequency list to verify
+    /// that frequency-based ranking works without needing real VFST data.
+    #[test]
+    fn frequency_ranking_prefers_common_words() {
+        use mce_core::trie::TrieBuilder;
+
+        // Build trie with words at equal edit distance from "koirb".
+        let mut builder = TrieBuilder::new();
+        builder.insert(b"koira".to_vec()); // common word (dog)
+        builder.insert(b"koiru".to_vec()); // rare word (made up)
+        builder.insert(b"koirn".to_vec()); // rare word (made up)
+        let trie = builder.build();
+
+        // Accept all words in the morph validator.
+        let accept_all = |_word: &[char], _len: usize| -> bool { true };
+
+        let checker = SpellCheckerBuilder::new()
+            .trie(trie)
+            .morph_validator(accept_all)
+            .cache_size(0)
+            .build();
+
+        // Build frequency list: "koira" is very common, others are rare.
+        let conllu = "\
+# sent_id = f.1
+# text = Koira juoksee.
+1\tKoira\tkoira\tNOUN\tN\tCase=Nom|Number=Sing\t2\tnsubj\t2:nsubj\t_
+2\tjuoksee\tjuosta\tVERB\tV\tMood=Ind\t0\troot\t0:root\tSpaceAfter=No
+3\t.\t.\tPUNCT\tPunct\t_\t2\tpunct\t2:punct\t_
+
+# sent_id = f.2
+# text = Koira on iso.
+1\tKoira\tkoira\tNOUN\tN\tCase=Nom|Number=Sing\t3\tnsubj\t3:nsubj\t_
+2\ton\tolla\tAUX\tV\tMood=Ind\t3\tcop\t3:cop\t_
+3\tiso\tiso\tADJ\tA\tCase=Nom\t0\troot\t0:root\tSpaceAfter=No
+4\t.\t.\tPUNCT\tPunct\t_\t3\tpunct\t3:punct\t_
+
+# sent_id = f.3
+# text = Koiru on harvinainen.
+1\tKoiru\tkoiru\tNOUN\tN\tCase=Nom|Number=Sing\t3\tnsubj\t3:nsubj\t_
+2\ton\tolla\tAUX\tV\tMood=Ind\t3\tcop\t3:cop\t_
+3\tharvinainen\tharvinainen\tADJ\tA\tCase=Nom\t0\troot\t0:root\tSpaceAfter=No
+4\t.\t.\tPUNCT\tPunct\t_\t3\tpunct\t3:punct\t_
+";
+        let fl = FrequencyList::from_conllu(conllu);
+        assert_eq!(fl.frequency("koira"), 2);
+        assert_eq!(fl.frequency("koiru"), 1);
+
+        // Without frequency: suggestions sorted by edit distance then alphabetical.
+        let suggestions_no_freq = checker.suggest_ranked("koirb", 1, 10, None::<fn(&str) -> f64>);
+        // All three are 1 edit from "koirb".
+        assert!(suggestions_no_freq.contains(&"koira".to_string()));
+
+        // With frequency: "koira" should be ranked higher than "koiru".
+        let rank_fn = |candidate: &str| -> f64 {
+            let rel = fl.relative_frequency(candidate);
+            (1.0 + rel * 1_000_000.0).ln()
+        };
+        let suggestions_freq = checker.suggest_ranked("koirb", 1, 10, Some(rank_fn));
+        assert!(!suggestions_freq.is_empty());
+        // "koira" (freq=2) should come before "koiru" (freq=1).
+        let pos_koira = suggestions_freq.iter().position(|s| s == "koira").unwrap();
+        let pos_koiru = suggestions_freq.iter().position(|s| s == "koiru").unwrap();
+        assert!(
+            pos_koira < pos_koiru,
+            "koira (pos={pos_koira}) should rank before koiru (pos={pos_koiru})"
+        );
+    }
+
+    #[test]
+    fn frequency_list_serialization_in_spellcheck_context() {
+        let conllu = "\
+# sent_id = s.1
+# text = ja on ei.
+1\tja\tja\tCCONJ\tC\t_\t2\tcc\t2:cc\t_
+2\ton\tolla\tAUX\tV\tMood=Ind\t0\troot\t0:root\t_
+3\tei\tei\tAUX\tV\tPolarity=Neg\t2\taux\t2:aux\tSpaceAfter=No
+4\t.\t.\tPUNCT\tPunct\t_\t2\tpunct\t2:punct\t_
+";
+        let fl = FrequencyList::from_conllu(conllu);
+        let bytes = fl.to_bytes();
+        let fl2 = FrequencyList::from_bytes(&bytes).unwrap();
+        assert_eq!(fl2.frequency("ja"), 1);
+        assert_eq!(fl2.frequency("on"), 1);
+        assert_eq!(fl2.frequency("ei"), 1);
+        assert_eq!(fl2.total(), 3);
     }
 }

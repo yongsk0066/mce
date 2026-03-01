@@ -1,0 +1,14 @@
+[package]
+name = "mce-grammar"
+version = "0.1.0"
+description = "Finnish grammar checking for MCE"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+mce-core.workspace = true
+mce-fst.workspace = true
+mce-fi.workspace = true
+mce-tokenizer.workspace = true
+mce-disambig.workspace = true

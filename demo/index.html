@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MCE Finnish NLP Demo</title>
+  <style>
+    :root {
+      --bg: #fafafa;
+      --surface: #fff;
+      --border: #ddd;
+      --accent: #1a73e8;
+      --accent-hover: #1557b0;
+      --text: #222;
+      --text-muted: #666;
+      --error: #d32f2f;
+      --success: #2e7d32;
+      --code-bg: #f5f5f5;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 2rem;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin-bottom: 1.5rem;
+    }
+
+    #status {
+      padding: 0.75rem 1rem;
+      border-radius: 6px;
+      margin-bottom: 1.5rem;
+      font-size: 0.875rem;
+    }
+
+    #status.loading {
+      background: #fff3e0;
+      color: #e65100;
+      border: 1px solid #ffe0b2;
+    }
+
+    #status.ready {
+      background: #e8f5e9;
+      color: var(--success);
+      border: 1px solid #c8e6c9;
+    }
+
+    #status.error {
+      background: #ffebee;
+      color: var(--error);
+      border: 1px solid #ffcdd2;
+    }
+
+    .input-section {
+      margin-bottom: 1.5rem;
+    }
+
+    label {
+      display: block;
+      font-weight: 500;
+      font-size: 0.875rem;
+      margin-bottom: 0.5rem;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 100px;
+      padding: 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 0.95rem;
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    textarea:focus {
+      border-color: var(--accent);
+    }
+
+    .buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    button {
+      padding: 0.5rem 1rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--text);
+      font-size: 0.875rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    button:hover:not(:disabled) {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    button:active:not(:disabled) {
+      background: var(--accent-hover);
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .results-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1rem;
+      min-height: 120px;
+    }
+
+    .results-section h2 {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.75rem;
+    }
+
+    #results {
+      font-size: 0.9rem;
+    }
+
+    #results .placeholder {
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    #results table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+
+    #results th, #results td {
+      text-align: left;
+      padding: 0.4rem 0.6rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    #results th {
+      font-weight: 600;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    #results .word-cell {
+      font-weight: 500;
+    }
+
+    #results .tag {
+      display: inline-block;
+      background: var(--code-bg);
+      padding: 0.1rem 0.4rem;
+      border-radius: 3px;
+      font-family: "SF Mono", Consolas, monospace;
+      font-size: 0.8rem;
+    }
+
+    #results .spell-ok {
+      color: var(--success);
+    }
+
+    #results .spell-bad {
+      color: var(--error);
+      text-decoration: underline wavy var(--error);
+    }
+
+    #results .compound-parts {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem;
+      align-items: center;
+    }
+
+    #results .compound-part {
+      background: var(--code-bg);
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-family: "SF Mono", Consolas, monospace;
+      font-size: 0.85rem;
+    }
+
+    #results .compound-linking {
+      background: #fff3e0;
+      color: #e65100;
+    }
+
+    #results .compound-sep {
+      color: var(--text-muted);
+    }
+
+    #results pre {
+      background: var(--code-bg);
+      padding: 0.75rem;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-family: "SF Mono", Consolas, monospace;
+      font-size: 0.8rem;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .timing {
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      margin-top: 0.5rem;
+      text-align: right;
+    }
+
+    footer {
+      margin-top: 2rem;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <h1>MCE Finnish NLP</h1>
+  <p class="subtitle">Morphological Computation Engine &mdash; browser-side Finnish NLP via WebAssembly</p>
+
+  <div id="status" class="loading">Loading WASM module and dictionary...</div>
+
+  <div class="input-section">
+    <label for="input">Finnish text</label>
+    <textarea id="input" placeholder="Koira juoksee nopeasti puistossa. Rautatieasema on kaukana.">Koira juoksee nopeasti puistossa. Rautatieasema on kaukana.</textarea>
+  </div>
+
+  <div class="buttons">
+    <button id="btn-analyze" disabled>Analyze</button>
+    <button id="btn-spell" disabled>Check Spelling</button>
+    <button id="btn-compound" disabled>Compound Split</button>
+    <button id="btn-baseform" disabled>Baseforms</button>
+    <button id="btn-raw" disabled>Raw JSON</button>
+  </div>
+
+  <div class="results-section">
+    <h2>Results</h2>
+    <div id="results"><span class="placeholder">Enter Finnish text and click a button above.</span></div>
+    <div id="timing" class="timing"></div>
+  </div>
+
+  <footer>
+    MCE v<span id="version">?</span> &middot; WASM &middot; Offline &middot; No server required
+  </footer>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

@@ -21,3 +21,6 @@ wasm-bindgen.workspace = true
 js-sys.workspace = true
 serde.workspace = true
 serde-wasm-bindgen.workspace = true
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = true
