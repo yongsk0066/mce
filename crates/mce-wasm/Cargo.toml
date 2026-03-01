@@ -1,0 +1,17 @@
+[package]
+name = "mce-wasm"
+version = "0.1.0"
+description = "WASM bindings for MCE"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+mce-core.workspace = true
+mce-fi.workspace = true
+wasm-bindgen.workspace = true
+serde.workspace = true
+serde-wasm-bindgen.workspace = true

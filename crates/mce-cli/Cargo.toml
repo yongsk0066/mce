@@ -1,0 +1,11 @@
+[package]
+name = "mce-cli"
+version = "0.1.0"
+description = "CLI tool for MCE"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+mce-core.workspace = true
+mce-fi.workspace = true

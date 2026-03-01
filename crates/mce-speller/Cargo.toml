@@ -1,0 +1,11 @@
+[package]
+name = "mce-speller"
+version = "0.1.0"
+description = "Spell checking and suggestion engine for MCE"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+mce-core.workspace = true
+mce-fst.workspace = true

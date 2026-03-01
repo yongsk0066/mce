@@ -1,0 +1,10 @@
+[package]
+name = "mce-disambig"
+version = "0.1.0"
+description = "Disambiguation engine (Weighted Lattice + CS) for MCE"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+mce-core.workspace = true

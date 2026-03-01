@@ -1,0 +1,13 @@
+[package]
+name = "mce-fst"
+version = "0.1.0"
+description = "FST engine with format abstraction for MCE"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+mce-core.workspace = true
+thiserror.workspace = true
+bytemuck.workspace = true
+hashbrown.workspace = true

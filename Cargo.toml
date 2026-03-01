@@ -1,0 +1,33 @@
+[workspace]
+members = ["crates/*"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.75"
+license = "Apache-2.0"
+repository = "https://github.com/yongsk0066/mce"
+
+[workspace.dependencies]
+thiserror = "2"
+bytemuck = { version = "1", features = ["derive"] }
+hashbrown = "0.16"
+serde = { version = "1", features = ["derive"] }
+wasm-bindgen = "0.2"
+serde-wasm-bindgen = "0.6"
+
+# Internal crates
+mce-core = { path = "crates/mce-core" }
+mce-fst = { path = "crates/mce-fst" }
+mce-tokenizer = { path = "crates/mce-tokenizer" }
+mce-speller = { path = "crates/mce-speller" }
+mce-disambig = { path = "crates/mce-disambig" }
+mce-comonad = { path = "crates/mce-comonad" }
+mce-fi = { path = "crates/mce-fi" }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

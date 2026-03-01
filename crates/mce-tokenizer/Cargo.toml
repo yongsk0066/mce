@@ -1,0 +1,10 @@
+[package]
+name = "mce-tokenizer"
+version = "0.1.0"
+description = "Text tokenizer for MCE"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+mce-core.workspace = true
