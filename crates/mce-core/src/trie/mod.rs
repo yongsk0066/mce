@@ -40,8 +40,75 @@ impl SuccinctTrie {
     }
 
     /// 편집 거리 `max_edits` 이내의 모든 키를 검색.
-    pub fn fuzzy_search(&self, _query: &[u8], _max_edits: usize) -> Vec<Vec<u8>> {
-        todo!("M1: fuzzy search with Levenshtein automaton")
+    /// 결과는 (편집 거리 오름차순, 사전순) 정렬.
+    pub fn fuzzy_search(&self, query: &[u8], max_edits: usize) -> Vec<Vec<u8>> {
+        if self.tree.is_empty() {
+            return Vec::new();
+        }
+
+        let query_len = query.len();
+
+        // Initial DP row for the root node (no characters consumed yet).
+        // row[j] = edit distance between empty string and query[0..j].
+        let initial_row: Vec<usize> = (0..=query_len).collect();
+
+        // Collect results as (edit_distance, key).
+        let mut results: Vec<(usize, Vec<u8>)> = Vec::new();
+
+        // Check the root itself (empty key) — it's terminal if the empty
+        // string was inserted.
+        if self.is_terminal.get(0) && initial_row[query_len] <= max_edits {
+            results.push((initial_row[query_len], Vec::new()));
+        }
+
+        // DFS stack: (node, dp_row, key_so_far)
+        let mut stack: Vec<(usize, Vec<usize>, Vec<u8>)> = Vec::new();
+
+        // Seed the stack with children of the root.
+        for (label, child_node) in self.children(0) {
+            stack.push((child_node, initial_row.clone(), vec![label]));
+        }
+
+        while let Some((node, parent_row, key)) = stack.pop() {
+            let ch = *key.last().unwrap();
+
+            // Compute the new DP row for this node's edge label.
+            let mut current_row = Vec::with_capacity(query_len + 1);
+            current_row.push(parent_row[0] + 1); // deletion from key
+
+            for j in 1..=query_len {
+                let cost = if query[j - 1] == ch { 0 } else { 1 };
+                let val = (parent_row[j] + 1) // deletion from key
+                    .min(current_row[j - 1] + 1) // insertion into key
+                    .min(parent_row[j - 1] + cost); // substitution
+                current_row.push(val);
+            }
+
+            // Prune: if the minimum value in the row exceeds max_edits,
+            // no descendant can produce a match.
+            let min_in_row = *current_row.iter().min().unwrap();
+            if min_in_row > max_edits {
+                continue;
+            }
+
+            // If this node is terminal and the final column is within
+            // max_edits, record the match.
+            if self.is_terminal.get(node) && current_row[query_len] <= max_edits {
+                results.push((current_row[query_len], key.clone()));
+            }
+
+            // Push children onto the stack for further exploration.
+            for (child_label, child_node) in self.children(node) {
+                let mut child_key = key.clone();
+                child_key.push(child_label);
+                stack.push((child_node, current_row.clone(), child_key));
+            }
+        }
+
+        // Sort by (edit_distance, key) — ascending distance, then
+        // lexicographic order.
+        results.sort();
+        results.into_iter().map(|(_, key)| key).collect()
     }
 
     /// LOUDS에서 node의 자식 중 label이 `byte`인 것을 찾는다.
@@ -66,6 +133,29 @@ impl SuccinctTrie {
         }
 
         None
+    }
+
+    /// LOUDS에서 node의 모든 자식을 (label, child_node) 목록으로 반환한다.
+    fn children(&self, node: usize) -> Vec<(u8, usize)> {
+        let mut result = Vec::new();
+        let child_start = match self.tree.select0(node) {
+            Some(s) => s + 1,
+            None => return result,
+        };
+
+        let mut pos = child_start;
+        let mut label_idx = self.tree.rank1(child_start) - 1;
+
+        while pos < self.tree.len() && self.tree.get(pos) {
+            if label_idx < self.labels.len() {
+                let child_node = self.tree.rank1(pos + 1) - 1;
+                result.push((self.labels[label_idx], child_node));
+            }
+            pos += 1;
+            label_idx += 1;
+        }
+
+        result
     }
 
     /// 전체 키 수.
@@ -239,5 +329,112 @@ mod tests {
         assert!(trie.contains(b"abc"));
         assert!(!trie.contains(b"abcd"));
         assert_eq!(trie.len(), 3);
+    }
+
+    // ── fuzzy_search tests ──────────────────────────────────────
+
+    #[test]
+    fn fuzzy_search_exact_match() {
+        let trie = build_test_trie(); // cat, car, card, dog
+        let results = trie.fuzzy_search(b"cat", 0);
+        assert_eq!(results, vec![b"cat".to_vec()]);
+
+        let results = trie.fuzzy_search(b"dog", 0);
+        assert_eq!(results, vec![b"dog".to_vec()]);
+
+        // Non-existent key yields nothing at distance 0.
+        let results = trie.fuzzy_search(b"cab", 0);
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn fuzzy_search_one_edit() {
+        let trie = build_test_trie(); // cat, car, card, dog
+
+        // Substitution: "cot" -> "cat" (1 edit)
+        let results = trie.fuzzy_search(b"cot", 1);
+        assert!(results.contains(&b"cat".to_vec()));
+
+        // Deletion: "cars" has distance 1 from "car" (delete 's')
+        let results = trie.fuzzy_search(b"cars", 1);
+        assert!(results.contains(&b"car".to_vec()));
+        assert!(results.contains(&b"card".to_vec()));
+
+        // Insertion: "ca" -> "cat" (insert 't'), "car" (insert 'r')
+        let results = trie.fuzzy_search(b"ca", 1);
+        assert!(results.contains(&b"cat".to_vec()));
+        assert!(results.contains(&b"car".to_vec()));
+    }
+
+    #[test]
+    fn fuzzy_search_two_edits() {
+        let trie = build_test_trie(); // cat, car, card, dog
+
+        // "dag" -> "dog" (1 sub), "car" (2 edits), "cat" (2 edits)
+        let results = trie.fuzzy_search(b"dag", 2);
+        assert!(results.contains(&b"dog".to_vec()));
+        assert!(results.contains(&b"car".to_vec()));
+        assert!(results.contains(&b"cat".to_vec()));
+    }
+
+    #[test]
+    fn fuzzy_search_no_match() {
+        let trie = build_test_trie(); // cat, car, card, dog
+
+        // "xyz" is distance >= 3 from all keys.
+        let results = trie.fuzzy_search(b"xyz", 1);
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn fuzzy_search_empty_query() {
+        let trie = build_test_trie(); // cat, car, card, dog (all length 3-4)
+
+        // Empty query with max_edits=0 matches only the empty key (not present).
+        let results = trie.fuzzy_search(b"", 0);
+        assert!(results.is_empty());
+
+        // Empty query with max_edits=3 matches keys of length <= 3.
+        let results = trie.fuzzy_search(b"", 3);
+        assert!(results.contains(&b"cat".to_vec()));
+        assert!(results.contains(&b"car".to_vec()));
+        assert!(results.contains(&b"dog".to_vec()));
+        // "card" has length 4 => distance 4 from empty > 3, so excluded.
+        assert!(!results.contains(&b"card".to_vec()));
+    }
+
+    #[test]
+    fn fuzzy_search_empty_trie() {
+        let trie = TrieBuilder::new().build();
+        let results = trie.fuzzy_search(b"abc", 2);
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn fuzzy_search_sorted_by_distance() {
+        let mut builder = TrieBuilder::new();
+        builder.insert(b"abc".to_vec());
+        builder.insert(b"ab".to_vec());
+        builder.insert(b"abcd".to_vec());
+        builder.insert(b"axyz".to_vec());
+        builder.insert(b"xyz".to_vec());
+        let trie = builder.build();
+
+        let results = trie.fuzzy_search(b"abc", 3);
+
+        // Expected distances:
+        //   "abc"  -> 0
+        //   "ab"   -> 1 (deletion)
+        //   "abcd" -> 1 (insertion)
+        //   "axyz" -> 3 (3 substitutions)
+        //   "xyz"  -> 3 (3 edits)
+        // Sorted by distance, then lexicographic:
+        assert_eq!(results[0], b"abc".to_vec()); // distance 0
+                                                 // distance 1 group: "ab" < "abcd" lexicographically
+        assert_eq!(results[1], b"ab".to_vec());
+        assert_eq!(results[2], b"abcd".to_vec());
+        // distance 3 group: "axyz" < "xyz" lexicographically
+        assert_eq!(results[3], b"axyz".to_vec());
+        assert_eq!(results[4], b"xyz".to_vec());
     }
 }
