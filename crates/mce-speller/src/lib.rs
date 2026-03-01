@@ -5,6 +5,7 @@
 pub mod cache;
 pub mod pipeline;
 pub mod status;
+pub mod user_dict;
 
 /// Internal spell-checker result type.
 ///

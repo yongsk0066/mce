@@ -18,10 +18,12 @@
 //!
 //! The implementation satisfies the standard comonad laws:
 //!
-//! 1. **Left identity**: `z.extend(Zipper::extract) == z`
+//! 1. **Left identity (L1)**: `z.extend(Zipper::extract) == z`
 //!    (extending with extract recovers the original zipper)
-//! 2. **Right identity**: `z.extend(f).extract() == f(&z)`
+//! 2. **Right identity (L2)**: `z.extend(f).extract() == f(&z)`
 //!    (extracting after extend yields the same as direct application)
+//! 3. **Associativity (L3')**: `z.extend(g).extend(f) == z.extend(|w| f(w.extend(g)))`
+//!    (sequential extends equal a single extend of the composed arrow)
 
 /// A list zipper: a non-empty sequence with a distinguished focus element.
 ///
@@ -167,9 +169,12 @@ impl<T: Clone> Zipper<T> {
         let focus_result = f(self);
 
         // Compute results for all positions to the left of focus.
-        // We walk leftward, collecting results; the resulting Vec is
-        // in the same reversed order as `self.left`.
-        let left_results: Vec<U> = Lefts::new(self).map(|z| f(&z)).collect();
+        // The Lefts iterator yields zippers from nearest-to-focus outward,
+        // but `self.left` stores elements from farthest to nearest.
+        // We collect in iterator order (nearest first) then reverse to
+        // match the storage convention of `left`.
+        let mut left_results: Vec<U> = Lefts::new(self).map(|z| f(&z)).collect();
+        left_results.reverse();
 
         // Compute results for all positions to the right of focus.
         let right_results: Vec<U> = Rights::new(self).map(|z| f(&z)).collect();
@@ -526,6 +531,115 @@ mod tests {
         let word: String = result.to_vec().into_iter().collect();
         // \u{00F6} is front vowel, so A -> \u{00E4}
         assert_eq!(word, "p\u{00F6}yt\u{00E4}ll\u{00E4}");
+    }
+
+    // -- Comonad law: associativity (L3') --------------------------------------
+    // extend(f) ∘ extend(g) == extend(f ∘ extend(g))
+    //
+    // That is: composing two extended functions sequentially must be the
+    // same as extending the composition of f with extend(g).
+
+    #[test]
+    fn comonad_associativity_l3() {
+        // f = sum of focus with immediate neighbors
+        let f = |w: &Zipper<i32>| -> i32 {
+            let l = w.peek_left(1).copied().unwrap_or(0);
+            let r = w.peek_right(1).copied().unwrap_or(0);
+            l + w.extract() + r
+        };
+        // g = double the focus
+        let g = |w: &Zipper<i32>| -> i32 { w.extract() * 2 };
+
+        // LHS: extend(g) then extend(f)  —  i.e., extend(f)(extend(g)(w))
+        // RHS: extend(λw'. f(extend(g, w')))  —  a single extend of the composition
+
+        let inputs: Vec<Vec<i32>> = vec![
+            vec![1, 2, 3, 4, 5],
+            vec![10, 20, 30],
+            vec![42],
+            vec![1, 2],
+            vec![-3, 0, 7, -1, 4, 2],
+        ];
+
+        for input in inputs {
+            let z = Zipper::new(input.clone()).unwrap();
+
+            // LHS: two sequential extends
+            let lhs = z.extend(&g).extend(&f);
+
+            // RHS: single extend with composed function
+            let rhs = z.extend(|w: &Zipper<i32>| {
+                // Build the g-extended zipper from w, then apply f to it
+                let extended_g = w.extend(&g);
+                f(&extended_g)
+            });
+
+            assert_eq!(
+                lhs.to_vec(),
+                rhs.to_vec(),
+                "L3' associativity failed for input {:?}",
+                input
+            );
+        }
+    }
+
+    #[test]
+    fn comonad_associativity_l3_at_various_positions() {
+        // Verify L3' holds regardless of the initial focus position.
+        let f = |w: &Zipper<i32>| -> i32 {
+            let l = w.peek_left(1).copied().unwrap_or(0);
+            let r = w.peek_right(1).copied().unwrap_or(0);
+            l + w.extract() + r
+        };
+        let g = |w: &Zipper<i32>| -> i32 { w.extract() * 2 };
+
+        let z_start = Zipper::new(vec![3, 1, 4, 1, 5]).unwrap();
+
+        let mut current = Some(z_start);
+        while let Some(z) = current {
+            let lhs = z.extend(&g).extend(&f);
+            let rhs = z.extend(|w: &Zipper<i32>| {
+                let extended_g = w.extend(&g);
+                f(&extended_g)
+            });
+            assert_eq!(
+                lhs.to_vec(),
+                rhs.to_vec(),
+                "L3' failed at position {}",
+                z.position()
+            );
+            current = z.move_right();
+        }
+    }
+
+    #[test]
+    fn comonad_associativity_l3_with_different_arrow_types() {
+        // Use asymmetric arrows to stress-test: g looks right, f looks left.
+        let f = |w: &Zipper<i32>| -> i32 {
+            // Sum of focus and two left neighbors
+            let l1 = w.peek_left(1).copied().unwrap_or(0);
+            let l2 = w.peek_left(2).copied().unwrap_or(0);
+            w.extract() + l1 + l2
+        };
+        let g = |w: &Zipper<i32>| -> i32 {
+            // Focus minus right neighbor
+            let r = w.peek_right(1).copied().unwrap_or(0);
+            w.extract() - r
+        };
+
+        let z = Zipper::new(vec![5, 3, 8, 2, 7, 1]).unwrap();
+
+        let lhs = z.extend(&g).extend(&f);
+        let rhs = z.extend(|w: &Zipper<i32>| {
+            let extended_g = w.extend(&g);
+            f(&extended_g)
+        });
+
+        assert_eq!(
+            lhs.to_vec(),
+            rhs.to_vec(),
+            "L3' failed with asymmetric arrows"
+        );
     }
 
     // -- extend composition (associativity-like property) ---------------------

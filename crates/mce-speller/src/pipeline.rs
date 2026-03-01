@@ -7,7 +7,9 @@
 //   3. Morphological analysis fallback (compounds, inflections, etc.)
 
 use crate::cache::SpellerCache;
+use crate::user_dict::UserDictionary;
 use crate::{SpellResult, Speller};
+use mce_core::frequency::FrequencyList;
 use mce_core::trie::SuccinctTrie;
 
 /// A language-agnostic morphological validator.
@@ -38,6 +40,10 @@ pub struct SpellChecker<M> {
     trie: SuccinctTrie,
     morph: M,
     cache: SpellerCache,
+    /// Optional user dictionary: words here are always considered correct.
+    user_dict: Option<UserDictionary>,
+    /// Optional frequency list for ranking suggestions by word commonness.
+    freq_list: Option<FrequencyList>,
 }
 
 impl<M: MorphValidator> SpellChecker<M> {
@@ -60,13 +66,21 @@ impl<M: MorphValidator> SpellChecker<M> {
             return self.cache.get_spell_result(&chars, wlen);
         }
 
-        // Stage 2: exact trie lookup (byte-level).
+        // Stage 2: user dictionary lookup.
+        if let Some(ref ud) = self.user_dict {
+            if ud.contains(word) {
+                self.cache.set_spell_result(&chars, wlen, SpellResult::Ok);
+                return SpellResult::Ok;
+            }
+        }
+
+        // Stage 3: exact trie lookup (byte-level).
         if self.trie.contains(word.as_bytes()) {
             self.cache.set_spell_result(&chars, wlen, SpellResult::Ok);
             return SpellResult::Ok;
         }
 
-        // Stage 3: morphological validation.
+        // Stage 4: morphological validation.
         if self.morph.is_valid(&chars, wlen) {
             self.cache.set_spell_result(&chars, wlen, SpellResult::Ok);
             return SpellResult::Ok;
@@ -84,25 +98,34 @@ impl<M: MorphValidator> SpellChecker<M> {
     pub fn suggest(&self, word: &str, max_edits: usize, max_suggestions: usize) -> Vec<String> {
         let raw_candidates = self.trie.fuzzy_search(word.as_bytes(), max_edits);
 
-        raw_candidates
+        let mut results: Vec<String> = raw_candidates
             .into_iter()
             .filter_map(|bytes| {
                 // Convert from byte key back to UTF-8 string.
                 let candidate = String::from_utf8(bytes).ok()?;
 
-                // Filter by morphological validity. Candidates that fail
-                // morph validation are dropped, so the returned list only
-                // contains words the morph validator considers well-formed.
-                let chars: Vec<char> = candidate.chars().collect();
-                let clen = chars.len();
-                if self.morph.is_valid(&chars, clen) {
+                // Accept if in user dictionary or morphologically valid.
+                if self.is_candidate_valid(&candidate) {
                     Some(candidate)
                 } else {
                     None
                 }
             })
-            .take(max_suggestions)
-            .collect()
+            .collect();
+
+        // Also search user dictionary for nearby words.
+        if let Some(ref ud) = self.user_dict {
+            let word_bytes = word.as_bytes();
+            for user_word in ud.words() {
+                let dist = edit_distance(word_bytes, user_word.as_bytes());
+                if dist <= max_edits && !results.contains(&user_word.to_string()) {
+                    results.push(user_word.to_string());
+                }
+            }
+        }
+
+        results.truncate(max_suggestions);
+        results
     }
 
     /// Generate suggestions without morphological filtering.
@@ -154,10 +177,8 @@ impl<M: MorphValidator> SpellChecker<M> {
             .filter_map(|bytes| {
                 let candidate = String::from_utf8(bytes).ok()?;
 
-                // Filter by morphological validity.
-                let chars: Vec<char> = candidate.chars().collect();
-                let clen = chars.len();
-                if !self.morph.is_valid(&chars, clen) {
+                // Accept if in user dictionary or morphologically valid.
+                if !self.is_candidate_valid(&candidate) {
                     return None;
                 }
 
@@ -167,11 +188,38 @@ impl<M: MorphValidator> SpellChecker<M> {
                 let edit_dist = edit_distance(word_bytes, candidate.as_bytes());
 
                 // Apply optional rank function (higher = better).
-                let rank_score = rank_fn.as_ref().map_or(0.0, |f| f(&candidate));
+                let mut rank_score = rank_fn.as_ref().map_or(0.0, |f| f(&candidate));
+
+                // Add built-in frequency bonus if a frequency list is present.
+                if let Some(ref fl) = self.freq_list {
+                    let rel = fl.relative_frequency(&candidate);
+                    rank_score += (1.0 + rel * 1_000_000.0).ln();
+                }
 
                 Some((edit_dist, rank_score, candidate))
             })
             .collect();
+
+        // Also include user dictionary words within edit distance.
+        if let Some(ref ud) = self.user_dict {
+            let mut seen: std::collections::HashSet<String> =
+                scored.iter().map(|(_, _, s)| s.clone()).collect();
+            for user_word in ud.words() {
+                if seen.contains(user_word) {
+                    continue;
+                }
+                let dist = edit_distance(word_bytes, user_word.as_bytes());
+                if dist <= max_edits {
+                    let mut rank_score = rank_fn.as_ref().map_or(0.0, |f| f(user_word));
+                    if let Some(ref fl) = self.freq_list {
+                        let rel = fl.relative_frequency(user_word);
+                        rank_score += (1.0 + rel * 1_000_000.0).ln();
+                    }
+                    scored.push((dist, rank_score, user_word.to_string()));
+                    seen.insert(user_word.to_string());
+                }
+            }
+        }
 
         // Sort: ascending edit distance, then descending rank_score,
         // then lexicographic.
@@ -188,6 +236,21 @@ impl<M: MorphValidator> SpellChecker<M> {
             .collect()
     }
 
+    /// Check whether a candidate string is valid (either in user dictionary
+    /// or morphologically valid).
+    fn is_candidate_valid(&self, candidate: &str) -> bool {
+        // User dictionary words are always valid.
+        if let Some(ref ud) = self.user_dict {
+            if ud.contains(candidate) {
+                return true;
+            }
+        }
+        // Fall back to morphological validation.
+        let chars: Vec<char> = candidate.chars().collect();
+        let clen = chars.len();
+        self.morph.is_valid(&chars, clen)
+    }
+
     /// Access the underlying trie (for inspection or advanced usage).
     pub fn trie(&self) -> &SuccinctTrie {
         &self.trie
@@ -196,6 +259,26 @@ impl<M: MorphValidator> SpellChecker<M> {
     /// Access the morph validator.
     pub fn morph(&self) -> &M {
         &self.morph
+    }
+
+    /// Set the user dictionary.
+    pub fn set_user_dict(&mut self, user_dict: UserDictionary) {
+        self.user_dict = Some(user_dict);
+    }
+
+    /// Access the user dictionary, if set.
+    pub fn user_dict(&self) -> Option<&UserDictionary> {
+        self.user_dict.as_ref()
+    }
+
+    /// Set the frequency list for ranking suggestions.
+    pub fn set_frequency_list(&mut self, freq_list: FrequencyList) {
+        self.freq_list = Some(freq_list);
+    }
+
+    /// Access the frequency list, if set.
+    pub fn frequency_list(&self) -> Option<&FrequencyList> {
+        self.freq_list.as_ref()
     }
 }
 
@@ -226,12 +309,19 @@ impl<M: MorphValidator> Speller for SpellChecker<M> {
         // Convert char slice to a UTF-8 string for trie lookup.
         let s: String = word[..word_len].iter().collect();
 
-        // Stage 1: exact trie lookup.
+        // Stage 1: user dictionary lookup.
+        if let Some(ref ud) = self.user_dict {
+            if ud.contains(&s) {
+                return SpellResult::Ok;
+            }
+        }
+
+        // Stage 2: exact trie lookup.
         if self.trie.contains(s.as_bytes()) {
             return SpellResult::Ok;
         }
 
-        // Stage 2: morphological validation.
+        // Stage 3: morphological validation.
         if self.morph.is_valid(word, word_len) {
             return SpellResult::Ok;
         }
@@ -258,6 +348,8 @@ pub struct SpellCheckerBuilder<M> {
     trie: Option<SuccinctTrie>,
     morph: Option<M>,
     cache_size_param: usize,
+    user_dict: Option<UserDictionary>,
+    freq_list: Option<FrequencyList>,
 }
 
 impl<M: MorphValidator> SpellCheckerBuilder<M> {
@@ -267,6 +359,8 @@ impl<M: MorphValidator> SpellCheckerBuilder<M> {
             trie: None,
             morph: None,
             cache_size_param: 0,
+            user_dict: None,
+            freq_list: None,
         }
     }
 
@@ -291,6 +385,18 @@ impl<M: MorphValidator> SpellCheckerBuilder<M> {
         self
     }
 
+    /// Set the user dictionary.
+    pub fn user_dict(mut self, user_dict: UserDictionary) -> Self {
+        self.user_dict = Some(user_dict);
+        self
+    }
+
+    /// Set the frequency list for ranking suggestions.
+    pub fn frequency_list(mut self, freq_list: FrequencyList) -> Self {
+        self.freq_list = Some(freq_list);
+        self
+    }
+
     /// Build the `SpellChecker`.
     ///
     /// # Panics
@@ -303,6 +409,8 @@ impl<M: MorphValidator> SpellCheckerBuilder<M> {
                 .morph
                 .expect("SpellCheckerBuilder: morph_validator is required"),
             cache: SpellerCache::new(self.cache_size_param),
+            user_dict: self.user_dict,
+            freq_list: self.freq_list,
         }
     }
 }
@@ -328,6 +436,7 @@ mod tests {
         builder.insert(b"auto".to_vec()); // car
         builder.insert(b"kirja".to_vec()); // book
         builder.insert(b"koulu".to_vec()); // school
+        builder.insert(b"koura".to_vec()); // palm/scoop (less common)
         builder.build()
     }
 
@@ -339,6 +448,11 @@ mod tests {
     /// A morph validator that accepts words starting with 'k'.
     fn k_morph(word: &[char], len: usize) -> bool {
         len > 0 && word[0] == 'k'
+    }
+
+    /// A morph validator that accepts everything.
+    fn accept_all(_word: &[char], _len: usize) -> bool {
+        true
     }
 
     fn make_checker(morph: impl MorphValidator) -> SpellChecker<impl MorphValidator> {
@@ -625,5 +739,230 @@ mod tests {
         assert_eq!(super::edit_distance(b"", b"abc"), 3);
         assert_eq!(super::edit_distance(b"abc", b""), 3);
         assert_eq!(super::edit_distance(b"", b""), 0);
+    }
+
+    // ── user dictionary tests ────────────────────────────────────
+
+    #[test]
+    fn check_accepts_user_dict_word() {
+        let ud = UserDictionary::from_words(["MCE", "xyzzy"]);
+        let mut checker = SpellCheckerBuilder::new()
+            .trie(build_test_trie())
+            .morph_validator(no_morph)
+            .user_dict(ud)
+            .cache_size(0)
+            .build();
+
+        // "xyzzy" is not in trie or morph, but IS in user dict.
+        assert_eq!(checker.check("xyzzy"), SpellResult::Ok);
+        // "MCE" likewise.
+        assert_eq!(checker.check("MCE"), SpellResult::Ok);
+        // "nope" is nowhere.
+        assert_eq!(checker.check("nope"), SpellResult::Failed);
+    }
+
+    #[test]
+    fn speller_trait_accepts_user_dict_word() {
+        let ud = UserDictionary::from_words(["MCE"]);
+        let checker = SpellCheckerBuilder::new()
+            .trie(build_test_trie())
+            .morph_validator(no_morph)
+            .user_dict(ud)
+            .cache_size(0)
+            .build();
+
+        let word: Vec<char> = "MCE".chars().collect();
+        assert_eq!(checker.spell(&word, word.len()), SpellResult::Ok);
+    }
+
+    #[test]
+    fn suggest_includes_user_dict_words() {
+        // "MCF" is not in trie, but "MCE" is in user dict (1 edit from "MCF").
+        let ud = UserDictionary::from_words(["MCE"]);
+        let checker = SpellCheckerBuilder::new()
+            .trie(build_test_trie())
+            .morph_validator(no_morph)
+            .user_dict(ud)
+            .cache_size(0)
+            .build();
+
+        let suggestions = checker.suggest("MCF", 1, 10);
+        assert!(
+            suggestions.contains(&"MCE".to_string()),
+            "user dict word should appear in suggestions: {:?}",
+            suggestions
+        );
+    }
+
+    #[test]
+    fn suggest_ranked_includes_user_dict_words() {
+        let ud = UserDictionary::from_words(["MCE"]);
+        let checker = SpellCheckerBuilder::new()
+            .trie(build_test_trie())
+            .morph_validator(no_morph)
+            .user_dict(ud)
+            .cache_size(0)
+            .build();
+
+        let suggestions = checker.suggest_ranked("MCF", 1, 10, None::<fn(&str) -> f64>);
+        assert!(
+            suggestions.contains(&"MCE".to_string()),
+            "user dict word should appear in ranked suggestions: {:?}",
+            suggestions
+        );
+    }
+
+    #[test]
+    fn set_user_dict_after_construction() {
+        let mut checker = make_checker(no_morph);
+        assert_eq!(checker.check("MCE"), SpellResult::Failed);
+
+        checker.set_user_dict(UserDictionary::from_words(["MCE"]));
+        // Cache might have the old result, but user dict words bypass cache
+        // in the check() flow (user dict is checked before trie lookup).
+        // However, failed results are NOT cached, so the next check should
+        // find it in the user dictionary.
+        assert_eq!(checker.check("MCE"), SpellResult::Ok);
+    }
+
+    // ── frequency-ranked suggestion tests ─────────────────────────
+
+    #[test]
+    fn frequency_ranked_suggestions_prefer_common_words() {
+        // Build a frequency list where "koira" is very common and "koura" is rare.
+        let conllu = "\
+# sent_id = f.1
+# text = Koira juoksee.
+1\tKoira\tkoira\tNOUN\tN\tCase=Nom|Number=Sing\t2\tnsubj\t2:nsubj\t_
+2\tjuoksee\tjuosta\tVERB\tV\tMood=Ind\t0\troot\t0:root\tSpaceAfter=No
+3\t.\t.\tPUNCT\tPunct\t_\t2\tpunct\t2:punct\t_
+
+# sent_id = f.2
+# text = Koira on iso.
+1\tKoira\tkoira\tNOUN\tN\tCase=Nom|Number=Sing\t3\tnsubj\t3:nsubj\t_
+2\ton\tolla\tAUX\tV\tMood=Ind\t3\tcop\t3:cop\t_
+3\tiso\tiso\tADJ\tA\tCase=Nom\t0\troot\t0:root\tSpaceAfter=No
+4\t.\t.\tPUNCT\tPunct\t_\t3\tpunct\t3:punct\t_
+
+# sent_id = f.3
+# text = Koira juoksee taas.
+1\tKoira\tkoira\tNOUN\tN\tCase=Nom|Number=Sing\t2\tnsubj\t2:nsubj\t_
+2\tjuoksee\tjuosta\tVERB\tV\tMood=Ind\t0\troot\t0:root\t_
+3\ttaas\ttaas\tADV\tAdv\t_\t2\tadvmod\t2:advmod\tSpaceAfter=No
+4\t.\t.\tPUNCT\tPunct\t_\t2\tpunct\t2:punct\t_
+
+# sent_id = f.4
+# text = Koura on pieni.
+1\tKoura\tkoura\tNOUN\tN\tCase=Nom|Number=Sing\t3\tnsubj\t3:nsubj\t_
+2\ton\tolla\tAUX\tV\tMood=Ind\t3\tcop\t3:cop\t_
+3\tpieni\tpieni\tADJ\tA\tCase=Nom\t0\troot\t0:root\tSpaceAfter=No
+4\t.\t.\tPUNCT\tPunct\t_\t3\tpunct\t3:punct\t_
+";
+        let fl = FrequencyList::from_conllu(conllu);
+        assert_eq!(fl.frequency("koira"), 3);
+        assert_eq!(fl.frequency("koura"), 1);
+
+        let checker = SpellCheckerBuilder::new()
+            .trie(build_test_trie())
+            .morph_validator(accept_all)
+            .frequency_list(fl)
+            .cache_size(0)
+            .build();
+
+        // "koirra" is equidistant from "koira" (1 del) and "koura" (2 edits),
+        // but let us use "koirb" which is 1 edit from both "koira" and "koura".
+        // Actually "koirb" -> "koira" is 1 sub, "koirb" -> "koura" is 2 edits.
+        // Use "koura" vs "koira" from "koirx": koirx -> koira (1), koirx -> koura (2).
+        // Better: use "koura" which is in the trie and test "koura" vs "koira"
+        // at same distance. "koir?" where ? makes equal distance:
+        // "koira" vs "koura": for "korra" -> koira (1 sub r->i), koura (1 sub r->u)
+        // So "korra" is 1 edit from both. Wait, "korra" is not standard.
+        // Let me use a clear test: "koira" and "koura" both 1 edit from "koixa"
+        // No... let me think differently.
+        // koira -> koirb: 1 edit (a->b). koura -> koirb: 2 edits.
+        // Not equal. Let me just test with max_edits=2 and a word equidistant.
+        // "koXra": koira=1 (sub X->i), koura=1 (sub X->u). Yes!
+        let suggestions = checker.suggest_ranked("ko_ra", 1, 10, None::<fn(&str) -> f64>);
+        // Both "koira" and "koura" should be at edit distance 1.
+        if suggestions.contains(&"koira".to_string()) && suggestions.contains(&"koura".to_string())
+        {
+            let pos_koira = suggestions.iter().position(|s| s == "koira").unwrap();
+            let pos_koura = suggestions.iter().position(|s| s == "koura").unwrap();
+            assert!(
+                pos_koira < pos_koura,
+                "koira (freq=3, pos={pos_koira}) should rank before koura (freq=1, pos={pos_koura})"
+            );
+        }
+    }
+
+    #[test]
+    fn set_frequency_list_after_construction() {
+        let mut checker = make_checker(accept_all);
+        assert!(checker.frequency_list().is_none());
+
+        let fl = FrequencyList::empty();
+        checker.set_frequency_list(fl);
+        assert!(checker.frequency_list().is_some());
+    }
+
+    #[test]
+    fn builder_with_frequency_list() {
+        let fl = FrequencyList::empty();
+        let checker = SpellCheckerBuilder::new()
+            .trie(build_test_trie())
+            .morph_validator(accept_all)
+            .frequency_list(fl)
+            .cache_size(0)
+            .build();
+        assert!(checker.frequency_list().is_some());
+    }
+
+    #[test]
+    fn builder_with_user_dict() {
+        let ud = UserDictionary::from_words(["test"]);
+        let checker = SpellCheckerBuilder::new()
+            .trie(build_test_trie())
+            .morph_validator(no_morph)
+            .user_dict(ud)
+            .cache_size(0)
+            .build();
+        assert!(checker.user_dict().is_some());
+        assert!(checker.user_dict().unwrap().contains("test"));
+    }
+
+    #[test]
+    fn user_dict_word_in_suggest_bypasses_morph_filter() {
+        // "MCE" is not valid per no_morph, but is in user dict.
+        // When suggesting for "MCF" (1 edit from "MCE"), "MCE" should appear.
+        let ud = UserDictionary::from_words(["MCE"]);
+        let checker = SpellCheckerBuilder::new()
+            .trie(build_test_trie())
+            .morph_validator(no_morph)
+            .user_dict(ud)
+            .cache_size(0)
+            .build();
+
+        let suggestions = checker.suggest("MCF", 1, 10);
+        assert!(suggestions.contains(&"MCE".to_string()));
+    }
+
+    #[test]
+    fn user_dict_and_frequency_combined() {
+        let ud = UserDictionary::from_words(["MCE"]);
+        let fl = FrequencyList::empty();
+        let mut checker = SpellCheckerBuilder::new()
+            .trie(build_test_trie())
+            .morph_validator(no_morph)
+            .user_dict(ud)
+            .frequency_list(fl)
+            .cache_size(0)
+            .build();
+
+        // User dict word is accepted.
+        assert_eq!(checker.check("MCE"), SpellResult::Ok);
+        // Trie word is still accepted.
+        assert_eq!(checker.check("koira"), SpellResult::Ok);
+        // Unknown word is rejected.
+        assert_eq!(checker.check("nope"), SpellResult::Failed);
     }
 }

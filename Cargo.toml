@@ -27,6 +27,7 @@ mce-disambig = { path = "crates/mce-disambig" }
 mce-comonad = { path = "crates/mce-comonad" }
 mce-fi = { path = "crates/mce-fi" }
 mce-grammar = { path = "crates/mce-grammar" }
+mce-eval = { path = "crates/mce-eval" }
 
 [profile.release]
 opt-level = "z"

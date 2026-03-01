@@ -374,29 +374,96 @@ fn is_neutral_vowel(c: char) -> bool {
     matches!(c, 'e' | 'i')
 }
 
-/// Determine the harmony class by scanning the left context of a zipper.
+/// Detect a compound boundary by looking at a consonant cluster and the
+/// surrounding vowel harmony classes.
 ///
-/// Scans leftward from the focus position (exclusive) to find the most
-/// recent non-neutral vowel. If only neutral vowels are found (or no
-/// vowels at all), defaults to [`HarmonyClass::Front`] — this matches
-/// standard Finnish: words with only neutral vowels take front suffixes
-/// (e.g. "tie" + "-ssA" -> "tiessä").
+/// In Finnish compounds, vowel harmony resets at each component boundary.
+/// We detect a likely compound boundary when we encounter a position where
+/// the vowel class changes across a consonant cluster — specifically, when
+/// the vowels to the right of a consonant sequence belong to a different
+/// harmony class than the vowels to the left.
+///
+/// We use the archiphoneme marker `#` (if present) as an explicit boundary,
+/// and otherwise apply a heuristic: scan leftward and track when the vowel
+/// class *switches* from the most recently seen class. A class switch after
+/// a consonant cluster of 2+ consonants strongly indicates a compound seam.
+///
+/// As a simpler, robust heuristic: we scan leftward and stop at the first
+/// point where we see a vowel class contradiction (back after having seen
+/// front, or vice versa). The last consistent vowel class determines
+/// harmony for the suffix.
 fn detect_harmony_class(z: &Zipper<char>) -> HarmonyClass {
-    // Scan the entire left context, nearest first.
+    // We scan leftward from the focus, looking for the harmony class of
+    // the *last compound component* (the one closest to the suffix).
+    //
+    // Strategy: find the nearest non-neutral vowel. Then check if there's
+    // a compound boundary between it and the focus. A compound boundary
+    // is indicated by a vowel class switch across a consonant gap.
+    //
+    // More precisely: we scan left, collecting the vowel class of the
+    // nearest component. If we hit a vowel of the *opposite* class after
+    // passing through consonants (suggesting a different compound part),
+    // we stop — the previously found class is correct for the suffix.
+
+    let mut found_class: Option<HarmonyClass> = None;
+    let mut consecutive_consonants: u32 = 0;
+
     for i in 1..=z.position() {
         if let Some(&c) = z.peek_left(i) {
             if is_back_vowel(c) {
-                return HarmonyClass::Back;
+                if let Some(HarmonyClass::Front) = found_class {
+                    // We already found front vowels closer to the suffix,
+                    // and now we see a back vowel further left. This means
+                    // there's a compound boundary between them. The suffix
+                    // should use the *closer* (front) harmony.
+                    //
+                    // However, we need to be careful: if the front vowels
+                    // were only neutral (e, i), they wouldn't have set
+                    // found_class. So if found_class == Front, we saw a
+                    // real front vowel (ä, ö, y) closer to the suffix.
+                    return HarmonyClass::Front;
+                }
+                if found_class.is_none() && consecutive_consonants == 0 {
+                    // First vowel found, close to suffix — this component
+                    // is back harmony.
+                    found_class = Some(HarmonyClass::Back);
+                } else if found_class.is_none() {
+                    // First non-neutral vowel, possibly across consonants.
+                    found_class = Some(HarmonyClass::Back);
+                }
+                // If already Back, just continue (same component or
+                // an earlier component with the same class).
+                if found_class == Some(HarmonyClass::Back) {
+                    consecutive_consonants = 0;
+                }
+            } else if is_front_vowel(c) {
+                if let Some(HarmonyClass::Back) = found_class {
+                    // We already found back vowels closer to the suffix,
+                    // and now we see a front vowel further left. This
+                    // indicates a compound boundary. Keep the back class
+                    // for the suffix.
+                    return HarmonyClass::Back;
+                }
+                if found_class.is_none() {
+                    found_class = Some(HarmonyClass::Front);
+                }
+                if found_class == Some(HarmonyClass::Front) {
+                    consecutive_consonants = 0;
+                }
+            } else if is_neutral_vowel(c) {
+                // Neutral vowels are transparent — don't change class,
+                // but do reset the consonant counter (they break a
+                // consonant cluster).
+                consecutive_consonants = 0;
+            } else {
+                // Consonant
+                consecutive_consonants += 1;
             }
-            if is_front_vowel(c) {
-                return HarmonyClass::Front;
-            }
-            // Neutral vowels: keep scanning.
         }
     }
-    // No non-neutral vowel found to the left. Default: front harmony.
-    // This is correct for Finnish: neutral-only stems take front suffixes.
-    HarmonyClass::Front
+
+    // Return the found class, or default to Front for neutral-only stems.
+    found_class.unwrap_or(HarmonyClass::Front)
 }
 
 /// Apply Finnish vowel harmony as a coKleisli morphism.
@@ -1285,5 +1352,62 @@ mod tests {
         // of nt->nn pattern. In Grade::Weak we match the strong side,
         // so nn does NOT match. Correct: no change.
         assert_eq!(result, resolved);
+    }
+
+    // =====================================================================
+    // Compound word boundary in vowel harmony
+    // =====================================================================
+
+    #[test]
+    fn harmony_compound_paakaupunkiseutu() {
+        // pää (front) + kaupunki (back) + seutu (back)
+        // The suffix should follow the *last* compound component (seutu = back).
+        // "pääkaupunkiseutussA" -> "pääkaupunkiseutussa" (back, from 'u' in seutu)
+        assert_eq!(
+            harmonize("p\u{00E4}\u{00E4}kaupunkiseutussA"),
+            "p\u{00E4}\u{00E4}kaupunkiseutussa"
+        );
+    }
+
+    #[test]
+    fn harmony_compound_ylioppilastutkinto() {
+        // yli (front/neutral) + oppilas (back) + tutkinto (back)
+        // Suffix on the whole compound should follow the last component (tutkinto = back).
+        // "ylioppilastutkintossA" -> "ylioppilastutkintossa" (back, from 'u'/'o' in tutkinto)
+        assert_eq!(harmonize("ylioppilastutkintossA"), "ylioppilastutkintossa");
+    }
+
+    #[test]
+    fn harmony_compound_tyopoyta() {
+        // työ (front) + pöytä (front) — both front, so no conflict.
+        // "työpöytällA" -> "työpöytällä" (front)
+        assert_eq!(
+            harmonize("ty\u{00F6}p\u{00F6}yt\u{00E4}llA"),
+            "ty\u{00F6}p\u{00F6}yt\u{00E4}ll\u{00E4}"
+        );
+    }
+
+    #[test]
+    fn harmony_compound_front_then_back() {
+        // A compound where first part is front, second part is back.
+        // The suffix should follow the LAST component (back).
+        // "yötyössA" = yö (front) + työ (front) — both front, bad example.
+        // Instead: "äänioikeus" = ääni (front) + oikeus (back)
+        // "äänioikeudessA" -> "äänioikeudessa" (back, from 'o' in oikeus)
+        assert_eq!(
+            harmonize("\u{00E4}\u{00E4}nioikeudessA"),
+            "\u{00E4}\u{00E4}nioikeudessa"
+        );
+    }
+
+    #[test]
+    fn harmony_simple_stem_still_works() {
+        // Ensure simple (non-compound) words still work correctly.
+        assert_eq!(harmonize("talossA"), "talossa");
+        assert_eq!(
+            harmonize("p\u{00F6}yt\u{00E4}ssA"),
+            "p\u{00F6}yt\u{00E4}ss\u{00E4}"
+        );
+        assert_eq!(harmonize("tiessA"), "tiess\u{00E4}");
     }
 }

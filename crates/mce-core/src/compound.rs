@@ -53,12 +53,32 @@ impl CompoundSplit {
 ///
 /// These are remnants of genitive or other case forms used to join compound
 /// constituents. Ordered by length (longest first) for greedy matching.
-const LINKING_ELEMENTS: &[&str] = &["en", "n"];
+///
+/// Common Finnish linking morphemes:
+/// - `"en"`: genitive plural or nen-stem (hevos**en**kenkä)
+/// - `"n"`: genitive singular (kissa**n**pentu)
+/// - `"s"`: sometimes appears between parts (työ**s**kentely — though usually
+///   not a compound; used in e.g. kirjoitu**s**pöytä-type words)
+/// - `"i"`, `"o"`, `"u"`: rarer linking vowels
+/// - `""` (zero): direct concatenation (jää**kaappi**)
+const LINKING_ELEMENTS: &[&str] = &["en", "n", "s", "i", "o", "u"];
 
 /// Penalty constants for scoring compound splits.
 const PENALTY_PER_PART: u32 = 10;
 const PENALTY_LINKING: u32 = 5;
 const PENALTY_SHORT_PART: u32 = 20;
+
+/// Stem reconstruction function type.
+///
+/// Given a surface stem (left part after stripping a linking morpheme) and the
+/// linking morpheme itself, returns possible dictionary forms to try.
+///
+/// For example, in Finnish, when the linking morpheme is `"en"` and the surface
+/// stem is `"hevos"`, the reconstructor should return `["hevonen"]` because the
+/// nen-stem word `hevonen` has the compound stem `hevos-`.
+///
+/// Return an empty vector if no reconstruction is applicable.
+pub type StemReconstructor = Box<dyn Fn(&str, &str) -> Vec<String>>;
 
 /// Compound word analyzer using recursive descent (pushdown transducer).
 ///
@@ -77,6 +97,10 @@ pub struct CompoundAnalyzer<F: Fn(&str) -> bool> {
     /// Maximum number of word parts (excluding linking elements) in a compound.
     /// Default: 5.
     max_parts: usize,
+    /// Optional stem reconstruction function for language-specific stem→dict
+    /// form recovery. When a linking morpheme is stripped from the left part,
+    /// this function is called to produce candidate dictionary forms.
+    stem_reconstructor: Option<StemReconstructor>,
 }
 
 impl<F: Fn(&str) -> bool> CompoundAnalyzer<F> {
@@ -84,11 +108,13 @@ impl<F: Fn(&str) -> bool> CompoundAnalyzer<F> {
     ///
     /// - `min_part_len`: 3
     /// - `max_parts`: 5
+    /// - `stem_reconstructor`: None
     pub fn new(lookup: F) -> Self {
         Self {
             lookup,
             min_part_len: 3,
             max_parts: 5,
+            stem_reconstructor: None,
         }
     }
 
@@ -101,6 +127,17 @@ impl<F: Fn(&str) -> bool> CompoundAnalyzer<F> {
     /// Set the maximum number of word parts (excluding linking elements).
     pub fn with_max_parts(mut self, max: usize) -> Self {
         self.max_parts = max;
+        self
+    }
+
+    /// Set a stem reconstruction function for language-specific linking
+    /// morpheme handling.
+    ///
+    /// The function receives `(surface_stem, linking_morpheme)` and returns
+    /// candidate dictionary forms. For example, Finnish `("hevos", "en")`
+    /// should yield `["hevonen"]`.
+    pub fn with_stem_reconstructor(mut self, f: StemReconstructor) -> Self {
+        self.stem_reconstructor = Some(f);
         self
     }
 
@@ -234,25 +271,25 @@ impl<F: Fn(&str) -> bool> CompoundAnalyzer<F> {
             }
 
             let candidate = &remaining[..end_byte];
+            let next_pos = pos + end_byte;
+            let at_end = next_pos == word.len();
 
+            // --- Strategy 1: Direct dictionary match (zero linking) ---
             if (self.lookup)(candidate) {
                 path.push(CompoundPart {
                     surface: candidate.to_string(),
                     start: pos,
-                    end: pos + end_byte,
+                    end: next_pos,
                     is_linking: false,
                 });
 
-                let next_pos = pos + end_byte;
-
-                if next_pos == word.len() {
-                    // Candidate consumes the rest of the word.
+                if at_end {
                     self.recurse(word, next_pos, path, results);
                 } else {
                     // Try continuing directly (no linking element).
                     self.recurse(word, next_pos, path, results);
 
-                    // Try linking elements before the next part.
+                    // Try linking elements *after* this word, before the next part.
                     let after = &word[next_pos..];
                     for &link in LINKING_ELEMENTS {
                         if after.starts_with(link) {
@@ -273,6 +310,62 @@ impl<F: Fn(&str) -> bool> CompoundAnalyzer<F> {
                 }
 
                 path.pop(); // backtrack dictionary word
+            }
+
+            // --- Strategy 2: Linking morpheme fused into left part ---
+            //
+            // The surface candidate ends with a linking morpheme that must be
+            // stripped to recover the dictionary stem. For example:
+            //   "hevosen" → strip "en" → stem "hevos" → reconstruct "hevonen"
+            //
+            // This strategy only applies when the candidate is NOT the last
+            // part (linking morphemes only appear between parts).
+            if !at_end {
+                for &link in LINKING_ELEMENTS {
+                    if candidate.len() > link.len() && candidate.ends_with(link) {
+                        let stem = &candidate[..candidate.len() - link.len()];
+
+                        // The bare stem must meet minimum length.
+                        if stem.len() < self.min_part_len {
+                            continue;
+                        }
+
+                        // Check if the bare stem itself is a dictionary word.
+                        let stem_is_word = (self.lookup)(stem);
+
+                        // Try stem reconstruction via the callback.
+                        let reconstructed_match = self
+                            .stem_reconstructor
+                            .as_ref()
+                            .map(|f| f(stem, link).iter().any(|form| (self.lookup)(form)))
+                            .unwrap_or(false);
+
+                        if stem_is_word || reconstructed_match {
+                            // Record the stem as the word part and the linking
+                            // morpheme as a separate linking element.
+                            let stem_end = pos + stem.len();
+                            let link_end = next_pos;
+
+                            path.push(CompoundPart {
+                                surface: stem.to_string(),
+                                start: pos,
+                                end: stem_end,
+                                is_linking: false,
+                            });
+                            path.push(CompoundPart {
+                                surface: link.to_string(),
+                                start: stem_end,
+                                end: link_end,
+                                is_linking: true,
+                            });
+
+                            self.recurse(word, link_end, path, results);
+
+                            path.pop(); // backtrack linking element
+                            path.pop(); // backtrack stem
+                        }
+                    }
+                }
             }
         }
     }
@@ -323,7 +416,41 @@ mod tests {
                 | "kauppa"
                 | "rautatie"
                 | "rautatiekin"
+                | "j\u{00E4}\u{00E4}"   // jää
+                | "kaappi"               // kaappi
+                | "hevonen"              // hevonen (nen-stem)
+                | "kenk\u{00E4}"         // kenkä
+                | "kirjoitus"            // kirjoitus
+                | "p\u{00F6}yt\u{00E4}"  // pöytä
+                | "p\u{00E4}\u{00E4}"    // pää
+                | "kaupunki"             // kaupunki
+                | "ty\u{00F6}"           // työ
+                | "ty\u{00F6}skentely" // työskentely (single word, not compound)
         )
+    }
+
+    /// Finnish stem reconstructor for testing.
+    ///
+    /// Given a bare stem and a linking morpheme, returns candidate dictionary
+    /// forms. For example, `("hevos", "en")` -> `["hevonen"]`.
+    ///
+    /// Finnish nen-stem words: hevonen → compound stem hevos-, genitive hevosen.
+    /// The compound linking form is `stem + en` where stem ends in `s`.
+    /// To recover the dictionary form: strip trailing `s`, add `nen`.
+    /// E.g., hevos → hevo + nen = hevonen.
+    fn test_stem_reconstructor(stem: &str, link: &str) -> Vec<String> {
+        let mut candidates = Vec::new();
+        match link {
+            "en" => {
+                // nen-stem words: if stem ends in 's', replace 's' with 'nen'.
+                // E.g., hevos → hevonen, nais → nainen, ihmis → ihminen
+                if let Some(base) = stem.strip_suffix('s') {
+                    candidates.push(format!("{base}nen"));
+                }
+            }
+            _ => {}
+        }
+        candidates
     }
 
     // -----------------------------------------------------------------------
@@ -667,5 +794,165 @@ mod tests {
         assert_eq!(wp.len(), 2);
         assert!(!wp[0].is_linking);
         assert!(!wp[1].is_linking);
+    }
+
+    // -----------------------------------------------------------------------
+    // Linking morpheme tests (Finnish compound linking)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn zero_linking_jaakaappi() {
+        // jääkaappi → jää + kaappi (zero linking morpheme)
+        let analyzer = CompoundAnalyzer::new(test_dict).with_min_part_len(2);
+        let splits = analyzer.analyze("j\u{00E4}\u{00E4}kaappi");
+        assert!(!splits.is_empty(), "should find jää + kaappi");
+
+        let best = &splits[0];
+        let words: Vec<&str> = best
+            .word_parts()
+            .iter()
+            .map(|p| p.surface.as_str())
+            .collect();
+        assert_eq!(words, vec!["j\u{00E4}\u{00E4}", "kaappi"]);
+    }
+
+    #[test]
+    fn en_linking_hevosenkenkä() {
+        // hevosenkenkä → hevonen + kenkä (en-linking, stem hevos)
+        // "hevosen" splits as stem "hevos" + linking "en", then reconstruct
+        // "hevos" + "nen" = "hevonen" in dictionary.
+        let reconstructor: StemReconstructor =
+            Box::new(|stem, link| test_stem_reconstructor(stem, link));
+        let analyzer = CompoundAnalyzer::new(test_dict).with_stem_reconstructor(reconstructor);
+        let splits = analyzer.analyze("hevosenkenk\u{00E4}");
+        assert!(
+            !splits.is_empty(),
+            "should find hevonen + kenkä via en-linking"
+        );
+
+        let best = &splits[0];
+        let word_parts: Vec<&str> = best
+            .word_parts()
+            .iter()
+            .map(|p| p.surface.as_str())
+            .collect();
+        assert_eq!(word_parts, vec!["hevos", "kenk\u{00E4}"]);
+
+        // Should have the linking element "en".
+        let linking: Vec<&str> = best
+            .parts
+            .iter()
+            .filter(|p| p.is_linking)
+            .map(|p| p.surface.as_str())
+            .collect();
+        assert_eq!(linking, vec!["en"]);
+    }
+
+    #[test]
+    fn single_word_not_compound_tyoskentely() {
+        // työskentely → not a compound (single word in dictionary)
+        let analyzer = CompoundAnalyzer::new(test_dict);
+        let splits = analyzer.analyze("ty\u{00F6}skentely");
+        // "työskentely" is a single word; there should be no 2+ part split
+        // where all parts are valid.
+        assert!(
+            splits.is_empty(),
+            "ty\u{00F6}skentely is a single word, not a compound; got {:?}",
+            splits
+                .iter()
+                .map(|s| s
+                    .word_parts()
+                    .iter()
+                    .map(|p| p.surface.as_str())
+                    .collect::<Vec<_>>())
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn zero_linking_kirjoituspoyta() {
+        // kirjoituspöytä → kirjoitus + pöytä (the "s" is part of "kirjoitus")
+        let analyzer = CompoundAnalyzer::new(test_dict);
+        let splits = analyzer.analyze("kirjoitusp\u{00F6}yt\u{00E4}");
+        assert!(
+            !splits.is_empty(),
+            "should find kirjoitus + p\u{00F6}yt\u{00E4}"
+        );
+
+        let best = &splits[0];
+        let words: Vec<&str> = best
+            .word_parts()
+            .iter()
+            .map(|p| p.surface.as_str())
+            .collect();
+        assert_eq!(words, vec!["kirjoitus", "p\u{00F6}yt\u{00E4}"]);
+    }
+
+    #[test]
+    fn zero_linking_paakaupunki() {
+        // pääkaupunki → pää + kaupunki (zero linking)
+        let analyzer = CompoundAnalyzer::new(test_dict).with_min_part_len(2);
+        let splits = analyzer.analyze("p\u{00E4}\u{00E4}kaupunki");
+        assert!(
+            !splits.is_empty(),
+            "should find p\u{00E4}\u{00E4} + kaupunki"
+        );
+
+        let best = &splits[0];
+        let words: Vec<&str> = best
+            .word_parts()
+            .iter()
+            .map(|p| p.surface.as_str())
+            .collect();
+        assert_eq!(words, vec!["p\u{00E4}\u{00E4}", "kaupunki"]);
+    }
+
+    #[test]
+    fn zero_linking_rautatieasema() {
+        // rautatieasema → rautatie + asema (zero linking)
+        let analyzer = CompoundAnalyzer::new(test_dict);
+        let splits = analyzer.analyze("rautatieasema");
+        assert!(!splits.is_empty());
+
+        // The best (lowest penalty) should be the 2-part split.
+        let best = &splits[0];
+        let words: Vec<&str> = best
+            .word_parts()
+            .iter()
+            .map(|p| p.surface.as_str())
+            .collect();
+        assert_eq!(words, vec!["rautatie", "asema"]);
+    }
+
+    #[test]
+    fn en_linking_byte_offsets() {
+        // Verify byte offsets are correct for en-linking compound.
+        // "hevosenkenkä" = "hevos"(5) + "en"(2) + "kenkä"(6, ä=2 bytes)
+        let reconstructor: StemReconstructor =
+            Box::new(|stem, link| test_stem_reconstructor(stem, link));
+        let analyzer = CompoundAnalyzer::new(test_dict).with_stem_reconstructor(reconstructor);
+        let word = "hevosenkenk\u{00E4}";
+        let splits = analyzer.analyze(word);
+        assert!(!splits.is_empty());
+
+        let best = &splits[0];
+        // Verify that all parts' byte ranges are valid slices of the word.
+        for part in &best.parts {
+            assert_eq!(
+                &word[part.start..part.end],
+                part.surface,
+                "byte offset mismatch for part {:?}",
+                part
+            );
+        }
+
+        // Check structure: "hevos" + "en" + "kenkä"
+        assert_eq!(best.parts.len(), 3);
+        assert_eq!(best.parts[0].surface, "hevos");
+        assert!(!best.parts[0].is_linking);
+        assert_eq!(best.parts[1].surface, "en");
+        assert!(best.parts[1].is_linking);
+        assert_eq!(best.parts[2].surface, "kenk\u{00E4}");
+        assert!(!best.parts[2].is_linking);
     }
 }

@@ -88,13 +88,14 @@ pub fn refine_conjunction(surface: &str) -> &'static str {
 
     match lower.as_str() {
         // Coordinating conjunctions (CCONJ)
-        "ja" | "tai" | "vai" | "mutta" | "eli" | "sekä" | "eikä" | "saati" | "taikka" | "ynnä" => {
-            "CCONJ"
-        }
+        // "vaan" is adversative CCONJ in UD Finnish-TDT ("ei X vaan Y").
+        "ja" | "tai" | "vai" | "mutta" | "eli" | "sekä" | "eikä" | "saati" | "taikka" | "ynnä"
+        | "vaan" => "CCONJ",
 
         // Subordinating conjunctions (SCONJ)
         "että" | "kun" | "jos" | "koska" | "vaikka" | "jotta" | "kunnes" | "mikäli" | "ellei"
-        | "ettei" | "joskin" | "vaan" | "jollei" | "jollen" | "jollet" => "SCONJ",
+        | "ettei" | "joskin" | "jollei" | "jollen" | "jollet" | "jolloin" | "kohan" | "sillä"
+        | "johon" | "vaikkei" | "vaikkakaan" | "kuin" => "SCONJ",
 
         // Default: keep CCONJ
         _ => "CCONJ",
@@ -106,8 +107,19 @@ pub fn refine_conjunction(surface: &str) -> &'static str {
 /// In UD Finnish-TDT, these are tagged as AUX when used as auxiliaries.
 /// The MCE FST tags them all as `teonsana`.
 const FINNISH_AUX_LEMMAS: &[&str] = &[
-    "olla", "voida", "saattaa", "täytyä", "pitää", "joutua", "mahtaa", "taitaa", "aikoa",
-    "tarvita", "ehtiä",
+    "olla",
+    "voida",
+    "saattaa",
+    "täytyä",
+    "pitää",
+    "joutua",
+    "mahtaa",
+    "taitaa",
+    "aikoa",
+    "tarvita",
+    "ehtiä",
+    "kannattaa",
+    "kelvata",
 ];
 
 /// Finnish determiners that MCE tags as `asemosana` but UD tags as DET.
@@ -125,11 +137,22 @@ pub const FINNISH_PARTICLES: &[&str] = &[
     "aivan", "-ko", "-kö", "-han", "-hän", "-pa", "-pä",
 ];
 
+/// Finnish particle baseforms that UD Finnish-TDT tags as PART.
+///
+/// These are words that MCE typically tags as `seikkasana` (ADV) but that
+/// the UD standard classifies as particles. They are function words that
+/// do not fit the ADV category semantically.
+const FINNISH_PARTICLE_BASEFORMS: &[&str] = &[
+    "myös", "vain", "jo", "edes", "kyllä", "nyt", "ihan", "aivan", "vasta", "asti", "saakka",
+    "mukaan",
+];
+
 /// Map an MCE Analysis to a refined UD UPOS tag, using surface form for disambiguation.
 ///
 /// This combines [`mce_class_to_upos`] with surface-form refinements for cases
 /// where the MCE class is ambiguous (e.g., `sidesana` -> CCONJ or SCONJ,
-/// `teonsana` -> VERB or AUX, `asemosana` -> PRON or DET).
+/// `teonsana` -> VERB or AUX, `asemosana` -> PRON or DET,
+/// `seikkasana` -> ADV or PART).
 pub fn mce_to_upos(analysis: &Analysis, surface: &str) -> &'static str {
     let base = mce_class_to_upos(analysis);
 
@@ -164,6 +187,23 @@ pub fn mce_to_upos(analysis: &Analysis, surface: &str) -> &'static str {
                 return "DET";
             }
             "PRON"
+        }
+        "ADV" => {
+            // Some adverbs are actually particles in UD.
+            // Check baseform first, then surface form.
+            if let Some(baseform) = analysis.get(ATTR_BASEFORM) {
+                if FINNISH_PARTICLE_BASEFORMS.contains(&baseform) {
+                    return "PART";
+                }
+            }
+            let lower: String = surface
+                .chars()
+                .map(|c| c.to_lowercase().next().unwrap_or(c))
+                .collect();
+            if FINNISH_PARTICLE_BASEFORMS.contains(&lower.as_str()) {
+                return "PART";
+            }
+            "ADV"
         }
         other => other,
     }
@@ -242,5 +282,76 @@ mod tests {
     fn mce_to_upos_non_conjunction() {
         let a = make_analysis("nimisana");
         assert_eq!(mce_to_upos(&a, "koira"), "NOUN");
+    }
+
+    #[test]
+    fn vaan_is_cconj() {
+        // "vaan" is adversative CCONJ in UD Finnish-TDT, not SCONJ.
+        assert_eq!(refine_conjunction("vaan"), "CCONJ");
+        let a = make_analysis("sidesana");
+        assert_eq!(mce_to_upos(&a, "vaan"), "CCONJ");
+    }
+
+    #[test]
+    fn silla_is_sconj() {
+        assert_eq!(refine_conjunction("sillä"), "SCONJ");
+    }
+
+    #[test]
+    fn kuin_is_sconj() {
+        assert_eq!(refine_conjunction("kuin"), "SCONJ");
+    }
+
+    #[test]
+    fn particle_mapping() {
+        // "myös" (also) is PART in UD, not ADV.
+        let mut a = make_analysis("seikkasana");
+        a.set(ATTR_BASEFORM, "myös");
+        assert_eq!(mce_to_upos(&a, "myös"), "PART");
+
+        // "vain" (only) is PART.
+        let mut a2 = make_analysis("seikkasana");
+        a2.set(ATTR_BASEFORM, "vain");
+        assert_eq!(mce_to_upos(&a2, "vain"), "PART");
+
+        // "nopeasti" (quickly) stays ADV.
+        let mut a3 = make_analysis("seikkasana");
+        a3.set(ATTR_BASEFORM, "nopeasti");
+        assert_eq!(mce_to_upos(&a3, "nopeasti"), "ADV");
+    }
+
+    #[test]
+    fn particle_by_surface_form() {
+        // When baseform is missing, surface form is used.
+        let a = make_analysis("seikkasana");
+        assert_eq!(mce_to_upos(&a, "myös"), "PART");
+        assert_eq!(mce_to_upos(&a, "vain"), "PART");
+        assert_eq!(mce_to_upos(&a, "jo"), "PART");
+    }
+
+    #[test]
+    fn auxiliary_verb_detection() {
+        // "olla" -> AUX
+        let mut a = make_analysis("teonsana");
+        a.set(ATTR_BASEFORM, "olla");
+        assert_eq!(mce_to_upos(&a, "on"), "AUX");
+
+        // "voida" -> AUX
+        let mut a2 = make_analysis("teonsana");
+        a2.set(ATTR_BASEFORM, "voida");
+        assert_eq!(mce_to_upos(&a2, "voi"), "AUX");
+
+        // "juosta" -> VERB (not an auxiliary)
+        let mut a3 = make_analysis("teonsana");
+        a3.set(ATTR_BASEFORM, "juosta");
+        assert_eq!(mce_to_upos(&a3, "juoksee"), "VERB");
+    }
+
+    #[test]
+    fn participle_maps_to_verb() {
+        // Participles should map to VERB, not ADJ.
+        let mut a = make_analysis("laatusana");
+        a.set(ATTR_PARTICIPLE, "past_passive");
+        assert_eq!(mce_class_to_upos(&a), "VERB");
     }
 }

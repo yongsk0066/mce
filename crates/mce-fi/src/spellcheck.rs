@@ -22,12 +22,14 @@
 //   - mce_disambig::bigram (BigramModel, for context-based ranking)
 
 use mce_core::analysis::ATTR_CLASS;
+use mce_core::compound::CompoundAnalyzer;
 use mce_core::frequency::FrequencyList;
 use mce_core::trie::{SuccinctTrie, TrieBuilder};
 use mce_disambig::bigram::BigramModel;
 use mce_fst::unweighted::UnweightedTransducer;
 use mce_fst::VfstError;
 use mce_speller::pipeline::{MorphValidator, SpellChecker, SpellCheckerBuilder};
+use mce_speller::user_dict::UserDictionary;
 use mce_speller::SpellResult;
 
 use crate::morphology::{Analyzer, FinnishAnalyzer};
@@ -84,6 +86,9 @@ pub struct FinnishSpellChecker {
     checker: SpellChecker<FinnishMorphValidator>,
     /// Optional word frequency list for ranking suggestions.
     freq_list: Option<FrequencyList>,
+    /// Optional compound analyzer for compound-aware spelling.
+    #[allow(clippy::type_complexity)]
+    compound_analyzer: Option<CompoundAnalyzer<Box<dyn Fn(&str) -> bool>>>,
 }
 
 impl FinnishSpellChecker {
@@ -102,6 +107,18 @@ impl FinnishSpellChecker {
         // Build the morph validator (owns its own FinnishAnalyzer).
         let morph = FinnishMorphValidator::from_bytes(mor_vfst)?;
 
+        // Build a separate analyzer for the compound analyzer's dictionary lookup.
+        let compound_morph = FinnishAnalyzer::from_bytes(mor_vfst)?;
+        let compound_lookup: Box<dyn Fn(&str) -> bool> = Box::new(move |word: &str| {
+            let chars: Vec<char> = word.chars().collect();
+            let len = chars.len();
+            if len == 0 {
+                return false;
+            }
+            !compound_morph.analyze(&chars, len).is_empty()
+        });
+        let compound_analyzer = CompoundAnalyzer::new(compound_lookup);
+
         // Build a trie from the FST's symbol table.
         // We extract all single-character symbols (the alphabet) and
         // multi-character symbol strings that look like real words.
@@ -117,6 +134,7 @@ impl FinnishSpellChecker {
         Ok(Self {
             checker,
             freq_list: None,
+            compound_analyzer: Some(compound_analyzer),
         })
     }
 
@@ -141,13 +159,47 @@ impl FinnishSpellChecker {
         self.freq_list.as_ref()
     }
 
+    /// Set the user dictionary.
+    ///
+    /// Words in the user dictionary are always considered correctly spelled
+    /// and appear in spelling suggestions.
+    pub fn set_user_dict(&mut self, user_dict: UserDictionary) {
+        self.checker.set_user_dict(user_dict);
+    }
+
+    /// Access the user dictionary, if set.
+    pub fn user_dict(&self) -> Option<&UserDictionary> {
+        self.checker.user_dict()
+    }
+
+    /// Builder-style method to set the user dictionary.
+    pub fn with_user_dict(mut self, user_dict: UserDictionary) -> Self {
+        self.checker.set_user_dict(user_dict);
+        self
+    }
+
     /// Check whether a Finnish word is correctly spelled.
     ///
-    /// Returns [`SpellResult::Ok`] if the word is found in the trie or
-    /// passes morphological analysis via the FST. Results are cached
+    /// Returns [`SpellResult::Ok`] if the word is found in the trie,
+    /// passes morphological analysis via the FST, is in the user
+    /// dictionary, or is a valid compound word. Results are cached
     /// for repeated lookups.
     pub fn check(&mut self, word: &str) -> SpellResult {
-        self.checker.check(word)
+        // The underlying checker already handles trie, user dict, and morph.
+        let result = self.checker.check(word);
+        if result == SpellResult::Ok {
+            return result;
+        }
+
+        // Compound-aware check: try compound splitting.
+        if let Some(ref ca) = self.compound_analyzer {
+            let splits = ca.analyze(word);
+            if splits.iter().any(|s| s.word_parts().len() >= 2) {
+                return SpellResult::Ok;
+            }
+        }
+
+        result
     }
 
     /// Generate spelling suggestions for a misspelled word.
@@ -265,6 +317,103 @@ impl FinnishSpellChecker {
         }
     }
 
+    /// Generate compound-aware spelling suggestions.
+    ///
+    /// When a word might be a misspelled compound, tries to split it and
+    /// correct individual parts. For example, if "rautatieasma" is input
+    /// (where "asma" is a typo for "asema"), this may suggest
+    /// "rautatieasema".
+    ///
+    /// Returns at most `max_suggestions` compound suggestions, sorted by
+    /// edit distance from the original word.
+    pub fn suggest_compound(&self, word: &str, max_edits: usize) -> Vec<String> {
+        let ca = match &self.compound_analyzer {
+            Some(ca) => ca,
+            None => return Vec::new(),
+        };
+
+        let mut results: Vec<(usize, String)> = Vec::new();
+
+        // Strategy: try splitting the word at various positions.
+        // For each potential first-part length, check if the prefix is a
+        // valid word. If so, try to correct the remainder (and vice versa).
+        let word_len = word.len();
+        if word_len < 4 {
+            return Vec::new();
+        }
+
+        for split_pos in 2..word_len.saturating_sub(1) {
+            if !word.is_char_boundary(split_pos) {
+                continue;
+            }
+
+            let prefix = &word[..split_pos];
+            let suffix = &word[split_pos..];
+
+            // Case 1: prefix is valid, suffix needs correction.
+            let prefix_valid = {
+                let chars: Vec<char> = prefix.chars().collect();
+                let clen = chars.len();
+                !self
+                    .checker
+                    .morph()
+                    .analyzer()
+                    .analyze(&chars, clen)
+                    .is_empty()
+            };
+
+            if prefix_valid && !suffix.is_empty() {
+                let suffix_suggestions =
+                    self.checker
+                        .suggest_ranked(suffix, max_edits, 3, None::<fn(&str) -> f64>);
+                for corrected_suffix in suffix_suggestions {
+                    let compound = format!("{prefix}{corrected_suffix}");
+                    // Verify the compound is valid.
+                    let compound_splits = ca.analyze(&compound);
+                    if compound_splits.iter().any(|s| s.word_parts().len() >= 2) {
+                        let dist = edit_distance_str(word, &compound);
+                        if dist <= max_edits && dist > 0 {
+                            results.push((dist, compound));
+                        }
+                    }
+                }
+            }
+
+            // Case 2: suffix is valid, prefix needs correction.
+            let suffix_valid = {
+                let chars: Vec<char> = suffix.chars().collect();
+                let clen = chars.len();
+                !self
+                    .checker
+                    .morph()
+                    .analyzer()
+                    .analyze(&chars, clen)
+                    .is_empty()
+            };
+
+            if suffix_valid && !prefix.is_empty() {
+                let prefix_suggestions =
+                    self.checker
+                        .suggest_ranked(prefix, max_edits, 3, None::<fn(&str) -> f64>);
+                for corrected_prefix in prefix_suggestions {
+                    let compound = format!("{corrected_prefix}{suffix}");
+                    let compound_splits = ca.analyze(&compound);
+                    if compound_splits.iter().any(|s| s.word_parts().len() >= 2) {
+                        let dist = edit_distance_str(word, &compound);
+                        if dist <= max_edits && dist > 0 {
+                            results.push((dist, compound));
+                        }
+                    }
+                }
+            }
+        }
+
+        // Deduplicate and sort by distance.
+        results.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.cmp(&b.1)));
+        results.dedup_by(|a, b| a.1 == b.1);
+        results.into_iter().take(5).map(|(_, s)| s).collect()
+    }
+
     /// Generate suggestions without morphological filtering.
     ///
     /// Useful when you want raw candidates from the trie regardless
@@ -282,6 +431,28 @@ impl FinnishSpellChecker {
     pub fn trie(&self) -> &SuccinctTrie {
         self.checker.trie()
     }
+}
+
+/// Compute the Levenshtein edit distance between two strings.
+fn edit_distance_str(a: &str, b: &str) -> usize {
+    let a = a.as_bytes();
+    let b = b.as_bytes();
+    let n = a.len();
+    let m = b.len();
+
+    let mut prev: Vec<usize> = (0..=m).collect();
+    let mut curr = vec![0usize; m + 1];
+
+    for i in 1..=n {
+        curr[0] = i;
+        for j in 1..=m {
+            let cost = if a[i - 1] == b[j - 1] { 0 } else { 1 };
+            curr[j] = (prev[j] + 1).min(curr[j - 1] + 1).min(prev[j - 1] + cost);
+        }
+        std::mem::swap(&mut prev, &mut curr);
+    }
+
+    prev[m]
 }
 
 /// Build a [`SuccinctTrie`] from the VFST symbol table.
@@ -431,5 +602,138 @@ mod tests {
         assert_eq!(fl2.frequency("on"), 1);
         assert_eq!(fl2.frequency("ei"), 1);
         assert_eq!(fl2.total(), 3);
+    }
+
+    // ── compound-aware spelling tests (using mock trie) ───────────
+
+    #[test]
+    fn compound_check_with_mock_analyzer() {
+        use mce_core::compound::CompoundAnalyzer;
+
+        // Build a compound analyzer with a small dictionary.
+        let dict = |w: &str| matches!(w, "koira" | "koti" | "talo" | "auto");
+        let ca = CompoundAnalyzer::new(dict);
+
+        // "koirakoti" is a valid compound.
+        let splits = ca.analyze("koirakoti");
+        assert!(!splits.is_empty());
+        assert!(splits.iter().any(|s| s.word_parts().len() >= 2));
+
+        // "autotalo" is a valid compound.
+        let splits = ca.analyze("autotalo");
+        assert!(!splits.is_empty());
+
+        // "xyzzyabc" is not a valid compound.
+        let splits = ca.analyze("xyzzyabc");
+        assert!(splits.is_empty());
+    }
+
+    #[test]
+    fn edit_distance_str_basic() {
+        assert_eq!(edit_distance_str("koira", "koira"), 0);
+        assert_eq!(edit_distance_str("koira", "koiru"), 1);
+        assert_eq!(edit_distance_str("koira", "koir"), 1);
+        assert_eq!(edit_distance_str("koira", "koiraa"), 1);
+        assert_eq!(edit_distance_str("", "abc"), 3);
+        assert_eq!(edit_distance_str("abc", ""), 3);
+    }
+
+    // ── user dictionary integration tests (mock) ──────────────────
+
+    #[test]
+    fn user_dict_integration_with_mock_spellchecker() {
+        use mce_core::trie::TrieBuilder;
+
+        let mut builder = TrieBuilder::new();
+        builder.insert(b"koira".to_vec());
+        builder.insert(b"kissa".to_vec());
+        let trie = builder.build();
+
+        let accept_all = |_word: &[char], _len: usize| -> bool { true };
+
+        let ud = UserDictionary::from_words(["MCE", "WASM", "corevoikko"]);
+
+        let mut checker = SpellCheckerBuilder::new()
+            .trie(trie)
+            .morph_validator(accept_all)
+            .user_dict(ud)
+            .cache_size(0)
+            .build();
+
+        // User dict words are accepted.
+        assert_eq!(checker.check("MCE"), SpellResult::Ok);
+        assert_eq!(checker.check("WASM"), SpellResult::Ok);
+        assert_eq!(checker.check("corevoikko"), SpellResult::Ok);
+
+        // Trie words are still accepted.
+        assert_eq!(checker.check("koira"), SpellResult::Ok);
+    }
+
+    #[test]
+    fn user_dict_words_appear_in_suggestions() {
+        use mce_core::trie::TrieBuilder;
+
+        let mut builder = TrieBuilder::new();
+        builder.insert(b"test".to_vec());
+        let trie = builder.build();
+
+        let no_morph = |_word: &[char], _len: usize| -> bool { false };
+        let ud = UserDictionary::from_words(["tess"]);
+
+        let checker = SpellCheckerBuilder::new()
+            .trie(trie)
+            .morph_validator(no_morph)
+            .user_dict(ud)
+            .cache_size(0)
+            .build();
+
+        // "tesx" is 1 edit from "test" (trie) and 1 edit from "tess" (user dict).
+        // no_morph rejects trie candidates, but user dict bypasses morph.
+        let suggestions = checker.suggest("tesx", 1, 10);
+        assert!(
+            suggestions.contains(&"tess".to_string()),
+            "user dict word 'tess' should appear in suggestions: {:?}",
+            suggestions
+        );
+    }
+
+    #[test]
+    fn frequency_and_user_dict_combined_ranking() {
+        use mce_core::trie::TrieBuilder;
+
+        let mut builder = TrieBuilder::new();
+        builder.insert(b"koira".to_vec());
+        builder.insert(b"koura".to_vec());
+        let trie = builder.build();
+
+        let accept_all = |_word: &[char], _len: usize| -> bool { true };
+
+        let conllu = "\
+# sent_id = f.1
+# text = Koira on iso.
+1\tKoira\tkoira\tNOUN\tN\tCase=Nom|Number=Sing\t3\tnsubj\t3:nsubj\t_
+2\ton\tolla\tAUX\tV\tMood=Ind\t3\tcop\t3:cop\t_
+3\tiso\tiso\tADJ\tA\tCase=Nom\t0\troot\t0:root\tSpaceAfter=No
+4\t.\t.\tPUNCT\tPunct\t_\t3\tpunct\t3:punct\t_
+";
+        let fl = FrequencyList::from_conllu(conllu);
+
+        let ud = UserDictionary::from_words(["MCE"]);
+
+        let checker = SpellCheckerBuilder::new()
+            .trie(trie)
+            .morph_validator(accept_all)
+            .user_dict(ud)
+            .frequency_list(fl)
+            .cache_size(0)
+            .build();
+
+        // "MCF" is 1 edit from "MCE" (user dict).
+        let suggestions = checker.suggest_ranked("MCF", 1, 10, None::<fn(&str) -> f64>);
+        assert!(
+            suggestions.contains(&"MCE".to_string()),
+            "user dict word should appear in frequency-ranked suggestions: {:?}",
+            suggestions
+        );
     }
 }
