@@ -18,6 +18,13 @@
 //! - [`rules::repeated_word`]: Consecutive identical words ("koira koira")
 //! - [`rules::capitalization`]: Sentence-initial capitalization and proper noun casing
 //! - [`rules::agreement`]: Subject-verb number agreement
+//! - [`rules::double_space`]: Multiple consecutive spaces between words
+//! - [`rules::quotation_mark`]: Unmatched quotation marks (straight, typographic, guillemets)
+//! - [`rules::comma_before_conjunction`]: Missing comma before subordinating conjunctions
+//! - [`rules::compound_spacing`]: Compound words incorrectly split with a space
+//! - [`rules::number_agreement`]: Numeral-noun case/number agreement
+//! - [`rules::negation_agreement`]: Negation verb person/number agreement with pronouns
+//! - [`rules::double_negation`]: Non-standard double negation detection
 //!
 //! # Example
 //!

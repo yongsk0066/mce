@@ -24,4 +24,8 @@ serde.workspace = true
 serde-wasm-bindgen.workspace = true
 
 [package.metadata.wasm-pack.profile.release]
-wasm-opt = true
+# wasm-opt disabled: system wasm-opt (binaryen 126) doesn't support
+# bulk-memory/nontrapping-fptoint features emitted by Rust 1.93+.
+# Re-enable after upgrading binaryen to v119+ with feature support,
+# or install wasm-pack 0.14+ which bundles a compatible wasm-opt.
+wasm-opt = false

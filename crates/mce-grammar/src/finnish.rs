@@ -20,7 +20,11 @@ use mce_disambig::ViterbiDisambiguator;
 use mce_fi::morphology::{Analyzer, FinnishAnalyzer};
 use mce_tokenizer::next_token;
 
-use crate::rules::{AgreementRule, CapitalizationRule, RepeatedWordRule};
+use crate::rules::{
+    AgreementRule, CapitalizationRule, CommaBeforeConjunctionRule, CompoundSpacingRule,
+    DoubleNegationRule, DoubleSpaceRule, NegationAgreementRule, NumberAgreementRule,
+    QuotationMarkRule, RepeatedWordRule,
+};
 use crate::{AnnotatedToken, GrammarChecker, GrammarError, GrammarRule};
 
 /// Finnish grammar checker combining morphological analysis with grammar rules.
@@ -211,6 +215,13 @@ fn default_rules() -> Vec<Box<dyn GrammarRule>> {
         Box::new(RepeatedWordRule::new()),
         Box::new(CapitalizationRule::new()),
         Box::new(AgreementRule::new()),
+        Box::new(DoubleSpaceRule::new()),
+        Box::new(QuotationMarkRule::new()),
+        Box::new(CommaBeforeConjunctionRule::new()),
+        Box::new(CompoundSpacingRule::new()),
+        Box::new(NumberAgreementRule::new()),
+        Box::new(NegationAgreementRule::new()),
+        Box::new(DoubleNegationRule::new()),
     ]
 }
 
@@ -350,7 +361,14 @@ mod tests {
     fn whitespace_only() {
         let checker = FinnishGrammarChecker::without_analyzer();
         let errors = checker.check("   ");
-        assert!(errors.is_empty());
+        // DoubleSpaceRule fires on 3 consecutive spaces.
+        let double_space_errors: Vec<&GrammarError> =
+            errors.iter().filter(|e| e.code == "DOUBLE_SPACE").collect();
+        assert_eq!(double_space_errors.len(), 1);
+        // No other error types should fire.
+        let other_errors: Vec<&GrammarError> =
+            errors.iter().filter(|e| e.code != "DOUBLE_SPACE").collect();
+        assert!(other_errors.is_empty());
     }
 
     #[test]
@@ -414,12 +432,19 @@ mod tests {
     // -----------------------------------------------------------------------
 
     #[test]
-    fn default_rules_has_three_rules() {
+    fn default_rules_has_ten_rules() {
         let rules = default_rules();
-        assert_eq!(rules.len(), 3);
+        assert_eq!(rules.len(), 10);
         let ids: Vec<&str> = rules.iter().map(|r| r.id()).collect();
         assert!(ids.contains(&"REPEATED_WORD"));
         assert!(ids.contains(&"CAPITALIZATION_ERROR"));
         assert!(ids.contains(&"AGREEMENT_ERROR"));
+        assert!(ids.contains(&"DOUBLE_SPACE"));
+        assert!(ids.contains(&"QUOTATION_MARK_ERROR"));
+        assert!(ids.contains(&"COMMA_BEFORE_CONJUNCTION"));
+        assert!(ids.contains(&"COMPOUND_SPACING"));
+        assert!(ids.contains(&"NUMBER_AGREEMENT"));
+        assert!(ids.contains(&"NEGATION_AGREEMENT"));
+        assert!(ids.contains(&"DOUBLE_NEGATION"));
     }
 }
