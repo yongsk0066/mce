@@ -1,7 +1,8 @@
 //! MCE CLI — interactive testing tool for the Morphological Computation Engine.
 //!
 //! Provides subcommands for morphological analysis, spell-checking, compound
-//! word analysis, and sentence-level disambiguation using the VFST dictionary.
+//! word analysis, sentence-level disambiguation, grammar checking, and
+//! hyphenation using the VFST dictionary.
 //!
 //! # Usage
 //!
@@ -13,6 +14,9 @@
 //! mce-cli spell koirra
 //! mce-cli compound rautatieasema
 //! mce-cli sentence "koira juoksee"
+//! mce-cli grammar "Koira koira juoksee pihalla."
+//! mce-cli hyphenate suomalainen rautatieasema
+//! mce-cli hyphenate-text "Koira juoksee pihalla nopeasti."
 //! mce-cli info
 //! ```
 
@@ -28,9 +32,12 @@ use mce_core::analysis::{
 use mce_core::token::TokenType;
 use mce_disambig::{Disambiguator, ViterbiDisambiguator};
 use mce_fi::compound::FinnishCompoundAnalyzer;
+use mce_fi::hyphenation::FinnishHyphenator;
 use mce_fi::morphology::{Analyzer, FinnishAnalyzer};
 use mce_fi::spellcheck::FinnishSpellChecker;
 use mce_fst::unweighted::UnweightedTransducer;
+use mce_grammar::finnish::FinnishGrammarChecker;
+use mce_grammar::GrammarChecker;
 use mce_speller::SpellResult;
 use mce_tokenizer::next_token;
 
@@ -259,6 +266,79 @@ fn cmd_sentence(text: &str) {
     }
 }
 
+/// `mce-cli grammar <text>` -- check grammar of input text.
+fn cmd_grammar(text: &str) {
+    let data = load_dictionary();
+    let checker = match FinnishGrammarChecker::new(&data) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("error: failed to load grammar checker: {e}");
+            process::exit(1);
+        }
+    };
+
+    println!("Checking: {:?}", text);
+    println!();
+
+    let errors = checker.check(text);
+
+    if errors.is_empty() {
+        println!("No errors found.");
+        return;
+    }
+
+    for error in &errors {
+        let span = &text[error.start..error.end];
+        println!("Error at {}..{}: {}", error.start, error.end, error.code);
+        println!("  {:?} \u{2014} {}", span, error.message);
+        if !error.suggestions.is_empty() {
+            println!("  Suggestion: {}", error.suggestions.join(", "));
+        }
+        println!();
+    }
+
+    println!("{} error(s) found.", errors.len());
+}
+
+/// `mce-cli hyphenate <word>...` -- hyphenate individual words.
+fn cmd_hyphenate(words: &[String]) {
+    let hyphenator = FinnishHyphenator::new();
+
+    for word in words {
+        let result = hyphenator.hyphenate_word(word);
+        println!("{} \u{2192} {}", word, result);
+    }
+}
+
+/// `mce-cli hyphenate-text <text>` -- hyphenate running text.
+fn cmd_hyphenate_text(text: &str) {
+    let hyphenator = FinnishHyphenator::new();
+    let chars: Vec<char> = text.chars().collect();
+    let text_len = chars.len();
+    let mut result = String::with_capacity(text.len() * 2);
+    let mut pos = 0;
+
+    while pos < text_len {
+        let (token_type, token_len) = next_token(&chars, text_len, pos);
+
+        if token_len == 0 {
+            break;
+        }
+
+        let token_str: String = chars[pos..pos + token_len].iter().collect();
+
+        if token_type == TokenType::Word {
+            result.push_str(&hyphenator.hyphenate_word(&token_str));
+        } else {
+            result.push_str(&token_str);
+        }
+
+        pos += token_len;
+    }
+
+    println!("{}", result);
+}
+
 /// `mce-cli info` -- show dictionary metadata.
 fn cmd_info() {
     let data = load_dictionary();
@@ -393,14 +473,18 @@ fn print_usage() {
     eprintln!("    mce-cli <COMMAND> [ARGS]");
     eprintln!();
     eprintln!("COMMANDS:");
-    eprintln!("    analyze <word>       Morphological analysis of a word");
-    eprintln!("    spell <word>         Check spelling and suggest corrections");
-    eprintln!("    compound <word>      Analyze compound word structure");
-    eprintln!("    sentence <text>      Analyze and disambiguate a sentence");
-    eprintln!("    info                 Show dictionary info (symbol count, etc.)");
+    eprintln!("    analyze <word>            Morphological analysis of a word");
+    eprintln!("    spell <word>              Check spelling and suggest corrections");
+    eprintln!("    compound <word>           Analyze compound word structure");
+    eprintln!("    sentence <text>           Analyze and disambiguate a sentence");
+    eprintln!("    grammar <text>            Check grammar of input text");
+    eprintln!("    hyphenate <word>...       Hyphenate words");
+    eprintln!("    hyphenate-text <text>     Hyphenate running text");
+    eprintln!("    info                      Show dictionary info (symbol count, etc.)");
     eprintln!();
     eprintln!("ENVIRONMENT:");
-    eprintln!("    MCE_DICT_PATH        Directory containing mor.vfst");
+    eprintln!("    MCE_DICT_PATH        Directory containing mor.vfst (required for");
+    eprintln!("                         analyze, spell, compound, sentence, grammar, info)");
     eprintln!();
     eprintln!("EXAMPLES:");
     eprintln!("    export MCE_DICT_PATH=~/oss/corevoikko/voikko-fi/vvfst");
@@ -408,6 +492,9 @@ fn print_usage() {
     eprintln!("    mce-cli spell koirra");
     eprintln!("    mce-cli compound rautatieasema");
     eprintln!("    mce-cli sentence \"koira juoksee\"");
+    eprintln!("    mce-cli grammar \"Koira koira juoksee pihalla.\"");
+    eprintln!("    mce-cli hyphenate suomalainen rautatieasema kissanpentu");
+    eprintln!("    mce-cli hyphenate-text \"Koira juoksee pihalla nopeasti.\"");
     eprintln!("    mce-cli info");
 }
 
@@ -459,6 +546,32 @@ fn main() {
             // Join all remaining args in case the user didn't quote the text.
             let text = args[2..].join(" ");
             cmd_sentence(&text);
+        }
+        "grammar" => {
+            if args.len() < 3 {
+                eprintln!("error: 'grammar' requires a text argument.");
+                eprintln!("usage: mce-cli grammar \"text to check\"");
+                process::exit(1);
+            }
+            let text = args[2..].join(" ");
+            cmd_grammar(&text);
+        }
+        "hyphenate" => {
+            if args.len() < 3 {
+                eprintln!("error: 'hyphenate' requires at least one word argument.");
+                eprintln!("usage: mce-cli hyphenate <word>...");
+                process::exit(1);
+            }
+            cmd_hyphenate(&args[2..]);
+        }
+        "hyphenate-text" => {
+            if args.len() < 3 {
+                eprintln!("error: 'hyphenate-text' requires a text argument.");
+                eprintln!("usage: mce-cli hyphenate-text \"text to hyphenate\"");
+                process::exit(1);
+            }
+            let text = args[2..].join(" ");
+            cmd_hyphenate_text(&text);
         }
         "info" => {
             cmd_info();

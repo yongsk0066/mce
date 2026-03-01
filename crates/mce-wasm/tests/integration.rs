@@ -360,3 +360,117 @@ fn analyze_sentence_returns_valid_json() {
     assert!(result.contains("\"word\":\"koira\""));
     assert!(result.contains("\"word\":\"juoksee\""));
 }
+
+// =========================================================================
+// 9. grammar_check
+// =========================================================================
+
+#[test]
+#[ignore]
+fn grammar_check_returns_json_array() {
+    let engine = engine();
+    let result = engine.grammar_check("Koira juoksee.");
+
+    assert!(result.starts_with('['), "Should start with [: {}", result);
+    assert!(result.ends_with(']'), "Should end with ]: {}", result);
+}
+
+#[test]
+#[ignore]
+fn grammar_check_no_errors_for_correct_sentence() {
+    let engine = engine();
+    let result = engine.grammar_check("Koira juoksee.");
+    assert_eq!(result, "[]", "Correct sentence should have no errors");
+}
+
+#[test]
+#[ignore]
+fn grammar_check_detects_repeated_word() {
+    let engine = engine();
+    let result = engine.grammar_check("Koira koira juoksee.");
+
+    assert!(
+        result.contains("\"code\":\"REPEATED_WORD\""),
+        "Should detect repeated word: {}",
+        result
+    );
+}
+
+#[test]
+#[ignore]
+fn grammar_check_detects_capitalization_error() {
+    let engine = engine();
+    let result = engine.grammar_check("koira juoksee.");
+
+    assert!(
+        result.contains("\"code\":\"CAPITALIZATION_ERROR\""),
+        "Should detect capitalization error: {}",
+        result
+    );
+    assert!(
+        result.contains("\"suggestions\""),
+        "Should include suggestions: {}",
+        result
+    );
+}
+
+#[test]
+#[ignore]
+fn grammar_check_empty_text() {
+    let engine = engine();
+    let result = engine.grammar_check("");
+    assert_eq!(result, "[]");
+}
+
+// =========================================================================
+// 10. hyphenate
+// =========================================================================
+
+#[test]
+fn hyphenate_basic_words() {
+    // hyphenate does not need VFST — it is purely algorithmic.
+    // But we test it through MceEngine so we still need the engine.
+    // Use a standalone FinnishHyphenator for non-ignore tests.
+    let h = mce_fi::hyphenation::FinnishHyphenator::new();
+    assert_eq!(h.hyphenate_word("koulu"), "kou-lu");
+    assert_eq!(h.hyphenate_word("kartta"), "kart-ta");
+    assert_eq!(h.hyphenate_word("Helsinki"), "Hel-sin-ki");
+    assert_eq!(h.hyphenate_word("suomalainen"), "suo-ma-lai-nen");
+}
+
+#[test]
+#[ignore]
+fn hyphenate_via_engine() {
+    let engine = engine();
+    assert_eq!(engine.hyphenate("koulu"), "kou-lu");
+    assert_eq!(engine.hyphenate("kartta"), "kart-ta");
+    assert_eq!(engine.hyphenate("suomalainen"), "suo-ma-lai-nen");
+}
+
+#[test]
+#[ignore]
+fn hyphenate_text_via_engine() {
+    let engine = engine();
+    let result = engine.hyphenate_text("Koira juoksee.");
+    // "Koira" -> "Koi-ra", "juoksee" -> "juok-see"
+    assert!(
+        result.contains("Koi-ra"),
+        "Should hyphenate Koira: {}",
+        result
+    );
+    assert!(
+        result.contains("juok-see"),
+        "Should hyphenate juoksee: {}",
+        result
+    );
+    // Punctuation should be preserved.
+    assert!(result.ends_with('.'), "Should preserve period: {}", result);
+}
+
+#[test]
+#[ignore]
+fn hyphenate_text_preserves_whitespace() {
+    let engine = engine();
+    let result = engine.hyphenate_text("talo koulu");
+    assert_eq!(result, "ta-lo kou-lu");
+}

@@ -1,0 +1,174 @@
+{
+  "bootstrap_ci": {
+    "nouns": {
+      "mean": 8.23,
+      "ci_lower": 8.03,
+      "ci_upper": 8.44,
+      "n": 100
+    },
+    "verbs": {
+      "mean": 6.81,
+      "ci_lower": 6.4998,
+      "ci_upper": 7.1202,
+      "n": 100
+    },
+    "adjectives": {
+      "mean": 8.46,
+      "ci_lower": 7.9898,
+      "ci_upper": 8.99,
+      "n": 100
+    }
+  },
+  "mann_whitney": {
+    "nouns_vs_verbs": {
+      "U_statistic": 7932.5,
+      "p_value": 2.889404981700365e-13,
+      "rank_biserial_r": -0.5865,
+      "significant": true,
+      "n1": 100,
+      "n2": 100,
+      "mean_1": 8.23,
+      "mean_2": 6.81
+    },
+    "nouns_vs_adjectives": {
+      "U_statistic": 5469.0,
+      "p_value": 0.2412243395985365,
+      "rank_biserial_r": -0.0938,
+      "significant": false,
+      "n1": 100,
+      "n2": 100,
+      "mean_1": 8.23,
+      "mean_2": 8.46
+    },
+    "verbs_vs_adjectives": {
+      "U_statistic": 2728.5,
+      "p_value": 1.5791893338076663e-08,
+      "rank_biserial_r": 0.4543,
+      "significant": true,
+      "n1": 100,
+      "n2": 100,
+      "mean_1": 6.81,
+      "mean_2": 8.46
+    }
+  },
+  "spearman_correlation": {
+    "nouns": {
+      "spearman_rho": 0.7281,
+      "p_value": 9.253567606542433e-18,
+      "significant": true,
+      "n": 100
+    },
+    "verbs": {
+      "spearman_rho": 0.7754,
+      "p_value": 2.7782417857560124e-21,
+      "significant": true,
+      "n": 100
+    },
+    "adjectives": {
+      "spearman_rho": 0.9067,
+      "p_value": 1.568390822478174e-38,
+      "significant": true,
+      "n": 100
+    },
+    "pooled": {
+      "spearman_rho": 0.6721,
+      "p_value": 8.692042564474536e-41,
+      "significant": true,
+      "n": 300
+    }
+  },
+  "permutation_test": {
+    "nouns": {
+      "real_mean": 8.23,
+      "shuffled": {
+        "mean": 8.3169,
+        "std": 0.0156,
+        "ci_lower": 8.29,
+        "ci_upper": 8.34,
+        "difference": 0.0869,
+        "p_value": 0.0,
+        "cohens_d": 5.5758,
+        "significant": true
+      },
+      "random": {
+        "mean": 10.1199,
+        "std": 0.0008,
+        "ci_lower": 10.12,
+        "ci_upper": 10.12,
+        "difference": 1.8899,
+        "p_value": 0.0,
+        "cohens_d": 2266.8463,
+        "significant": true
+      },
+      "n_permutations": 1000
+    },
+    "verbs": {
+      "real_mean": 6.81,
+      "shuffled": {
+        "mean": 6.909,
+        "std": 0.0288,
+        "ci_lower": 6.85,
+        "ci_upper": 6.96,
+        "difference": 0.099,
+        "p_value": 0.003,
+        "cohens_d": 3.4404,
+        "significant": true
+      },
+      "random": {
+        "mean": 8.3298,
+        "std": 0.0015,
+        "ci_lower": 8.33,
+        "ci_upper": 8.33,
+        "difference": 1.5198,
+        "p_value": 0.0,
+        "cohens_d": 1013.8336,
+        "significant": true
+      },
+      "n_permutations": 1000
+    }
+  },
+  "kruskal_wallis": {
+    "H_statistic": 57.6977,
+    "p_value": 2.958655014617877e-13,
+    "epsilon_squared": 0.193,
+    "significant": true,
+    "n_total": 300,
+    "groups": {
+      "nouns": {
+        "n": 100,
+        "mean": 8.23,
+        "median": 8.0
+      },
+      "verbs": {
+        "n": 100,
+        "mean": 6.81,
+        "median": 6.0
+      },
+      "adjectives": {
+        "n": 100,
+        "mean": 8.46,
+        "median": 8.0
+      }
+    },
+    "posthoc_bonferroni": {
+      "nouns_vs_verbs": {
+        "U": 7932.5,
+        "p_raw": 2.889404981700365e-13,
+        "p_bonferroni": 8.668214945101095e-13,
+        "significant": true
+      },
+      "nouns_vs_adjectives": {
+        "U": 5469.0,
+        "p_raw": 0.2412243395985365,
+        "p_bonferroni": 0.7236730187956095,
+        "significant": false
+      },
+      "verbs_vs_adjectives": {
+        "U": 2728.5,
+        "p_raw": 1.5791893338076663e-08,
+        "p_bonferroni": 4.7375680014229986e-08,
+        "significant": true
+      }
+    }
+  }
+}

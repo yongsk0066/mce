@@ -221,6 +221,56 @@
       color: var(--text-muted);
     }
 
+    #results .grammar-text {
+      line-height: 2;
+      font-size: 1rem;
+    }
+
+    #results .grammar-error {
+      text-decoration: underline wavy var(--error);
+      text-underline-offset: 3px;
+      cursor: help;
+      position: relative;
+    }
+
+    #results .grammar-detail {
+      background: #ffebee;
+      border: 1px solid #ffcdd2;
+      border-radius: 4px;
+      padding: 0.5rem 0.75rem;
+      margin-top: 0.5rem;
+      font-size: 0.85rem;
+    }
+
+    #results .grammar-detail .error-code {
+      font-family: "SF Mono", Consolas, monospace;
+      font-size: 0.8rem;
+      color: var(--error);
+      font-weight: 600;
+    }
+
+    #results .grammar-detail .suggestion {
+      display: inline-block;
+      background: #e8f5e9;
+      color: var(--success);
+      padding: 0.1rem 0.4rem;
+      border-radius: 3px;
+      font-family: "SF Mono", Consolas, monospace;
+      font-size: 0.8rem;
+      margin-left: 0.25rem;
+    }
+
+    #results .hyphenated-text {
+      font-size: 1.05rem;
+      line-height: 1.8;
+      letter-spacing: 0.02em;
+    }
+
+    #results .hyphenated-text .hyphen-mark {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
     #results pre {
       background: var(--code-bg);
       padding: 0.75rem;
@@ -261,6 +311,8 @@
   <div class="buttons">
     <button id="btn-analyze" disabled>Analyze</button>
     <button id="btn-spell" disabled>Check Spelling</button>
+    <button id="btn-grammar" disabled>Grammar Check</button>
+    <button id="btn-hyphenate" disabled>Hyphenate</button>
     <button id="btn-compound" disabled>Compound Split</button>
     <button id="btn-baseform" disabled>Baseforms</button>
     <button id="btn-raw" disabled>Raw JSON</button>

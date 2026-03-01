@@ -17,6 +17,7 @@ mce-speller.workspace = true
 mce-disambig.workspace = true
 mce-comonad.workspace = true
 mce-tokenizer.workspace = true
+mce-grammar.workspace = true
 wasm-bindgen.workspace = true
 js-sys.workspace = true
 serde.workspace = true

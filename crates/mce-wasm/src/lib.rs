@@ -1,8 +1,8 @@
 //! MCE WASM — WebAssembly bindings for the MCE Finnish NLP engine.
 //!
 //! Provides a browser-friendly API for morphological analysis, spell checking,
-//! sentence-level analysis with disambiguation, suggestion generation, and
-//! compound word splitting using the VFST dictionary format.
+//! grammar checking, hyphenation, sentence-level analysis with disambiguation,
+//! suggestion generation, and compound word splitting using the VFST dictionary format.
 //!
 //! Targets ~7.5MB WASM, <5ms/sentence.
 //!
@@ -27,6 +27,13 @@
 //!
 //! // Compound word splitting
 //! console.log(engine.compound_split("rautatieasema"));
+//!
+//! // Grammar checking
+//! console.log(engine.grammar_check("koira koira juoksee."));
+//!
+//! // Hyphenation
+//! console.log(engine.hyphenate("suomalainen"));       // "suo-ma-lai-nen"
+//! console.log(engine.hyphenate_text("Koira juoksee nopeasti."));
 //! ```
 
 use wasm_bindgen::prelude::*;
@@ -35,18 +42,24 @@ use mce_core::analysis::{Analysis, ATTR_BASEFORM, ATTR_CLASS};
 use mce_core::compound::{CompoundAnalyzer, CompoundSplit};
 use mce_core::token::TokenType;
 use mce_disambig::{Disambiguator, ViterbiDisambiguator};
+use mce_fi::hyphenation::FinnishHyphenator;
 use mce_fi::morphology::{Analyzer, FinnishAnalyzer};
+use mce_grammar::finnish::FinnishGrammarChecker;
+use mce_grammar::GrammarChecker;
 use mce_tokenizer::next_token;
 
 /// MCE engine instance for browser use.
 ///
-/// Holds a loaded VFST transducer, a Viterbi disambiguator, and provides
-/// morphological analysis, spell checking, sentence-level disambiguation,
-/// suggestions, and compound splitting through a wasm-bindgen compatible API.
+/// Holds a loaded VFST transducer, a Viterbi disambiguator, a grammar checker,
+/// and a hyphenator. Provides morphological analysis, spell checking, grammar
+/// checking, hyphenation, sentence-level disambiguation, suggestions, and
+/// compound splitting through a wasm-bindgen compatible API.
 #[wasm_bindgen]
 pub struct MceEngine {
     analyzer: FinnishAnalyzer,
     disambiguator: ViterbiDisambiguator,
+    grammar_checker: FinnishGrammarChecker,
+    hyphenator: FinnishHyphenator,
 }
 
 #[wasm_bindgen]
@@ -60,9 +73,14 @@ impl MceEngine {
         let analyzer =
             FinnishAnalyzer::from_bytes(mor_vfst).map_err(|e| JsValue::from_str(&e.to_string()))?;
         let disambiguator = ViterbiDisambiguator::with_finnish_defaults_and_emission();
+        let grammar_checker =
+            FinnishGrammarChecker::new(mor_vfst).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let hyphenator = FinnishHyphenator::new();
         Ok(MceEngine {
             analyzer,
             disambiguator,
+            grammar_checker,
+            hyphenator,
         })
     }
 
@@ -226,6 +244,69 @@ impl MceEngine {
     /// Return the MCE engine version string.
     pub fn version() -> String {
         env!("CARGO_PKG_VERSION").to_string()
+    }
+
+    /// Check grammar of Finnish text. Returns JSON array of errors.
+    ///
+    /// Each error object contains:
+    /// - `start`: Byte offset of the error start in the original text
+    /// - `end`: Byte offset of the error end
+    /// - `code`: Error code (e.g., "REPEATED_WORD", "CAPITALIZATION_ERROR", "AGREEMENT_ERROR")
+    /// - `message`: Human-readable error description
+    /// - `suggestions`: Array of suggested corrections (may be empty)
+    ///
+    /// Example output:
+    /// ```json
+    /// [
+    ///   {"start":6,"end":11,"code":"REPEATED_WORD","message":"Repeated word: koira","suggestions":["koira"]}
+    /// ]
+    /// ```
+    pub fn grammar_check(&self, text: &str) -> String {
+        let errors = self.grammar_checker.check(text);
+        grammar_errors_to_json(&errors)
+    }
+
+    /// Hyphenate a Finnish word. Returns the word with hyphens inserted.
+    ///
+    /// Uses rule-based Finnish syllabification to find valid break points.
+    /// No dictionary lookup is required.
+    ///
+    /// Example: `hyphenate("suomalainen")` -> `"suo-ma-lai-nen"`
+    pub fn hyphenate(&self, word: &str) -> String {
+        self.hyphenator.hyphenate_word(word)
+    }
+
+    /// Hyphenate all words in text. Returns text with hyphens at valid break points.
+    ///
+    /// Tokenizes the text, hyphenates each word token, and reassembles the text
+    /// preserving all non-word tokens (whitespace, punctuation) as-is.
+    ///
+    /// Example: `hyphenate_text("Koira juoksee.")` -> `"Koi-ra juok-see."`
+    pub fn hyphenate_text(&self, text: &str) -> String {
+        let chars: Vec<char> = text.chars().collect();
+        let text_len = chars.len();
+        let mut result = String::with_capacity(text.len() + text.len() / 4);
+        let mut pos = 0;
+
+        while pos < text_len {
+            let (token_type, token_len) = next_token(&chars, text_len, pos);
+
+            if token_len == 0 {
+                break;
+            }
+
+            let token_str: String = chars[pos..pos + token_len].iter().collect();
+
+            if token_type == TokenType::Word {
+                result.push_str(&self.hyphenator.hyphenate_word(&token_str));
+            } else {
+                result.push_str(&token_str);
+            }
+
+            pos += token_len;
+        }
+
+        result
     }
 
     /// Disambiguate a sentence and return full pipeline results as JSON.
@@ -691,6 +772,39 @@ fn compound_splits_to_json(splits: &[CompoundSplit]) -> String {
     buf
 }
 
+/// Convert grammar errors to a JSON string.
+///
+/// Each error becomes a JSON object with `start`, `end`, `code`, `message`,
+/// and `suggestions` fields.
+fn grammar_errors_to_json(errors: &[mce_grammar::GrammarError]) -> String {
+    let mut buf = String::from('[');
+    for (i, err) in errors.iter().enumerate() {
+        if i > 0 {
+            buf.push(',');
+        }
+        buf.push_str("{\"start\":");
+        push_usize(&mut buf, err.start);
+        buf.push_str(",\"end\":");
+        push_usize(&mut buf, err.end);
+        buf.push_str(",\"code\":\"");
+        json_escape_into(&mut buf, err.code);
+        buf.push_str("\",\"message\":\"");
+        json_escape_into(&mut buf, &err.message);
+        buf.push_str("\",\"suggestions\":[");
+        for (j, suggestion) in err.suggestions.iter().enumerate() {
+            if j > 0 {
+                buf.push(',');
+            }
+            buf.push('"');
+            json_escape_into(&mut buf, suggestion);
+            buf.push('"');
+        }
+        buf.push_str("]}");
+    }
+    buf.push(']');
+    buf
+}
+
 /// Push a `usize` as decimal digits into the buffer (avoids `format!` overhead).
 fn push_usize(buf: &mut String, n: usize) {
     // itoa-style: for small numbers this is fine; large numbers too.
@@ -1098,5 +1212,167 @@ mod tests {
             .unwrap_or("unknown")
             .to_string();
         assert_eq!(result, "koira");
+    }
+
+    // -----------------------------------------------------------------------
+    // grammar_errors_to_json
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn grammar_errors_to_json_empty() {
+        let result = grammar_errors_to_json(&[]);
+        assert_eq!(result, "[]");
+    }
+
+    #[test]
+    fn grammar_errors_to_json_single_error() {
+        let err = mce_grammar::GrammarError::new(0, 5, "TEST_ERROR", "test message");
+        let result = grammar_errors_to_json(&[err]);
+        assert!(result.starts_with("[{"));
+        assert!(result.ends_with("}]"));
+        assert!(result.contains("\"start\":0"));
+        assert!(result.contains("\"end\":5"));
+        assert!(result.contains("\"code\":\"TEST_ERROR\""));
+        assert!(result.contains("\"message\":\"test message\""));
+        assert!(result.contains("\"suggestions\":[]"));
+    }
+
+    #[test]
+    fn grammar_errors_to_json_with_suggestions() {
+        let err = mce_grammar::GrammarError::with_suggestions(
+            10,
+            15,
+            "CAPITALIZATION_ERROR",
+            "Should be capitalized",
+            vec!["Koira".to_string()],
+        );
+        let result = grammar_errors_to_json(&[err]);
+        assert!(result.contains("\"start\":10"));
+        assert!(result.contains("\"end\":15"));
+        assert!(result.contains("\"code\":\"CAPITALIZATION_ERROR\""));
+        assert!(result.contains("\"suggestions\":[\"Koira\"]"));
+    }
+
+    #[test]
+    fn grammar_errors_to_json_multiple_errors() {
+        let e1 = mce_grammar::GrammarError::new(0, 5, "ERR1", "first");
+        let e2 = mce_grammar::GrammarError::new(6, 11, "ERR2", "second");
+        let result = grammar_errors_to_json(&[e1, e2]);
+        // Should have two objects separated by comma.
+        assert!(result.contains("},{"));
+        assert!(result.contains("\"code\":\"ERR1\""));
+        assert!(result.contains("\"code\":\"ERR2\""));
+    }
+
+    #[test]
+    fn grammar_errors_to_json_escapes_message() {
+        let err = mce_grammar::GrammarError::new(0, 5, "ERR", "has \"quotes\" inside");
+        let result = grammar_errors_to_json(&[err]);
+        assert!(result.contains("has \\\"quotes\\\" inside"));
+    }
+
+    // -----------------------------------------------------------------------
+    // grammar_check (unit test via FinnishGrammarChecker::without_analyzer)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn grammar_check_repeated_word_without_vfst() {
+        // Verify grammar_errors_to_json works with real checker output.
+        let checker = FinnishGrammarChecker::without_analyzer();
+        let errors = checker.check("Koira koira juoksee.");
+        let json = grammar_errors_to_json(&errors);
+        assert!(json.contains("\"code\":\"REPEATED_WORD\""));
+    }
+
+    #[test]
+    fn grammar_check_capitalization_without_vfst() {
+        let checker = FinnishGrammarChecker::without_analyzer();
+        let errors = checker.check("koira juoksee.");
+        let json = grammar_errors_to_json(&errors);
+        assert!(json.contains("\"code\":\"CAPITALIZATION_ERROR\""));
+        assert!(json.contains("\"Koira\""));
+    }
+
+    #[test]
+    fn grammar_check_no_errors_without_vfst() {
+        let checker = FinnishGrammarChecker::without_analyzer();
+        let errors = checker.check("Koira juoksee.");
+        let json = grammar_errors_to_json(&errors);
+        assert_eq!(json, "[]");
+    }
+
+    // -----------------------------------------------------------------------
+    // hyphenate (unit test, no VFST needed)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn hyphenate_simple_word() {
+        let h = FinnishHyphenator::new();
+        assert_eq!(h.hyphenate_word("koulu"), "kou-lu");
+    }
+
+    #[test]
+    fn hyphenate_suomalainen() {
+        let h = FinnishHyphenator::new();
+        assert_eq!(h.hyphenate_word("suomalainen"), "suo-ma-lai-nen");
+    }
+
+    #[test]
+    fn hyphenate_short_word_no_break() {
+        let h = FinnishHyphenator::new();
+        assert_eq!(h.hyphenate_word("ei"), "ei");
+    }
+
+    // -----------------------------------------------------------------------
+    // hyphenate_text (unit test via tokenizer + hyphenator)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn hyphenate_text_preserves_punctuation() {
+        let h = FinnishHyphenator::new();
+        // Simulate what hyphenate_text does manually.
+        let text = "talo.";
+        let chars: Vec<char> = text.chars().collect();
+        let text_len = chars.len();
+        let mut result = String::new();
+        let mut pos = 0;
+        while pos < text_len {
+            let (token_type, token_len) = next_token(&chars, text_len, pos);
+            if token_len == 0 {
+                break;
+            }
+            let token_str: String = chars[pos..pos + token_len].iter().collect();
+            if token_type == TokenType::Word {
+                result.push_str(&h.hyphenate_word(&token_str));
+            } else {
+                result.push_str(&token_str);
+            }
+            pos += token_len;
+        }
+        assert_eq!(result, "ta-lo.");
+    }
+
+    #[test]
+    fn hyphenate_text_multiple_words() {
+        let h = FinnishHyphenator::new();
+        let text = "koulu kartta";
+        let chars: Vec<char> = text.chars().collect();
+        let text_len = chars.len();
+        let mut result = String::new();
+        let mut pos = 0;
+        while pos < text_len {
+            let (token_type, token_len) = next_token(&chars, text_len, pos);
+            if token_len == 0 {
+                break;
+            }
+            let token_str: String = chars[pos..pos + token_len].iter().collect();
+            if token_type == TokenType::Word {
+                result.push_str(&h.hyphenate_word(&token_str));
+            } else {
+                result.push_str(&token_str);
+            }
+            pos += token_len;
+        }
+        assert_eq!(result, "kou-lu kart-ta");
     }
 }

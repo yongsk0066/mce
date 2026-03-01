@@ -11,3 +11,6 @@ mce-core.workspace = true
 mce-fst.workspace = true
 mce-speller.workspace = true
 mce-disambig.workspace = true
+
+[dev-dependencies]
+mce-grammar.workspace = true

@@ -14,3 +14,4 @@ mce-speller.workspace = true
 mce-disambig.workspace = true
 mce-comonad.workspace = true
 mce-fi.workspace = true
+mce-grammar.workspace = true

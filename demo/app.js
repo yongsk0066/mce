@@ -11,6 +11,8 @@ const inputEl = $('#input');
 const buttons = [
   $('#btn-analyze'),
   $('#btn-spell'),
+  $('#btn-grammar'),
+  $('#btn-hyphenate'),
   $('#btn-compound'),
   $('#btn-baseform'),
   $('#btn-raw'),
@@ -148,6 +150,111 @@ function doSpellCheck() {
 }
 
 // ---------------------------------------------------------------------------
+// Grammar Check
+// ---------------------------------------------------------------------------
+
+function doGrammarCheck() {
+  const text = getInput();
+  if (!text) { resultsEl.innerHTML = '<span class="placeholder">No input.</span>'; return; }
+
+  const json = timed(() => engine.grammar_check(text));
+  const errors = JSON.parse(json);
+
+  if (errors.length === 0) {
+    resultsEl.innerHTML = '<p class="grammar-text">' + escapeHtml(text) + '</p>' +
+      '<p style="margin-top:0.75rem;color:var(--success);font-size:0.85rem;">No grammar errors found.</p>';
+    return;
+  }
+
+  // Build text with error highlights.
+  // Sort errors by start position (should already be sorted).
+  errors.sort((a, b) => a.start - b.start);
+
+  // Convert byte offsets to character offsets for JavaScript string slicing.
+  // We use TextEncoder/TextDecoder to handle multi-byte characters.
+  const encoder = new TextEncoder();
+  const bytes = encoder.encode(text);
+
+  let html = '<p class="grammar-text">';
+  let lastByte = 0;
+  for (let i = 0; i < errors.length; i++) {
+    const err = errors[i];
+    // Text before this error.
+    if (err.start > lastByte) {
+      const before = new TextDecoder().decode(bytes.slice(lastByte, err.start));
+      html += escapeHtml(before);
+    }
+    // The error span.
+    const errText = new TextDecoder().decode(bytes.slice(err.start, err.end));
+    html += `<span class="grammar-error" title="${escapeHtml(err.message)}">${escapeHtml(errText)}</span>`;
+    lastByte = err.end;
+  }
+  // Text after last error.
+  if (lastByte < bytes.length) {
+    const after = new TextDecoder().decode(bytes.slice(lastByte));
+    html += escapeHtml(after);
+  }
+  html += '</p>';
+
+  // Error details.
+  html += '<div style="margin-top:0.75rem;">';
+  for (const err of errors) {
+    const errText = new TextDecoder().decode(bytes.slice(err.start, err.end));
+    html += '<div class="grammar-detail">';
+    html += `<span class="error-code">${escapeHtml(err.code)}</span> `;
+    html += `"${escapeHtml(errText)}": ${escapeHtml(err.message)}`;
+    if (err.suggestions.length > 0) {
+      html += ' &rarr; ';
+      for (const s of err.suggestions) {
+        html += `<span class="suggestion">${escapeHtml(s)}</span>`;
+      }
+    }
+    html += '</div>';
+  }
+  html += '</div>';
+
+  html += `<p style="margin-top:0.75rem;color:var(--text-muted);font-size:0.85rem;">${errors.length} error(s) found.</p>`;
+
+  resultsEl.innerHTML = html;
+}
+
+// ---------------------------------------------------------------------------
+// Hyphenate
+// ---------------------------------------------------------------------------
+
+function doHyphenate() {
+  const text = getInput();
+  if (!text) { resultsEl.innerHTML = '<span class="placeholder">No input.</span>'; return; }
+
+  const hyphenated = timed(() => engine.hyphenate_text(text));
+
+  // Highlight the hyphens visually.
+  let html = '<p class="hyphenated-text">';
+  for (const ch of hyphenated) {
+    if (ch === '-') {
+      html += '<span class="hyphen-mark">&shy;-</span>';
+    } else {
+      html += escapeHtml(ch);
+    }
+  }
+  html += '</p>';
+
+  // Also show individual word hyphenations.
+  const words = text.split(/\s+/).filter(Boolean).map((w) => w.replace(/[.,!?;:]+$/, '')).filter(Boolean);
+  const unique = [...new Set(words)];
+  if (unique.length > 0) {
+    html += '<table style="margin-top:0.75rem;"><thead><tr><th>Word</th><th>Hyphenated</th></tr></thead><tbody>';
+    for (const w of unique) {
+      const h = engine.hyphenate(w);
+      html += `<tr><td class="word-cell">${escapeHtml(w)}</td><td><span class="tag">${escapeHtml(h)}</span></td></tr>`;
+    }
+    html += '</tbody></table>';
+  }
+
+  resultsEl.innerHTML = html;
+}
+
+// ---------------------------------------------------------------------------
 // Compound Split
 // ---------------------------------------------------------------------------
 
@@ -240,6 +347,8 @@ function doRawJson() {
 
 $('#btn-analyze').addEventListener('click', doAnalyze);
 $('#btn-spell').addEventListener('click', doSpellCheck);
+$('#btn-grammar').addEventListener('click', doGrammarCheck);
+$('#btn-hyphenate').addEventListener('click', doHyphenate);
 $('#btn-compound').addEventListener('click', doCompoundSplit);
 $('#btn-baseform').addEventListener('click', doBaseforms);
 $('#btn-raw').addEventListener('click', doRawJson);
