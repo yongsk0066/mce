@@ -8,4 +8,9 @@ license.workspace = true
 
 [dependencies]
 mce-core.workspace = true
+mce-fst.workspace = true
+mce-tokenizer.workspace = true
+mce-speller.workspace = true
+mce-disambig.workspace = true
+mce-comonad.workspace = true
 mce-fi.workspace = true
