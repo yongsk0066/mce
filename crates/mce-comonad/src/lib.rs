@@ -49,6 +49,7 @@
 //! - Capobianco, S. & Uustalu, T. (2010). "A Categorical Outlook on Cellular Automata."
 //! - Orchard, D. (2012). "Should I use a Monad or a Comonad?"
 
+pub mod cg;
 pub mod finnish;
 pub mod zipper;
 

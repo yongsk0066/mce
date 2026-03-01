@@ -5,7 +5,9 @@
 //! - [`morphology`]: FST 출력 파싱 + 형태소 분석기 (`FinnishAnalyzer`)
 //! - 음운 상수: 모음, 자음, 모음 조화
 
+pub mod compound;
 pub mod morphology;
+pub mod spellcheck;
 mod tag_parser;
 
 /// Finnish vowels (lowercase): a, e, i, o, u, y, ä, ö.
