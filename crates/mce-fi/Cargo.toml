@@ -10,6 +10,4 @@ license.workspace = true
 mce-core.workspace = true
 mce-fst.workspace = true
 mce-speller.workspace = true
-
-[dev-dependencies]
 mce-disambig.workspace = true

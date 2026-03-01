@@ -7,13 +7,18 @@
 //   - suggest(): Uses the trie's fuzzy_search (Levenshtein automaton) on
 //     base forms extracted from the FST symbol table, then validates
 //     candidates through the morph validator.
+//   - suggest_with_context(): Like suggest(), but re-ranks candidates
+//     using POS bigram scores from the previous word's analysis.
 //
 // This module glues together:
 //   - mce_core::trie (M1 Succinct Trie)
 //   - mce_fi::morphology (FinnishAnalyzer)
 //   - mce_speller::pipeline (SpellChecker, MorphValidator, SpellCheckerBuilder)
+//   - mce_disambig::bigram (BigramModel, for context-based ranking)
 
+use mce_core::analysis::ATTR_CLASS;
 use mce_core::trie::{SuccinctTrie, TrieBuilder};
+use mce_disambig::bigram::BigramModel;
 use mce_fst::unweighted::UnweightedTransducer;
 use mce_fst::VfstError;
 use mce_speller::pipeline::{MorphValidator, SpellChecker, SpellCheckerBuilder};
@@ -122,6 +127,70 @@ impl FinnishSpellChecker {
     /// Returns at most 10 suggestions.
     pub fn suggest(&self, word: &str, max_edits: usize) -> Vec<String> {
         self.checker.suggest(word, max_edits, 10)
+    }
+
+    /// Generate context-aware suggestions for a misspelled word.
+    ///
+    /// Uses POS bigram scoring from the previous word to re-rank candidates.
+    /// The pipeline:
+    /// 1. Fuzzy search the trie for candidates within `max_edits`.
+    /// 2. Filter by morphological validity (via FinnishAnalyzer).
+    /// 3. For each valid candidate, analyze it to get its POS class.
+    /// 4. Score each candidate using the bigram transition weight from
+    ///    the previous word's POS class to the candidate's POS class.
+    /// 5. Rank by (edit_distance, -bigram_score, lexicographic).
+    /// 6. Return the top 5 suggestions.
+    ///
+    /// If `prev_word` is `None`, falls back to standard `suggest()`.
+    pub fn suggest_with_context(
+        &self,
+        word: &str,
+        prev_word: Option<&str>,
+        max_edits: usize,
+    ) -> Vec<String> {
+        const MAX_SUGGESTIONS: usize = 5;
+
+        let prev_class = prev_word.and_then(|pw| {
+            let chars: Vec<char> = pw.chars().collect();
+            let clen = chars.len();
+            let morph = self.checker.morph();
+            let analyses = morph.analyzer().analyze(&chars, clen);
+            // Take the POS class from the first analysis (most likely).
+            analyses
+                .first()
+                .and_then(|a| a.get(ATTR_CLASS).map(|s| s.to_string()))
+        });
+
+        match prev_class {
+            Some(prev_cls) => {
+                let bigram_model = BigramModel::finnish_defaults();
+                let rank_fn = |candidate: &str| -> f64 {
+                    // Analyze the candidate to get its POS class.
+                    let chars: Vec<char> = candidate.chars().collect();
+                    let clen = chars.len();
+                    let morph = self.checker.morph();
+                    let analyses = morph.analyzer().analyze(&chars, clen);
+                    analyses
+                        .iter()
+                        .map(|a| {
+                            let cls = a.get(ATTR_CLASS).unwrap_or("");
+                            bigram_model.get_weight(&prev_cls, cls)
+                        })
+                        .fold(f64::NEG_INFINITY, f64::max)
+                };
+                self.checker
+                    .suggest_ranked(word, max_edits, MAX_SUGGESTIONS, Some(rank_fn))
+            }
+            None => {
+                // No context available; use standard ranked suggestions.
+                self.checker.suggest_ranked(
+                    word,
+                    max_edits,
+                    MAX_SUGGESTIONS,
+                    None::<fn(&str) -> f64>,
+                )
+            }
+        }
     }
 
     /// Generate suggestions without morphological filtering.

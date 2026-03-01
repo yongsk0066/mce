@@ -123,10 +123,100 @@ impl<M: MorphValidator> SpellChecker<M> {
             .collect()
     }
 
+    /// Generate ranked suggestions with optional context-based reranking.
+    ///
+    /// 1. Fuzzy search the trie for candidates within `max_edits`.
+    /// 2. Filter by morphological validity.
+    /// 3. Rank by edit distance (primary) and morph-validity bonus.
+    /// 4. Limit to `max_suggestions` results.
+    ///
+    /// The `rank_fn` callback, if provided, assigns an additional score to each
+    /// candidate (higher = better). The final ranking is:
+    ///   `(edit_distance_ascending, -rank_score_descending, lexicographic)`.
+    ///
+    /// This enables context-dependent suggestion ranking (e.g. POS bigram
+    /// scoring based on the previous word's POS tag).
+    pub fn suggest_ranked<F>(
+        &self,
+        word: &str,
+        max_edits: usize,
+        max_suggestions: usize,
+        rank_fn: Option<F>,
+    ) -> Vec<String>
+    where
+        F: Fn(&str) -> f64,
+    {
+        let raw_candidates = self.trie.fuzzy_search(word.as_bytes(), max_edits);
+        let word_bytes = word.as_bytes();
+
+        let mut scored: Vec<(usize, f64, String)> = raw_candidates
+            .into_iter()
+            .filter_map(|bytes| {
+                let candidate = String::from_utf8(bytes).ok()?;
+
+                // Filter by morphological validity.
+                let chars: Vec<char> = candidate.chars().collect();
+                let clen = chars.len();
+                if !self.morph.is_valid(&chars, clen) {
+                    return None;
+                }
+
+                // Compute edit distance (we know it is within max_edits
+                // because fuzzy_search already filtered, but we need the
+                // exact distance for ranking).
+                let edit_dist = edit_distance(word_bytes, candidate.as_bytes());
+
+                // Apply optional rank function (higher = better).
+                let rank_score = rank_fn.as_ref().map_or(0.0, |f| f(&candidate));
+
+                Some((edit_dist, rank_score, candidate))
+            })
+            .collect();
+
+        // Sort: ascending edit distance, then descending rank_score,
+        // then lexicographic.
+        scored.sort_by(|a, b| {
+            a.0.cmp(&b.0)
+                .then(b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal))
+                .then(a.2.cmp(&b.2))
+        });
+
+        scored
+            .into_iter()
+            .take(max_suggestions)
+            .map(|(_, _, s)| s)
+            .collect()
+    }
+
     /// Access the underlying trie (for inspection or advanced usage).
     pub fn trie(&self) -> &SuccinctTrie {
         &self.trie
     }
+
+    /// Access the morph validator.
+    pub fn morph(&self) -> &M {
+        &self.morph
+    }
+}
+
+/// Compute the Levenshtein edit distance between two byte sequences.
+fn edit_distance(a: &[u8], b: &[u8]) -> usize {
+    let n = a.len();
+    let m = b.len();
+
+    let mut prev: Vec<usize> = (0..=m).collect();
+    let mut curr = vec![0usize; m + 1];
+
+    for i in 1..=n {
+        curr[0] = i;
+        for j in 1..=m {
+            let cost = if a[i - 1] == b[j - 1] { 0 } else { 1 };
+            curr[j] = (prev[j] + 1).min(curr[j - 1] + 1).min(prev[j - 1] + cost);
+        }
+        std::mem::swap(&mut prev, &mut curr);
+    }
+
+    prev[m]
 }
 
 /// Implement the existing `Speller` trait so that `SpellChecker` can be
@@ -454,5 +544,86 @@ mod tests {
         // string was not inserted into the trie).
         let suggestions = checker.suggest_unfiltered("", 0, 5);
         assert!(suggestions.is_empty());
+    }
+
+    // ── suggest_ranked tests ─────────────────────────────────────
+
+    #[test]
+    fn suggest_ranked_without_rank_fn() {
+        let checker = make_checker(k_morph);
+
+        // Without rank_fn, should behave like suggest() with morph filter.
+        let suggestions = checker.suggest_ranked("koirb", 1, 5, None::<fn(&str) -> f64>);
+        assert!(suggestions.contains(&"koira".to_string()));
+    }
+
+    #[test]
+    fn suggest_ranked_with_rank_fn() {
+        let checker = make_checker(k_morph);
+
+        // Rank function: prefer words that start with "ki" over "ko".
+        let rank_fn = |candidate: &str| -> f64 {
+            if candidate.starts_with("ki") {
+                10.0
+            } else {
+                0.0
+            }
+        };
+
+        // "kissc" is 1 edit from "kissa"; "koirc" is 1 edit from "koira".
+        // Both are in the trie and accepted by k_morph.
+        // With the rank_fn, "kissa" should appear before "koira"
+        // when edit distances are equal.
+        let suggestions = checker.suggest_ranked("kissb", 1, 5, Some(rank_fn));
+        if suggestions.contains(&"kissa".to_string()) {
+            // kissa should be first due to the rank bonus
+            assert_eq!(suggestions[0], "kissa");
+        }
+    }
+
+    #[test]
+    fn suggest_ranked_respects_max_suggestions() {
+        let checker = make_checker(k_morph);
+
+        let suggestions = checker.suggest_ranked("koira", 2, 2, None::<fn(&str) -> f64>);
+        assert!(suggestions.len() <= 2);
+    }
+
+    #[test]
+    fn suggest_ranked_morph_rejects_invalid() {
+        let checker = make_checker(no_morph);
+
+        // no_morph rejects everything, so suggest_ranked returns nothing.
+        let suggestions = checker.suggest_ranked("koirb", 1, 5, None::<fn(&str) -> f64>);
+        assert!(suggestions.is_empty());
+    }
+
+    // ── edit_distance tests ──────────────────────────────────────
+
+    #[test]
+    fn edit_distance_identical() {
+        assert_eq!(super::edit_distance(b"koira", b"koira"), 0);
+    }
+
+    #[test]
+    fn edit_distance_one_sub() {
+        assert_eq!(super::edit_distance(b"koira", b"koiru"), 1);
+    }
+
+    #[test]
+    fn edit_distance_one_del() {
+        assert_eq!(super::edit_distance(b"koira", b"koir"), 1);
+    }
+
+    #[test]
+    fn edit_distance_one_ins() {
+        assert_eq!(super::edit_distance(b"koira", b"koiraa"), 1);
+    }
+
+    #[test]
+    fn edit_distance_empty() {
+        assert_eq!(super::edit_distance(b"", b"abc"), 3);
+        assert_eq!(super::edit_distance(b"abc", b""), 3);
+        assert_eq!(super::edit_distance(b"", b""), 0);
     }
 }

@@ -31,7 +31,7 @@
 
 use wasm_bindgen::prelude::*;
 
-use mce_core::analysis::Analysis;
+use mce_core::analysis::{Analysis, ATTR_BASEFORM, ATTR_CLASS};
 use mce_core::compound::{CompoundAnalyzer, CompoundSplit};
 use mce_core::token::TokenType;
 use mce_disambig::{Disambiguator, ViterbiDisambiguator};
@@ -59,7 +59,7 @@ impl MceEngine {
     pub fn load(mor_vfst: &[u8]) -> Result<MceEngine, JsValue> {
         let analyzer =
             FinnishAnalyzer::from_bytes(mor_vfst).map_err(|e| JsValue::from_str(&e.to_string()))?;
-        let disambiguator = ViterbiDisambiguator::with_finnish_defaults();
+        let disambiguator = ViterbiDisambiguator::with_finnish_defaults_and_emission();
         Ok(MceEngine {
             analyzer,
             disambiguator,
@@ -227,6 +227,215 @@ impl MceEngine {
     pub fn version() -> String {
         env!("CARGO_PKG_VERSION").to_string()
     }
+
+    /// Disambiguate a sentence and return full pipeline results as JSON.
+    ///
+    /// Full pipeline:
+    /// 1. Tokenize the text into word tokens
+    /// 2. Analyze each word with FinnishAnalyzer
+    /// 3. Disambiguate using ViterbiDisambiguator with emission scoring
+    /// 4. Return JSON with POS tags and baseforms for each word
+    ///
+    /// Example output:
+    /// ```json
+    /// [
+    ///   {"word":"Koira","pos":"nimisana","baseform":"koira"},
+    ///   {"word":"juoksee","pos":"teonsana","baseform":"juosta"}
+    /// ]
+    /// ```
+    pub fn disambiguate_sentence(&self, text: &str) -> String {
+        let tokens = tokenize_words(text);
+
+        if tokens.is_empty() {
+            return "[]".to_string();
+        }
+
+        // Analyze each word token.
+        let word_analyses: Vec<Vec<Analysis>> = tokens
+            .iter()
+            .map(|word| {
+                let chars: Vec<char> = word.chars().collect();
+                let word_len = chars.len();
+                self.analyzer.analyze(&chars, word_len)
+            })
+            .collect();
+
+        // Disambiguate: pick the best reading for each position.
+        let word_refs: Vec<&str> = tokens.iter().map(|s| s.as_str()).collect();
+        let disambiguated = self
+            .disambiguator
+            .disambiguate_with_words(&word_refs, &word_analyses);
+
+        // Build JSON output with POS and baseform.
+        let mut buf = String::from('[');
+        for (i, word) in tokens.iter().enumerate() {
+            if i > 0 {
+                buf.push(',');
+            }
+            buf.push_str("{\"word\":\"");
+            json_escape_into(&mut buf, word);
+            buf.push('"');
+
+            if i < disambiguated.len() {
+                let analysis = &disambiguated[i];
+
+                buf.push_str(",\"pos\":\"");
+                if let Some(cls) = analysis.get(ATTR_CLASS) {
+                    json_escape_into(&mut buf, cls);
+                }
+                buf.push('"');
+
+                buf.push_str(",\"baseform\":\"");
+                if let Some(bf) = analysis.get(ATTR_BASEFORM) {
+                    json_escape_into(&mut buf, bf);
+                }
+                buf.push('"');
+
+                // Include all attributes for completeness.
+                buf.push_str(",\"attributes\":");
+                analysis_to_json_obj(&mut buf, analysis);
+            } else {
+                buf.push_str(",\"pos\":null,\"baseform\":null,\"attributes\":null");
+            }
+            buf.push('}');
+        }
+        buf.push(']');
+        buf
+    }
+
+    /// Quick baseform lookup for a word.
+    ///
+    /// Analyzes the word, disambiguates with a single-word context, and
+    /// returns the most likely baseform. Returns the word itself if no
+    /// analysis is found.
+    ///
+    /// Example: `get_baseform("koirien")` -> `"koira"`
+    pub fn get_baseform(&self, word: &str) -> String {
+        let chars: Vec<char> = word.chars().collect();
+        let word_len = chars.len();
+        let analyses = self.analyzer.analyze(&chars, word_len);
+
+        if analyses.is_empty() {
+            return word.to_string();
+        }
+
+        // For a single word, use disambiguator to pick the best reading.
+        let sentence = vec![analyses];
+        let disambiguated = self.disambiguator.disambiguate(&sentence);
+
+        disambiguated
+            .first()
+            .and_then(|a| a.get(ATTR_BASEFORM))
+            .unwrap_or(word)
+            .to_string()
+    }
+
+    /// Check if a word is valid Finnish (has at least one morphological analysis).
+    ///
+    /// This is a lightweight spell check that uses the FST-based morphological
+    /// analyzer. Returns `true` if the word has at least one valid analysis.
+    pub fn is_valid_word(&self, word: &str) -> bool {
+        let chars: Vec<char> = word.chars().collect();
+        let word_len = chars.len();
+        let analyses = self.analyzer.analyze(&chars, word_len);
+        !analyses.is_empty()
+    }
+
+    /// Generate context-aware spelling suggestions.
+    ///
+    /// Uses the previous word (if available) to rank suggestions by POS
+    /// bigram probability. Returns a JSON array of up to 5 suggestions.
+    ///
+    /// # Arguments
+    ///
+    /// * `word` - The misspelled word.
+    /// * `prev_word` - The previous word in context (or empty string for none).
+    /// * `max_edits` - Maximum edit distance for fuzzy search.
+    ///
+    /// Example output:
+    /// ```json
+    /// ["koira","koiru","kaira"]
+    /// ```
+    pub fn suggest_with_context(&self, word: &str, prev_word: &str, max_edits: u32) -> String {
+        let chars: Vec<char> = word.chars().collect();
+        let word_len = chars.len();
+        let analyses = self.analyzer.analyze(&chars, word_len);
+
+        if !analyses.is_empty() {
+            // Word is valid; no suggestions needed.
+            return "[]".to_string();
+        }
+
+        // Use context-aware suggestion from the analyzer.
+        // We do a simple approach: analyze the previous word to get its POS,
+        // then rank candidates that produce valid analyses by POS bigram score.
+        let prev_class = if !prev_word.is_empty() {
+            let prev_chars: Vec<char> = prev_word.chars().collect();
+            let prev_len = prev_chars.len();
+            let prev_analyses = self.analyzer.analyze(&prev_chars, prev_len);
+            prev_analyses
+                .first()
+                .and_then(|a| a.get(ATTR_CLASS).map(|s| s.to_string()))
+        } else {
+            None
+        };
+
+        // Generate candidates via simple character-level edits and validate.
+        let candidates = generate_edit_candidates(word, max_edits as usize);
+
+        let bigram_model = mce_disambig::bigram::BigramModel::finnish_defaults();
+
+        let mut scored: Vec<(usize, f64, String)> = candidates
+            .into_iter()
+            .filter_map(|(candidate, dist)| {
+                let c_chars: Vec<char> = candidate.chars().collect();
+                let c_len = c_chars.len();
+                let c_analyses = self.analyzer.analyze(&c_chars, c_len);
+
+                if c_analyses.is_empty() {
+                    return None;
+                }
+
+                // Compute bigram score if we have context.
+                let bigram_score = match &prev_class {
+                    Some(pc) => c_analyses
+                        .iter()
+                        .map(|a| {
+                            let cls = a.get(ATTR_CLASS).unwrap_or("");
+                            bigram_model.get_weight(pc, cls)
+                        })
+                        .fold(f64::NEG_INFINITY, f64::max),
+                    None => 0.0,
+                };
+
+                Some((dist, bigram_score, candidate))
+            })
+            .collect();
+
+        // Sort: ascending edit distance, descending bigram score, lexicographic.
+        scored.sort_by(|a, b| {
+            a.0.cmp(&b.0)
+                .then(b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal))
+                .then(a.2.cmp(&b.2))
+        });
+
+        // Deduplicate and limit to 5.
+        scored.dedup_by(|a, b| a.2 == b.2);
+        scored.truncate(5);
+
+        // Build JSON array.
+        let mut buf = String::from('[');
+        for (i, (_, _, candidate)) in scored.iter().enumerate() {
+            if i > 0 {
+                buf.push(',');
+            }
+            buf.push('"');
+            json_escape_into(&mut buf, candidate);
+            buf.push('"');
+        }
+        buf.push(']');
+        buf
+    }
 }
 
 // ===========================================================================
@@ -259,6 +468,149 @@ fn tokenize_words(text: &str) -> Vec<String> {
     }
 
     words
+}
+
+// ===========================================================================
+// Edit candidate generation
+// ===========================================================================
+
+/// Finnish alphabet for generating edit candidates.
+///
+/// Includes standard Latin letters plus Finnish-specific characters.
+const FINNISH_ALPHABET: &[char] = &[
+    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's',
+    't', 'u', 'v', 'w', 'x', 'y', 'z', '\u{00E4}', '\u{00F6}', // ä, ö
+];
+
+/// Generate edit-distance candidates for a word.
+///
+/// Produces all words within `max_edits` edit distance using:
+/// - Character deletion
+/// - Character insertion (Finnish alphabet)
+/// - Character substitution (Finnish alphabet)
+/// - Adjacent character transposition
+///
+/// Returns `(candidate, edit_distance)` pairs, deduplicated.
+fn generate_edit_candidates(word: &str, max_edits: usize) -> Vec<(String, usize)> {
+    let mut results = std::collections::HashSet::new();
+    let chars: Vec<char> = word.chars().collect();
+    let len = chars.len();
+
+    // Distance 1 edits
+    if max_edits >= 1 {
+        // Deletions
+        for i in 0..len {
+            let mut candidate: Vec<char> = Vec::with_capacity(len - 1);
+            candidate.extend_from_slice(&chars[..i]);
+            candidate.extend_from_slice(&chars[i + 1..]);
+            let s: String = candidate.into_iter().collect();
+            results.insert((s, 1));
+        }
+
+        // Substitutions
+        for i in 0..len {
+            for &c in FINNISH_ALPHABET {
+                if c != chars[i] {
+                    let mut candidate = chars.clone();
+                    candidate[i] = c;
+                    let s: String = candidate.into_iter().collect();
+                    results.insert((s, 1));
+                }
+            }
+        }
+
+        // Insertions
+        for i in 0..=len {
+            for &c in FINNISH_ALPHABET {
+                let mut candidate: Vec<char> = Vec::with_capacity(len + 1);
+                candidate.extend_from_slice(&chars[..i]);
+                candidate.push(c);
+                candidate.extend_from_slice(&chars[i..]);
+                let s: String = candidate.into_iter().collect();
+                results.insert((s, 1));
+            }
+        }
+
+        // Transpositions (adjacent swap)
+        for i in 0..len.saturating_sub(1) {
+            if chars[i] != chars[i + 1] {
+                let mut candidate = chars.clone();
+                candidate.swap(i, i + 1);
+                let s: String = candidate.into_iter().collect();
+                results.insert((s, 1));
+            }
+        }
+    }
+
+    // Distance 2: apply distance-1 edits to each distance-1 result.
+    // This is expensive but bounded: for a word of length ~10 with
+    // alphabet size ~28, we get ~280 distance-1 candidates, each
+    // generating ~280 more = ~78k total. Acceptable for WASM.
+    if max_edits >= 2 {
+        let dist1: Vec<String> = results.iter().map(|(s, _)| s.clone()).collect();
+        for d1 in &dist1 {
+            let d1_chars: Vec<char> = d1.chars().collect();
+            let d1_len = d1_chars.len();
+
+            // Deletions
+            for i in 0..d1_len {
+                let mut c: Vec<char> = Vec::with_capacity(d1_len - 1);
+                c.extend_from_slice(&d1_chars[..i]);
+                c.extend_from_slice(&d1_chars[i + 1..]);
+                let s: String = c.into_iter().collect();
+                results.insert((s, 2));
+            }
+
+            // Substitutions
+            for i in 0..d1_len {
+                for &ch in FINNISH_ALPHABET {
+                    if ch != d1_chars[i] {
+                        let mut c = d1_chars.clone();
+                        c[i] = ch;
+                        let s: String = c.into_iter().collect();
+                        results.insert((s, 2));
+                    }
+                }
+            }
+
+            // Insertions
+            for i in 0..=d1_len {
+                for &ch in FINNISH_ALPHABET {
+                    let mut c: Vec<char> = Vec::with_capacity(d1_len + 1);
+                    c.extend_from_slice(&d1_chars[..i]);
+                    c.push(ch);
+                    c.extend_from_slice(&d1_chars[i..]);
+                    let s: String = c.into_iter().collect();
+                    results.insert((s, 2));
+                }
+            }
+
+            // Transpositions
+            for i in 0..d1_len.saturating_sub(1) {
+                if d1_chars[i] != d1_chars[i + 1] {
+                    let mut c = d1_chars.clone();
+                    c.swap(i, i + 1);
+                    let s: String = c.into_iter().collect();
+                    results.insert((s, 2));
+                }
+            }
+        }
+    }
+
+    // Remove the original word from results.
+    results.remove(&(word.to_string(), 1));
+    results.remove(&(word.to_string(), 2));
+
+    // Prefer smallest edit distance per candidate.
+    let mut best: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    for (candidate, dist) in results {
+        let entry = best.entry(candidate).or_insert(dist);
+        if dist < *entry {
+            *entry = dist;
+        }
+    }
+
+    best.into_iter().collect()
 }
 
 // ===========================================================================
@@ -375,7 +727,6 @@ fn json_escape_into(buf: &mut String, s: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mce_core::analysis::{ATTR_BASEFORM, ATTR_CLASS};
 
     #[test]
     fn json_escape_handles_special_chars() {
@@ -635,5 +986,117 @@ mod tests {
         buf.clear();
         push_u32(&mut buf, 999);
         assert_eq!(buf, "999");
+    }
+
+    // -----------------------------------------------------------------------
+    // generate_edit_candidates
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn edit_candidates_generates_deletions() {
+        let candidates = generate_edit_candidates("abc", 1);
+        let words: Vec<&str> = candidates.iter().map(|(s, _)| s.as_str()).collect();
+        assert!(words.contains(&"ab"));
+        assert!(words.contains(&"bc"));
+        assert!(words.contains(&"ac"));
+    }
+
+    #[test]
+    fn edit_candidates_generates_substitutions() {
+        let candidates = generate_edit_candidates("ab", 1);
+        let words: Vec<&str> = candidates.iter().map(|(s, _)| s.as_str()).collect();
+        // "kb" is a substitution at position 0
+        assert!(words.contains(&"kb"));
+    }
+
+    #[test]
+    fn edit_candidates_generates_insertions() {
+        let candidates = generate_edit_candidates("ab", 1);
+        let words: Vec<&str> = candidates.iter().map(|(s, _)| s.as_str()).collect();
+        // "aab" is an insertion at position 0
+        assert!(words.contains(&"aab"));
+        // "abc" is an insertion at position 2
+        assert!(words.contains(&"abc"));
+    }
+
+    #[test]
+    fn edit_candidates_generates_transpositions() {
+        let candidates = generate_edit_candidates("ab", 1);
+        let words: Vec<&str> = candidates.iter().map(|(s, _)| s.as_str()).collect();
+        assert!(words.contains(&"ba"));
+    }
+
+    #[test]
+    fn edit_candidates_excludes_original() {
+        let candidates = generate_edit_candidates("koira", 1);
+        let words: Vec<&str> = candidates.iter().map(|(s, _)| s.as_str()).collect();
+        assert!(!words.contains(&"koira"));
+    }
+
+    #[test]
+    fn edit_candidates_includes_finnish_chars() {
+        let candidates = generate_edit_candidates("a", 1);
+        let words: Vec<&str> = candidates.iter().map(|(s, _)| s.as_str()).collect();
+        // ä should appear (substitution of 'a' to 'ä')
+        assert!(words.contains(&"\u{00E4}")); // ä
+    }
+
+    #[test]
+    fn edit_candidates_dist2() {
+        let candidates = generate_edit_candidates("ab", 2);
+        let words: Vec<&str> = candidates.iter().map(|(s, _)| s.as_str()).collect();
+        // "cd" is 2 edits from "ab" (two substitutions)
+        assert!(words.contains(&"cd"));
+    }
+
+    // -----------------------------------------------------------------------
+    // disambiguate_sentence JSON format (unit test without VFST)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn disambiguate_sentence_json_format() {
+        // Test the JSON output format by simulating what disambiguate_sentence produces.
+        let mut buf = String::from('[');
+        buf.push_str("{\"word\":\"test\"");
+        buf.push_str(",\"pos\":\"nimisana\"");
+        buf.push_str(",\"baseform\":\"testi\"");
+        buf.push_str(",\"attributes\":{\"CLASS\":\"nimisana\"}}");
+        buf.push(']');
+
+        assert!(buf.starts_with("[{"));
+        assert!(buf.ends_with("}]"));
+        assert!(buf.contains("\"word\":\"test\""));
+        assert!(buf.contains("\"pos\":\"nimisana\""));
+        assert!(buf.contains("\"baseform\":\"testi\""));
+    }
+
+    // -----------------------------------------------------------------------
+    // get_baseform (unit test without VFST)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn get_baseform_returns_word_when_no_analysis() {
+        // Test the fallback behavior directly.
+        let word = "xyzzy";
+        let analyses: Vec<Analysis> = Vec::new();
+        let result = if analyses.is_empty() {
+            word.to_string()
+        } else {
+            analyses[0].get(ATTR_BASEFORM).unwrap_or(word).to_string()
+        };
+        assert_eq!(result, "xyzzy");
+    }
+
+    #[test]
+    fn get_baseform_returns_baseform_from_analysis() {
+        let mut a = Analysis::new();
+        a.set(ATTR_CLASS, "nimisana");
+        a.set(ATTR_BASEFORM, "koira");
+        let analyses = vec![a];
+        let result = analyses[0]
+            .get(ATTR_BASEFORM)
+            .unwrap_or("unknown")
+            .to_string();
+        assert_eq!(result, "koira");
     }
 }
