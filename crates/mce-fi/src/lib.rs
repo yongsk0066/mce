@@ -6,6 +6,7 @@
 //! - 음운 상수: 모음, 자음, 모음 조화
 
 pub mod compound;
+pub mod generator;
 pub mod hyphenation;
 pub mod morphology;
 pub mod spellcheck;

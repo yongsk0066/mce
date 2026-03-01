@@ -517,6 +517,58 @@ impl MceEngine {
         buf.push(']');
         buf
     }
+
+    /// Generate an inflected form from a baseform, case, and number.
+    ///
+    /// Uses the coKleisli morphophonological pipeline (consonant gradation,
+    /// vowel harmony, possessive suffix) to produce the surface form.
+    ///
+    /// The `case` parameter accepts both Finnish names (e.g., "omanto") and
+    /// English names (e.g., "genitive"). The `number` parameter is reserved
+    /// for future plural support (currently only singular is supported).
+    ///
+    /// Returns the generated form, or the baseform unchanged if the case
+    /// is not recognized.
+    ///
+    /// Example: `generate_form("kaappi", "genitive", "singular")` -> `"kaapin"`
+    pub fn generate_form(&self, baseform: &str, case: &str, _number: &str) -> String {
+        let generator = mce_fi::generator::MorphGenerator::new();
+        generator
+            .generate(baseform, &[("SIJAMUOTO", case)])
+            .unwrap_or_else(|| baseform.to_string())
+    }
+
+    /// Generate all singular case forms for a noun.
+    ///
+    /// Returns a JSON array of `{"case": "<name>", "form": "<inflected>"}` objects.
+    ///
+    /// Example output:
+    /// ```json
+    /// [
+    ///   {"case":"nominative","form":"talo"},
+    ///   {"case":"genitive","form":"talon"},
+    ///   {"case":"partitive","form":"taloa"},
+    ///   ...
+    /// ]
+    /// ```
+    pub fn generate_paradigm(&self, baseform: &str) -> String {
+        let generator = mce_fi::generator::MorphGenerator::new();
+        let paradigm = generator.generate_paradigm(baseform);
+
+        let mut buf = String::from('[');
+        for (i, (case_name, form)) in paradigm.iter().enumerate() {
+            if i > 0 {
+                buf.push(',');
+            }
+            buf.push_str("{\"case\":\"");
+            json_escape_into(&mut buf, case_name);
+            buf.push_str("\",\"form\":\"");
+            json_escape_into(&mut buf, form);
+            buf.push_str("\"}");
+        }
+        buf.push(']');
+        buf
+    }
 }
 
 // ===========================================================================

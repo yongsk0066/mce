@@ -38,6 +38,7 @@ use mce_disambig::{Disambiguator, ViterbiDisambiguator};
 use mce_eval::conllu::parse_conllu_file;
 use mce_eval::pipeline::EvalPipeline;
 use mce_fi::compound::FinnishCompoundAnalyzer;
+use mce_fi::generator::MorphGenerator;
 use mce_fi::hyphenation::FinnishHyphenator;
 use mce_fi::morphology::{Analyzer, FinnishAnalyzer};
 use mce_fi::spellcheck::FinnishSpellChecker;
@@ -343,6 +344,77 @@ fn cmd_hyphenate_text(text: &str) {
     }
 
     println!("{}", result);
+}
+
+/// `mce-cli generate <baseform> [--case <case>] [--all]` -- morphological generation.
+fn cmd_generate(args: &[String]) {
+    if args.is_empty() {
+        eprintln!("error: 'generate' requires a baseform argument.");
+        eprintln!("usage: mce-cli generate <baseform> [--case <case>] [--all]");
+        process::exit(1);
+    }
+
+    let baseform = &args[0];
+    let mut case_name: Option<String> = None;
+    let mut show_all = false;
+
+    let mut i = 1;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--case" => {
+                i += 1;
+                if i >= args.len() {
+                    eprintln!("error: --case requires a value.");
+                    process::exit(1);
+                }
+                case_name = Some(args[i].clone());
+            }
+            "--all" => {
+                show_all = true;
+            }
+            other => {
+                eprintln!("error: unknown generate option '{other}'.");
+                eprintln!("usage: mce-cli generate <baseform> [--case <case>] [--all]");
+                process::exit(1);
+            }
+        }
+        i += 1;
+    }
+
+    let generator = MorphGenerator::new();
+
+    if show_all {
+        // Generate full paradigm.
+        let paradigm = generator.generate_paradigm(baseform);
+        println!("Paradigm for: {baseform}");
+        println!("{:-<40}", "");
+        for (case, form) in &paradigm {
+            println!("  {:<15} {}", case, form);
+        }
+    } else if let Some(ref cn) = case_name {
+        // Generate a single case form.
+        match generator.generate(baseform, &[("SIJAMUOTO", cn)]) {
+            Some(form) => println!("{form}"),
+            None => {
+                eprintln!("error: unknown case '{cn}'.");
+                eprintln!(
+                    "valid cases: nominative, genitive, partitive, inessive, elative, illative,"
+                );
+                eprintln!("             adessive, ablative, allative, essive, translative");
+                eprintln!("  (also: nimento, omanto, osanto, sisaolento, sisaeronto, sisatulento,");
+                eprintln!("         ulkoolento, ulkoeronto, ulkotulento, olento, tulento)");
+                process::exit(1);
+            }
+        }
+    } else {
+        // Default: show full paradigm.
+        let paradigm = generator.generate_paradigm(baseform);
+        println!("Paradigm for: {baseform}");
+        println!("{:-<40}", "");
+        for (case, form) in &paradigm {
+            println!("  {:<15} {}", case, form);
+        }
+    }
 }
 
 /// `mce-cli info` -- show dictionary metadata.
@@ -887,11 +959,16 @@ fn print_usage() {
     eprintln!("    compound <word>           Analyze compound word structure");
     eprintln!("    sentence <text>           Analyze and disambiguate a sentence");
     eprintln!("    grammar <text>            Check grammar of input text");
+    eprintln!("    generate <baseform> [OPT] Generate inflected form (coKleisli pipeline)");
     eprintln!("    hyphenate <word>...       Hyphenate words");
     eprintln!("    hyphenate-text <text>     Hyphenate running text");
     eprintln!("    info                      Show dictionary info (symbol count, etc.)");
     eprintln!("    eval [OPTIONS]            Evaluate UPOS/Lemma accuracy against CoNLL-U");
     eprintln!("    benchmark [OPTIONS]       Run performance benchmarks");
+    eprintln!();
+    eprintln!("GENERATE OPTIONS:");
+    eprintln!("    --case <CASE>             Case name (e.g., genitive, omanto)");
+    eprintln!("    --all                     Show full paradigm (all cases)");
     eprintln!();
     eprintln!("EVAL OPTIONS:");
     eprintln!("    --conllu <FILE>           Path to CoNLL-U file (required)");
@@ -914,6 +991,8 @@ fn print_usage() {
     eprintln!("    mce-cli compound rautatieasema");
     eprintln!("    mce-cli sentence \"koira juoksee\"");
     eprintln!("    mce-cli grammar \"Koira koira juoksee pihalla.\"");
+    eprintln!("    mce-cli generate kaappi --case genitive");
+    eprintln!("    mce-cli generate talo --all");
     eprintln!("    mce-cli hyphenate suomalainen rautatieasema kissanpentu");
     eprintln!("    mce-cli hyphenate-text \"Koira juoksee pihalla nopeasti.\"");
     eprintln!("    mce-cli info");
@@ -998,6 +1077,9 @@ fn main() {
             }
             let text = args[2..].join(" ");
             cmd_hyphenate_text(&text);
+        }
+        "generate" => {
+            cmd_generate(&args[2..]);
         }
         "info" => {
             cmd_info();
