@@ -3,17 +3,19 @@
 //! Feeds each CoNLL-U sentence through the MCE pipeline:
 //! 1. Tokenize (mce-tokenizer)
 //! 2. Analyze each token (mce-fi FinnishAnalyzer)
-//! 3. Disambiguate (mce-disambig ViterbiDisambiguator)
-//! 4. Map predicted class to UPOS (pos_map)
+//! 3. CG-lite pruning (mce-comonad CG rules prune unlikely readings)
+//! 4. Disambiguate (mce-disambig ViterbiDisambiguator)
+//! 5. Map predicted class to UPOS (pos_map)
 //!
 //! For evaluation, we use gold tokenization (the tokens from the CoNLL-U file)
 //! rather than MCE's tokenizer. This isolates POS tagging errors from
 //! tokenization errors.
 
+use mce_comonad::cg::{apply_cg_rules, finnish_disambiguation_rules, CgRule};
 use mce_core::analysis::{Analysis, ATTR_BASEFORM, ATTR_CLASS};
 use mce_core::token::TokenType;
 use mce_disambig::bigram::EmissionScorer;
-use mce_disambig::corpus::build_model_from_conllu;
+use mce_disambig::corpus::{build_model_from_conllu, extract_emission_priors};
 use mce_disambig::ViterbiDisambiguator;
 use mce_fi::morphology::{Analyzer, FinnishAnalyzer};
 use mce_tokenizer::next_token;
@@ -26,6 +28,7 @@ use crate::pos_map::mce_to_upos;
 pub struct EvalPipeline {
     analyzer: FinnishAnalyzer,
     disambiguator: ViterbiDisambiguator,
+    cg_rules: Vec<Box<dyn CgRule>>,
 }
 
 impl EvalPipeline {
@@ -33,27 +36,44 @@ impl EvalPipeline {
     pub fn from_bytes(data: &[u8]) -> Result<Self, mce_fst::VfstError> {
         let analyzer = FinnishAnalyzer::from_bytes(data)?;
         let disambiguator = ViterbiDisambiguator::with_finnish_defaults_and_emission();
+        let cg_rules = finnish_disambiguation_rules();
         Ok(Self {
             analyzer,
             disambiguator,
+            cg_rules,
         })
     }
 
-    /// Create a pipeline with corpus-trained bigram weights.
+    /// Create a pipeline with corpus-trained bigram weights and emission priors.
     ///
-    /// Uses the provided CoNLL-U training data to build a bigram model
-    /// with real corpus statistics, replacing the hand-tuned defaults.
+    /// Uses the provided CoNLL-U training data to:
+    /// 1. Build a bigram model with real corpus transition statistics.
+    /// 2. Extract word-level P(UPOS|word) emission priors and configure them
+    ///    in the emission scorer. These priors are the strongest disambiguation
+    ///    signal for unambiguous or low-ambiguity words.
     pub fn from_bytes_with_corpus(
         data: &[u8],
         train_conllu: &str,
     ) -> Result<Self, mce_fst::VfstError> {
         let analyzer = FinnishAnalyzer::from_bytes(data)?;
         let corpus_model = build_model_from_conllu(train_conllu);
+
+        // Extract word-level POS priors from training data.
+        let emission_priors = extract_emission_priors(train_conllu);
+        let prior_count = emission_priors.len();
+
+        let mut emission_scorer = EmissionScorer::finnish_defaults();
+        emission_scorer.set_word_pos_priors(emission_priors);
+
+        eprintln!("Emission priors: {} word forms loaded.", prior_count,);
+
         let mut disambiguator = ViterbiDisambiguator::new(corpus_model);
-        disambiguator.set_emission_scorer(EmissionScorer::finnish_defaults());
+        disambiguator.set_emission_scorer(emission_scorer);
+        let cg_rules = finnish_disambiguation_rules();
         Ok(Self {
             analyzer,
             disambiguator,
+            cg_rules,
         })
     }
 
@@ -134,6 +154,13 @@ impl EvalPipeline {
             }
         }
 
+        // Apply CG rules to prune candidate readings before disambiguation.
+        // CG rules remove unlikely readings based on local context, which
+        // reduces ambiguity for the Viterbi disambiguator.
+        if !self.cg_rules.is_empty() {
+            word_analyses = apply_cg_rules(&word_analyses, &self.cg_rules);
+        }
+
         // Disambiguate.
         let word_refs: Vec<&str> = words.iter().map(|s| s.as_str()).collect();
         let best = self
@@ -195,6 +222,11 @@ impl EvalPipeline {
                     mce_analyses.push(analyses);
                 }
                 pos += token_len;
+            }
+
+            // Apply CG rules to prune candidate readings before disambiguation.
+            if !self.cg_rules.is_empty() {
+                mce_analyses = apply_cg_rules(&mce_analyses, &self.cg_rules);
             }
 
             // Disambiguate.

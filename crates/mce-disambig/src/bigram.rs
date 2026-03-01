@@ -340,6 +340,10 @@ impl Default for BigramModel {
 ///   the analysis is more likely (no inflection = simpler reading).
 /// - **Structure length penalty**: Shorter STRUCTURE values suggest simpler
 ///   morphological composition, which is generally preferred.
+/// - **Word-level POS priors**: When corpus-derived P(UPOS|word) priors are
+///   available, analyses whose POS class matches a high-probability UPOS for
+///   the given word receive a bonus. This is the strongest disambiguation
+///   signal for unambiguous or low-ambiguity words.
 ///
 /// Scores are additive adjustments (in log-probability space).
 #[derive(Debug, Clone)]
@@ -349,6 +353,18 @@ pub struct EmissionScorer {
     /// Penalty per character of STRUCTURE length beyond 1.
     /// Applied as: `-(len - 1) * penalty` (only when len > 1).
     pub structure_length_penalty: f64,
+    /// Corpus-derived P(UPOS | word_form) priors.
+    ///
+    /// Outer key: lowercased word form.
+    /// Inner key: UPOS tag (e.g. "NOUN", "VERB").
+    /// Inner value: probability (0.0..1.0).
+    word_pos_priors: HashMap<String, HashMap<String, f64>>,
+    /// Weight applied to the log-prior: `prior_weight * ln(P(UPOS|word))`.
+    /// Higher values make the prior more influential.
+    pub prior_weight: f64,
+    /// Penalty applied when the analysis maps to a UPOS category not seen
+    /// in the prior distribution for this word. Should be negative.
+    pub prior_unseen_penalty: f64,
 }
 
 impl EmissionScorer {
@@ -357,6 +373,9 @@ impl EmissionScorer {
         Self {
             baseform_match_bonus,
             structure_length_penalty,
+            word_pos_priors: HashMap::new(),
+            prior_weight: 0.0,
+            prior_unseen_penalty: 0.0,
         }
     }
 
@@ -365,17 +384,47 @@ impl EmissionScorer {
     /// - Baseform match bonus: +0.5 (moderate preference for uninflected forms)
     /// - Structure length penalty: 0.1 per extra character (mild preference for
     ///   simpler analyses)
+    /// - No word-POS priors (must be set separately via [`set_word_pos_priors`]).
     pub fn finnish_defaults() -> Self {
         Self {
             baseform_match_bonus: 0.5,
             structure_length_penalty: 0.1,
+            word_pos_priors: HashMap::new(),
+            prior_weight: 2.0,
+            prior_unseen_penalty: -3.0,
         }
+    }
+
+    /// Set word-level POS priors from corpus data.
+    ///
+    /// The priors map lowercased word forms to their UPOS probability
+    /// distributions: `{ "koira" => { "NOUN" => 1.0 }, "kuusi" => { "NOUN" => 0.67, "NUM" => 0.33 } }`.
+    ///
+    /// These are typically extracted from a CoNLL-U treebank via
+    /// [`corpus::extract_emission_priors`](crate::corpus::extract_emission_priors).
+    pub fn set_word_pos_priors(&mut self, priors: HashMap<String, HashMap<String, f64>>) {
+        self.word_pos_priors = priors;
+    }
+
+    /// Check whether word-level POS priors have been loaded.
+    pub fn has_word_pos_priors(&self) -> bool {
+        !self.word_pos_priors.is_empty()
+    }
+
+    /// Number of word forms with POS priors.
+    pub fn num_word_priors(&self) -> usize {
+        self.word_pos_priors.len()
     }
 
     /// Score an analysis for a given surface word.
     ///
     /// Returns an additive adjustment to the emission log-probability.
     /// A positive value boosts the reading; negative penalizes it.
+    ///
+    /// When word-level POS priors are available, the score includes a
+    /// bonus proportional to `prior_weight * ln(P(UPOS|word))` for matching
+    /// POS categories, or `prior_unseen_penalty` for categories not observed
+    /// in the training data.
     ///
     /// # Arguments
     ///
@@ -402,7 +451,52 @@ impl EmissionScorer {
             }
         }
 
+        // Word-level POS prior: if we have corpus-derived P(UPOS|word),
+        // boost analyses whose CLASS maps to a high-probability UPOS.
+        if !self.word_pos_priors.is_empty() {
+            let lower = word
+                .chars()
+                .map(|c| c.to_lowercase().next().unwrap_or(c))
+                .collect::<String>();
+
+            if let Some(prior_map) = self.word_pos_priors.get(&lower) {
+                let predicted_upos = class_to_upos_category(analysis.get(ATTR_CLASS).unwrap_or(""));
+
+                if let Some(&prob) = prior_map.get(predicted_upos) {
+                    // Bonus: prior_weight * ln(P(UPOS|word))
+                    // For prob=1.0 this gives 0 bonus; for prob=0.5 gives -0.69*weight.
+                    adjustment += self.prior_weight * prob.ln();
+                } else {
+                    // This POS category was never seen for this word in training data.
+                    adjustment += self.prior_unseen_penalty;
+                }
+            }
+        }
+
         adjustment
+    }
+}
+
+/// Map an MCE CLASS value to a UPOS category string for emission prior scoring.
+///
+/// This is a lightweight mapping used inside [`EmissionScorer`] to match
+/// analysis CLASS values against the UPOS tags in the corpus-derived priors.
+/// It intentionally mirrors the basic mapping in `mce-eval::pos_map` but
+/// lives here to avoid a circular dependency between `mce-disambig` and `mce-eval`.
+pub fn class_to_upos_category(class: &str) -> &'static str {
+    match class {
+        "nimisana" | "nimisana_laatusana" | "lyhenne" => "NOUN",
+        "teonsana" => "VERB",
+        "laatusana" => "ADJ",
+        "seikkasana" => "ADV",
+        "asemosana" => "PRON",
+        "lukusana" => "NUM",
+        "etunimi" | "sukunimi" | "paikannimi" => "PROPN",
+        "kieltosana" => "AUX",
+        "suhdesana" => "ADP",
+        "sidesana" => "CCONJ",
+        "huudahdussana" => "INTJ",
+        _ => "X",
     }
 }
 
@@ -887,5 +981,175 @@ mod tests {
             noun_verb,
             noun_noun
         );
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Word-level POS priors (EmissionScorer)
+    // ─────────────────────────────────────────────────────────────
+
+    fn make_scorer_with_priors() -> EmissionScorer {
+        let mut scorer = EmissionScorer::new(0.0, 0.0);
+        scorer.prior_weight = 2.0;
+        scorer.prior_unseen_penalty = -3.0;
+
+        let mut priors = HashMap::new();
+        // "koira" is always NOUN
+        let mut koira_priors = HashMap::new();
+        koira_priors.insert("NOUN".to_string(), 1.0);
+        priors.insert("koira".to_string(), koira_priors);
+
+        // "kuusi" is ambiguous: 2/3 NOUN, 1/3 NUM
+        let mut kuusi_priors = HashMap::new();
+        kuusi_priors.insert("NOUN".to_string(), 2.0 / 3.0);
+        kuusi_priors.insert("NUM".to_string(), 1.0 / 3.0);
+        priors.insert("kuusi".to_string(), kuusi_priors);
+
+        scorer.set_word_pos_priors(priors);
+        scorer
+    }
+
+    #[test]
+    fn emission_prior_unambiguous_word_boosts_correct_pos() {
+        let scorer = make_scorer_with_priors();
+
+        let noun = make_analysis("nimisana", "koira");
+        let verb = make_analysis("teonsana", "koirata");
+
+        let noun_score = scorer.score("koira", &noun);
+        let verb_score = scorer.score("koira", &verb);
+
+        // NOUN should get a bonus (P=1.0 -> ln(1.0)=0.0) while
+        // VERB should get the unseen penalty (-3.0).
+        assert!(
+            noun_score > verb_score,
+            "NOUN ({}) should score higher than VERB ({}) for 'koira'",
+            noun_score,
+            verb_score
+        );
+    }
+
+    #[test]
+    fn emission_prior_ambiguous_word_prefers_majority() {
+        let scorer = make_scorer_with_priors();
+
+        let noun = make_analysis("nimisana", "kuusi");
+        let num = make_analysis("lukusana", "kuusi");
+
+        let noun_score = scorer.score("kuusi", &noun);
+        let num_score = scorer.score("kuusi", &num);
+
+        // NOUN (P=2/3) should score higher than NUM (P=1/3)
+        assert!(
+            noun_score > num_score,
+            "NOUN ({}) should score higher than NUM ({}) for 'kuusi'",
+            noun_score,
+            num_score
+        );
+    }
+
+    #[test]
+    fn emission_prior_unseen_word_no_effect() {
+        let scorer = make_scorer_with_priors();
+
+        let noun = make_analysis("nimisana", "talo");
+        let verb = make_analysis("teonsana", "talo");
+
+        let noun_score = scorer.score("talo", &noun);
+        let verb_score = scorer.score("talo", &verb);
+
+        // "talo" is not in the priors, so both should get 0.0 adjustment
+        assert!(
+            (noun_score - verb_score).abs() < f64::EPSILON,
+            "Unseen word should not be affected by priors: NOUN={}, VERB={}",
+            noun_score,
+            verb_score
+        );
+    }
+
+    #[test]
+    fn emission_prior_case_insensitive() {
+        let scorer = make_scorer_with_priors();
+
+        // "Koira" (capitalized) should match "koira" in priors
+        let noun = make_analysis("nimisana", "koira");
+        let verb = make_analysis("teonsana", "koirata");
+
+        let noun_score = scorer.score("Koira", &noun);
+        let verb_score = scorer.score("Koira", &verb);
+
+        assert!(
+            noun_score > verb_score,
+            "Case-insensitive lookup: NOUN ({}) should beat VERB ({}) for 'Koira'",
+            noun_score,
+            verb_score
+        );
+    }
+
+    #[test]
+    fn emission_prior_unseen_pos_penalty() {
+        let scorer = make_scorer_with_priors();
+
+        // "koira" only has NOUN in priors; ADJ should get unseen penalty
+        let adj = make_analysis("laatusana", "koira");
+        let score = scorer.score("koira", &adj);
+
+        assert!(
+            score < 0.0,
+            "Unseen POS for a known word should receive a penalty, got {}",
+            score
+        );
+        assert!(
+            (score - (-3.0)).abs() < f64::EPSILON,
+            "Expected penalty of -3.0, got {}",
+            score
+        );
+    }
+
+    #[test]
+    fn emission_prior_perfect_prior_gives_zero_bonus() {
+        let scorer = make_scorer_with_priors();
+
+        // "koira" NOUN has P=1.0, ln(1.0) = 0.0, so bonus = 2.0 * 0.0 = 0.0
+        let noun = make_analysis("nimisana", "koira");
+        let score = scorer.score("koira", &noun);
+
+        assert!(
+            score.abs() < f64::EPSILON,
+            "P=1.0 should give zero bonus (ln(1)=0), got {}",
+            score
+        );
+    }
+
+    #[test]
+    fn emission_prior_has_word_pos_priors() {
+        let mut scorer = EmissionScorer::new(0.0, 0.0);
+        assert!(!scorer.has_word_pos_priors());
+        assert_eq!(scorer.num_word_priors(), 0);
+
+        let mut priors = HashMap::new();
+        priors.insert("test".to_string(), HashMap::new());
+        scorer.set_word_pos_priors(priors);
+        assert!(scorer.has_word_pos_priors());
+        assert_eq!(scorer.num_word_priors(), 1);
+    }
+
+    #[test]
+    fn class_to_upos_category_mappings() {
+        assert_eq!(class_to_upos_category("nimisana"), "NOUN");
+        assert_eq!(class_to_upos_category("teonsana"), "VERB");
+        assert_eq!(class_to_upos_category("laatusana"), "ADJ");
+        assert_eq!(class_to_upos_category("seikkasana"), "ADV");
+        assert_eq!(class_to_upos_category("asemosana"), "PRON");
+        assert_eq!(class_to_upos_category("lukusana"), "NUM");
+        assert_eq!(class_to_upos_category("etunimi"), "PROPN");
+        assert_eq!(class_to_upos_category("sukunimi"), "PROPN");
+        assert_eq!(class_to_upos_category("paikannimi"), "PROPN");
+        assert_eq!(class_to_upos_category("kieltosana"), "AUX");
+        assert_eq!(class_to_upos_category("suhdesana"), "ADP");
+        assert_eq!(class_to_upos_category("sidesana"), "CCONJ");
+        assert_eq!(class_to_upos_category("huudahdussana"), "INTJ");
+        assert_eq!(class_to_upos_category("nimisana_laatusana"), "NOUN");
+        assert_eq!(class_to_upos_category("lyhenne"), "NOUN");
+        assert_eq!(class_to_upos_category("unknown"), "X");
     }
 }

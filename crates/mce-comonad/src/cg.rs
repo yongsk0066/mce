@@ -10,7 +10,10 @@
 //!
 //! - [`ReadingSet`]: A type alias for the set of candidate analyses at one position.
 //! - [`CgRule`]: A trait for individual CG rules (coKleisli arrows).
-//! - Concrete rules: [`RemoveIfPreceded`], [`SelectIfFollowed`], [`RemoveIfNotPreceded`].
+//! - Concrete rules: [`RemoveIfPreceded`], [`SelectIfFollowed`], [`RemoveIfNotPreceded`],
+//!   [`RemoveByClass`], [`SelectByBaseform`], [`SelectIfNotFollowed`].
+//! - [`finnish_disambiguation_rules`]: Pre-built Finnish CG rule set targeting
+//!   the top UPOS confusions (ADJ/NOUN, ADV/NOUN, NOUN/PROPN, NOUN/VERB, PRON/NOUN).
 //! - [`apply_cg_rules`]: Applies a sequence of CG rules over a sentence,
 //!   using [`Zipper::extend`] for each rule pass.
 //!
@@ -52,7 +55,7 @@
 //! assert_eq!(result[1][0].get(ATTR_CLASS), Some("nimisana"));
 //! ```
 
-use mce_core::analysis::{Analysis, ATTR_CLASS};
+use mce_core::analysis::{Analysis, ATTR_BASEFORM, ATTR_CLASS};
 
 use crate::zipper::Zipper;
 
@@ -201,6 +204,278 @@ impl CgRule for RemoveIfNotPreceded {
 
         safe_filter(current, |a| a.get(ATTR_CLASS) != Some(&self.remove_class))
     }
+}
+
+// ---------------------------------------------------------------------------
+// Extended rule types for Finnish disambiguation
+// ---------------------------------------------------------------------------
+
+/// REMOVE readings of a specific CLASS when the context contains a specific
+/// CLASS at position -1, but only when the current position also has at
+/// least one reading of an alternative CLASS. This prevents removing when
+/// there is no safe fallback.
+///
+/// CG notation: `REMOVE (X) IF (-1 (Y)) (0 HAS Z)`
+///
+/// Example: REMOVE nimisana IF (-1 lukusana) IF (0 HAS lukusana)
+///   — if preceded by a numeral and the current position also has a numeral
+///   reading, remove noun readings (prefer "kolme" as numeral, not noun).
+#[derive(Debug, Clone)]
+pub struct RemoveByClass {
+    /// The CLASS value to remove from the current position.
+    pub remove_class: String,
+    /// The CLASS value that must be present at position -1.
+    pub context_class: String,
+    /// The CLASS value that must also be present in the current readings
+    /// (as a safe alternative).
+    pub require_alternative: String,
+}
+
+impl CgRule for RemoveByClass {
+    fn apply(&self, z: &Zipper<ReadingSet>) -> ReadingSet {
+        let current = z.extract();
+
+        // Check context at position -1.
+        let context_ok = z
+            .peek_left(1)
+            .is_some_and(|left| has_class(left, &self.context_class));
+
+        if !context_ok {
+            return current.clone();
+        }
+
+        // Check that the current position has the required alternative reading.
+        if !has_class(current, &self.require_alternative) {
+            return current.clone();
+        }
+
+        safe_filter(current, |a| a.get(ATTR_CLASS) != Some(&self.remove_class))
+    }
+}
+
+/// SELECT readings with CLASS=X IF the current position is preceded by a
+/// word with a specific BASEFORM.
+///
+/// CG notation: `SELECT (X) IF (-1 BASEFORM=Y)`
+///
+/// Example: SELECT teonsana IF (-1 baseform "ei")
+///   — if preceded by the negation verb "ei", select verb readings.
+#[derive(Debug, Clone)]
+pub struct SelectByBaseform {
+    /// The CLASS value to select at the current position.
+    pub select_class: String,
+    /// The BASEFORM value that must appear in at least one reading at position -1.
+    pub preceded_by_baseform: String,
+}
+
+impl CgRule for SelectByBaseform {
+    fn apply(&self, z: &Zipper<ReadingSet>) -> ReadingSet {
+        let current = z.extract();
+
+        let preceded = z.peek_left(1).is_some_and(|left| {
+            left.iter()
+                .any(|a| a.get(ATTR_BASEFORM) == Some(&self.preceded_by_baseform))
+        });
+
+        if !preceded {
+            return current.clone();
+        }
+
+        safe_filter(current, |a| a.get(ATTR_CLASS) == Some(&self.select_class))
+    }
+}
+
+/// SELECT reading with CLASS=X IF position +1 does NOT have CLASS=Y.
+///
+/// CG notation: `SELECT (X) IF (NOT 1 (Y))`
+///
+/// Example: SELECT nimisana IF (NOT +1 teonsana)
+///   — if NOT followed by a verb, prefer noun readings (adjective-as-noun).
+#[derive(Debug, Clone)]
+pub struct SelectIfNotFollowed {
+    /// The CLASS value to select at the current position.
+    pub select_class: String,
+    /// The CLASS value that must be ABSENT at position +1 for selection to fire.
+    pub not_followed_by_class: String,
+}
+
+impl CgRule for SelectIfNotFollowed {
+    fn apply(&self, z: &Zipper<ReadingSet>) -> ReadingSet {
+        let current = z.extract();
+
+        // Check that position +1 does NOT have the specified class.
+        let has_class_right = z
+            .peek_right(1)
+            .is_some_and(|right| has_class(right, &self.not_followed_by_class));
+
+        if has_class_right {
+            // The class IS present at +1, so the NOT condition fails.
+            return current.clone();
+        }
+
+        // Only fire if the current position actually has the select_class.
+        if !has_class(current, &self.select_class) {
+            return current.clone();
+        }
+
+        safe_filter(current, |a| a.get(ATTR_CLASS) == Some(&self.select_class))
+    }
+}
+
+/// REMOVE reading with CLASS=X IF position +1 has CLASS=Y.
+///
+/// CG notation: `REMOVE (X) IF (1 (Y))`
+///
+/// Example: REMOVE nimisana IF (+1 teonsana)
+///   — if followed by a verb, remove noun readings (prefer adjective/adverb).
+#[derive(Debug, Clone)]
+pub struct RemoveIfFollowed {
+    /// The CLASS value to remove from the current position.
+    pub remove_class: String,
+    /// The CLASS value that must be present at position +1.
+    pub followed_by_class: String,
+}
+
+impl CgRule for RemoveIfFollowed {
+    fn apply(&self, z: &Zipper<ReadingSet>) -> ReadingSet {
+        let current = z.extract();
+
+        let followed = z
+            .peek_right(1)
+            .is_some_and(|right| has_class(right, &self.followed_by_class));
+
+        if !followed {
+            return current.clone();
+        }
+
+        safe_filter(current, |a| a.get(ATTR_CLASS) != Some(&self.remove_class))
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Pre-built Finnish disambiguation rule set
+// ---------------------------------------------------------------------------
+
+/// Returns a vector of CG rules tuned for Finnish UPOS disambiguation.
+///
+/// These rules target the top confusion pairs observed in MCE evaluation
+/// against the UD Finnish-TDT dev set:
+///
+/// 1. ADJ -> NOUN (290): laatusana/nimisana ambiguity
+/// 2. ADV -> NOUN (278): seikkasana/nimisana ambiguity
+/// 3. NOUN -> PROPN (218): nimisana/etunimi ambiguity
+/// 4. NOUN -> VERB (207): nimisana/teonsana ambiguity
+/// 5. PRON -> NOUN (180): asemosana/nimisana ambiguity
+///
+/// Rule ordering matters: rules are applied in sequence, each pass over
+/// the full sentence. Earlier rules prune readings that later rules
+/// can exploit.
+pub fn finnish_disambiguation_rules() -> Vec<Box<dyn CgRule>> {
+    vec![
+        // -----------------------------------------------------------------
+        // R1: After negation verb "ei", select verb readings.
+        // Targets: NOUN->VERB confusion (207).
+        // "ei voi" (cannot) — "voi" is ambiguous nimisana(butter)/teonsana(can).
+        // After "ei", the verb reading is strongly preferred.
+        // -----------------------------------------------------------------
+        Box::new(SelectByBaseform {
+            select_class: "teonsana".into(),
+            preceded_by_baseform: "ei".into(),
+        }),
+        // -----------------------------------------------------------------
+        // R2: After determiner-like pronoun (se, tämä, tuo), remove verb.
+        // Targets: NOUN->VERB confusion (207).
+        // "se koira" (that dog) — after a demonstrative, verb reading is unlikely.
+        // "se" is asemosana. REMOVE teonsana IF (-1 asemosana)
+        // -----------------------------------------------------------------
+        Box::new(RemoveIfPreceded {
+            remove_class: "teonsana".into(),
+            preceded_by_class: "asemosana".into(),
+        }),
+        // -----------------------------------------------------------------
+        // R3: After numeral, remove verb readings.
+        // Targets: NOUN->VERB confusion (207).
+        // "kolme koiraa" — after a numeral, the next word is typically a noun.
+        // REMOVE teonsana IF (-1 lukusana)
+        // -----------------------------------------------------------------
+        Box::new(RemoveIfPreceded {
+            remove_class: "teonsana".into(),
+            preceded_by_class: "lukusana".into(),
+        }),
+        // -----------------------------------------------------------------
+        // R4: After adjective, remove verb readings.
+        // Targets: NOUN->VERB confusion (207).
+        // "iso koira juoksee" — "koira" after "iso" (adj) is a noun, not verb.
+        // "uusi auto" — "auto" after "uusi" (adj) should stay noun.
+        // REMOVE teonsana IF (-1 laatusana)
+        // -----------------------------------------------------------------
+        Box::new(RemoveIfPreceded {
+            remove_class: "teonsana".into(),
+            preceded_by_class: "laatusana".into(),
+        }),
+        // -----------------------------------------------------------------
+        // R5: Numeral + noun pattern: SELECT lukusana IF (+1 nimisana).
+        // Targets: ADJ->NOUN confusion (helps disambiguate the numeral position).
+        // "kolme kissaa" — prefer numeral before partitive noun.
+        // -----------------------------------------------------------------
+        Box::new(SelectIfFollowed {
+            select_class: "lukusana".into(),
+            followed_by_class: "nimisana".into(),
+        }),
+        // -----------------------------------------------------------------
+        // R6: Noun before verb pattern: SELECT nimisana IF (+1 teonsana).
+        // Targets: ADJ->NOUN (290), PRON->NOUN (180), ADV->NOUN (278).
+        // "koira juoksee" — word before verb is typically the subject (noun).
+        // -----------------------------------------------------------------
+        Box::new(SelectIfFollowed {
+            select_class: "nimisana".into(),
+            followed_by_class: "teonsana".into(),
+        }),
+        // -----------------------------------------------------------------
+        // R7: When followed by a verb, remove pronoun readings
+        // where noun readings also exist.
+        // Targets: PRON->NOUN confusion (180).
+        // "talo seisoo" — "talo" before "seisoo" should be noun, not pronoun.
+        // REMOVE asemosana IF (+1 teonsana)
+        // -----------------------------------------------------------------
+        Box::new(RemoveIfFollowed {
+            remove_class: "asemosana".into(),
+            followed_by_class: "teonsana".into(),
+        }),
+        // -----------------------------------------------------------------
+        // R8: Remove adverb reading when preceded by adjective.
+        // Targets: ADV->NOUN confusion (278).
+        // After an adjective, the next word is more likely a noun than adverb.
+        // REMOVE seikkasana IF (-1 laatusana)
+        // -----------------------------------------------------------------
+        Box::new(RemoveIfPreceded {
+            remove_class: "seikkasana".into(),
+            preceded_by_class: "laatusana".into(),
+        }),
+        // -----------------------------------------------------------------
+        // R9: Remove adverb reading when followed by a noun and preceded by
+        // a noun (sandwich context: NOUN _ NOUN is typically NOUN or ADJ).
+        // Targets: ADV->NOUN confusion (278).
+        // REMOVE seikkasana IF (-1 nimisana)
+        // This is aggressive — but seikkasana/nimisana ambiguity after a noun
+        // is often resolved in favor of noun.
+        // -----------------------------------------------------------------
+        Box::new(RemoveIfPreceded {
+            remove_class: "seikkasana".into(),
+            preceded_by_class: "nimisana".into(),
+        }),
+        // -----------------------------------------------------------------
+        // R10: After postposition/preposition, prefer noun.
+        // Targets: ADV->NOUN, PRON->NOUN.
+        // "talon takana" — after ADP, the dependent is typically a noun.
+        // Here we handle the reverse: "X suhdesana" — X is likely a noun.
+        // SELECT nimisana IF (+1 suhdesana)
+        // -----------------------------------------------------------------
+        Box::new(SelectIfFollowed {
+            select_class: "nimisana".into(),
+            followed_by_class: "suhdesana".into(),
+        }),
+    ]
 }
 
 // ---------------------------------------------------------------------------
@@ -701,5 +976,363 @@ mod tests {
         assert_eq!(output[0].len(), 1); // lukusana unchanged
         assert_eq!(classes(&output[1]), vec!["nimisana"]); // teonsana removed
         assert_eq!(output[2].len(), 1); // nimisana unchanged
+    }
+
+    // -- RemoveByClass ---------------------------------------------------
+
+    #[test]
+    fn remove_by_class_with_alternative() {
+        // Sentence: [lukusana] [nimisana, lukusana]
+        // Rule: REMOVE nimisana IF (-1 lukusana) IF (0 HAS lukusana)
+        // Both conditions met => remove nimisana, keep lukusana.
+        let sentence = vec![
+            vec![make("lukusana")],
+            vec![make("nimisana"), make("lukusana")],
+        ];
+
+        let rule = RemoveByClass {
+            remove_class: "nimisana".into(),
+            context_class: "lukusana".into(),
+            require_alternative: "lukusana".into(),
+        };
+
+        let result = apply_cg_rules(&sentence, &[Box::new(rule)]);
+        assert_eq!(classes(&result[1]), vec!["lukusana"]);
+    }
+
+    #[test]
+    fn remove_by_class_no_alternative_keeps_all() {
+        // Sentence: [lukusana] [nimisana, teonsana]
+        // Rule: REMOVE nimisana IF (-1 lukusana) IF (0 HAS lukusana)
+        // Context matches but no lukusana alternative => keep all.
+        let sentence = vec![
+            vec![make("lukusana")],
+            vec![make("nimisana"), make("teonsana")],
+        ];
+
+        let rule = RemoveByClass {
+            remove_class: "nimisana".into(),
+            context_class: "lukusana".into(),
+            require_alternative: "lukusana".into(),
+        };
+
+        let result = apply_cg_rules(&sentence, &[Box::new(rule)]);
+        assert_eq!(classes(&result[1]), vec!["nimisana", "teonsana"]);
+    }
+
+    #[test]
+    fn remove_by_class_no_context_keeps_all() {
+        // Sentence: [nimisana] [nimisana, lukusana]
+        // Rule: REMOVE nimisana IF (-1 lukusana) IF (0 HAS lukusana)
+        // Position -1 is nimisana, not lukusana => context fails => keep all.
+        let sentence = vec![
+            vec![make("nimisana")],
+            vec![make("nimisana"), make("lukusana")],
+        ];
+
+        let rule = RemoveByClass {
+            remove_class: "nimisana".into(),
+            context_class: "lukusana".into(),
+            require_alternative: "lukusana".into(),
+        };
+
+        let result = apply_cg_rules(&sentence, &[Box::new(rule)]);
+        assert_eq!(classes(&result[1]), vec!["lukusana", "nimisana"]);
+    }
+
+    // -- SelectByBaseform -------------------------------------------------
+
+    #[test]
+    fn select_by_baseform_fires() {
+        // Sentence: [kieltosana baseform="ei"] [nimisana, teonsana]
+        // Rule: SELECT teonsana IF (-1 baseform "ei")
+        let mut ei = Analysis::new();
+        ei.set(ATTR_CLASS, "kieltosana");
+        ei.set("BASEFORM", "ei");
+
+        let sentence = vec![vec![ei], vec![make("nimisana"), make("teonsana")]];
+
+        let rule = SelectByBaseform {
+            select_class: "teonsana".into(),
+            preceded_by_baseform: "ei".into(),
+        };
+
+        let result = apply_cg_rules(&sentence, &[Box::new(rule)]);
+        assert_eq!(classes(&result[1]), vec!["teonsana"]);
+    }
+
+    #[test]
+    fn select_by_baseform_no_match() {
+        // Sentence: [nimisana baseform="koira"] [nimisana, teonsana]
+        // Rule: SELECT teonsana IF (-1 baseform "ei")
+        // Position -1 baseform is "koira", not "ei" => no change.
+        let mut koira = Analysis::new();
+        koira.set(ATTR_CLASS, "nimisana");
+        koira.set("BASEFORM", "koira");
+
+        let sentence = vec![vec![koira], vec![make("nimisana"), make("teonsana")]];
+
+        let rule = SelectByBaseform {
+            select_class: "teonsana".into(),
+            preceded_by_baseform: "ei".into(),
+        };
+
+        let result = apply_cg_rules(&sentence, &[Box::new(rule)]);
+        assert_eq!(classes(&result[1]), vec!["nimisana", "teonsana"]);
+    }
+
+    #[test]
+    fn select_by_baseform_safety() {
+        // Only nimisana at pos 1 — selecting teonsana would leave empty.
+        // Safety: keep all.
+        let mut ei = Analysis::new();
+        ei.set(ATTR_CLASS, "kieltosana");
+        ei.set("BASEFORM", "ei");
+
+        let sentence = vec![vec![ei], vec![make("nimisana")]];
+
+        let rule = SelectByBaseform {
+            select_class: "teonsana".into(),
+            preceded_by_baseform: "ei".into(),
+        };
+
+        let result = apply_cg_rules(&sentence, &[Box::new(rule)]);
+        assert_eq!(result[1].len(), 1);
+        assert_eq!(classes(&result[1]), vec!["nimisana"]);
+    }
+
+    // -- SelectIfNotFollowed -----------------------------------------------
+
+    #[test]
+    fn select_if_not_followed_fires_when_absent() {
+        // Sentence: [nimisana, laatusana] [nimisana]
+        // Rule: SELECT nimisana IF (NOT +1 teonsana)
+        // Position +1 has nimisana, not teonsana => NOT condition met => select.
+        let sentence = vec![
+            vec![make("nimisana"), make("laatusana")],
+            vec![make("nimisana")],
+        ];
+
+        let rule = SelectIfNotFollowed {
+            select_class: "nimisana".into(),
+            not_followed_by_class: "teonsana".into(),
+        };
+
+        let result = apply_cg_rules(&sentence, &[Box::new(rule)]);
+        assert_eq!(classes(&result[0]), vec!["nimisana"]);
+    }
+
+    #[test]
+    fn select_if_not_followed_does_not_fire_when_present() {
+        // Sentence: [nimisana, laatusana] [teonsana]
+        // Rule: SELECT nimisana IF (NOT +1 teonsana)
+        // Position +1 HAS teonsana => NOT condition fails => keep all.
+        let sentence = vec![
+            vec![make("nimisana"), make("laatusana")],
+            vec![make("teonsana")],
+        ];
+
+        let rule = SelectIfNotFollowed {
+            select_class: "nimisana".into(),
+            not_followed_by_class: "teonsana".into(),
+        };
+
+        let result = apply_cg_rules(&sentence, &[Box::new(rule)]);
+        assert_eq!(classes(&result[0]), vec!["laatusana", "nimisana"]);
+    }
+
+    #[test]
+    fn select_if_not_followed_at_sentence_end() {
+        // Last position has no right neighbor => class is absent => NOT fires.
+        let sentence = vec![vec![make("nimisana"), make("laatusana")]];
+
+        let rule = SelectIfNotFollowed {
+            select_class: "nimisana".into(),
+            not_followed_by_class: "teonsana".into(),
+        };
+
+        let result = apply_cg_rules(&sentence, &[Box::new(rule)]);
+        assert_eq!(classes(&result[0]), vec!["nimisana"]);
+    }
+
+    #[test]
+    fn select_if_not_followed_no_matching_select_class() {
+        // Sentence: [laatusana, teonsana] [nimisana]
+        // Rule: SELECT nimisana IF (NOT +1 teonsana)
+        // NOT condition met, but no nimisana exists => keep all.
+        let sentence = vec![
+            vec![make("laatusana"), make("teonsana")],
+            vec![make("nimisana")],
+        ];
+
+        let rule = SelectIfNotFollowed {
+            select_class: "nimisana".into(),
+            not_followed_by_class: "teonsana".into(),
+        };
+
+        let result = apply_cg_rules(&sentence, &[Box::new(rule)]);
+        assert_eq!(classes(&result[0]), vec!["laatusana", "teonsana"]);
+    }
+
+    // -- RemoveIfFollowed --------------------------------------------------
+
+    #[test]
+    fn remove_if_followed_removes_correct_reading() {
+        // Sentence: [nimisana, asemosana] [teonsana]
+        // Rule: REMOVE asemosana IF (+1 teonsana)
+        let sentence = vec![
+            vec![make("nimisana"), make("asemosana")],
+            vec![make("teonsana")],
+        ];
+
+        let rule = RemoveIfFollowed {
+            remove_class: "asemosana".into(),
+            followed_by_class: "teonsana".into(),
+        };
+
+        let result = apply_cg_rules(&sentence, &[Box::new(rule)]);
+        assert_eq!(classes(&result[0]), vec!["nimisana"]);
+    }
+
+    #[test]
+    fn remove_if_followed_no_match_at_plus1() {
+        // Sentence: [nimisana, asemosana] [nimisana]
+        // Rule: REMOVE asemosana IF (+1 teonsana)
+        // Position +1 has nimisana, not teonsana => no removal.
+        let sentence = vec![
+            vec![make("nimisana"), make("asemosana")],
+            vec![make("nimisana")],
+        ];
+
+        let rule = RemoveIfFollowed {
+            remove_class: "asemosana".into(),
+            followed_by_class: "teonsana".into(),
+        };
+
+        let result = apply_cg_rules(&sentence, &[Box::new(rule)]);
+        assert_eq!(classes(&result[0]), vec!["asemosana", "nimisana"]);
+    }
+
+    #[test]
+    fn remove_if_followed_safety() {
+        // Only asemosana at pos 0 — removing it would leave empty.
+        let sentence = vec![vec![make("asemosana")], vec![make("teonsana")]];
+
+        let rule = RemoveIfFollowed {
+            remove_class: "asemosana".into(),
+            followed_by_class: "teonsana".into(),
+        };
+
+        let result = apply_cg_rules(&sentence, &[Box::new(rule)]);
+        assert_eq!(result[0].len(), 1);
+        assert_eq!(classes(&result[0]), vec!["asemosana"]);
+    }
+
+    // -- Finnish rule set -------------------------------------------------
+
+    #[test]
+    fn finnish_rules_ei_voi_disambiguation() {
+        // "ei voi" — "cannot"
+        // "voi" is ambiguous: nimisana (butter) / teonsana (can)
+        // After "ei" (kieltosana, baseform="ei"), verb reading should be selected.
+        let mut ei = Analysis::new();
+        ei.set(ATTR_CLASS, "kieltosana");
+        ei.set("BASEFORM", "ei");
+        let voi_noun = make_with_baseform("nimisana", "voi");
+        let voi_verb = make_with_baseform("teonsana", "voida");
+
+        let sentence = vec![vec![ei], vec![voi_noun, voi_verb]];
+        let rules = finnish_disambiguation_rules();
+        let result = apply_cg_rules(&sentence, &rules);
+
+        assert_eq!(result[1].len(), 1);
+        assert_eq!(result[1][0].get(ATTR_CLASS), Some("teonsana"));
+    }
+
+    #[test]
+    fn finnish_rules_se_koira_disambiguation() {
+        // "se koira" — "that dog"
+        // "koira" might be ambiguous with teonsana in a contrived scenario.
+        // After "se" (asemosana), verb reading should be removed.
+        let se = make("asemosana");
+        let sentence = vec![vec![se], vec![make("nimisana"), make("teonsana")]];
+        let rules = finnish_disambiguation_rules();
+        let result = apply_cg_rules(&sentence, &rules);
+
+        // Verb reading removed after pronoun.
+        assert_eq!(classes(&result[1]), vec!["nimisana"]);
+    }
+
+    #[test]
+    fn finnish_rules_kolme_kissaa() {
+        // "kolme kissaa" — "three cats"
+        // Position 0 ("kolme"): lukusana | nimisana
+        // Position 1 ("kissaa"): nimisana
+        // Rules should select lukusana at pos 0 and remove verb at pos 1.
+        let sentence = vec![
+            vec![make("lukusana"), make("nimisana")],
+            vec![make("nimisana")],
+        ];
+        let rules = finnish_disambiguation_rules();
+        let result = apply_cg_rules(&sentence, &rules);
+
+        // Numeral selected before noun.
+        assert_eq!(classes(&result[0]), vec!["lukusana"]);
+    }
+
+    #[test]
+    fn finnish_rules_koira_juoksee() {
+        // "koira juoksee" — "dog runs"
+        // Position 0: nimisana | seikkasana | asemosana (ambiguous)
+        // Position 1: teonsana
+        // Before verb, noun should be preferred over adverb/pronoun.
+        let sentence = vec![
+            vec![make("nimisana"), make("seikkasana"), make("asemosana")],
+            vec![make("teonsana")],
+        ];
+        let rules = finnish_disambiguation_rules();
+        let result = apply_cg_rules(&sentence, &rules);
+
+        // Noun selected; adverb and pronoun removed before verb.
+        assert_eq!(classes(&result[0]), vec!["nimisana"]);
+    }
+
+    #[test]
+    fn finnish_rules_never_remove_last_reading() {
+        // Even with the Finnish rule set, a position with a single reading
+        // must never lose that reading.
+        let sentence = vec![
+            vec![make("asemosana")],
+            vec![make("teonsana")], // single reading, R2 would try to remove
+        ];
+        let rules = finnish_disambiguation_rules();
+        let result = apply_cg_rules(&sentence, &rules);
+
+        // Safety: teonsana is the only reading, so it must survive.
+        assert_eq!(result[1].len(), 1);
+        assert_eq!(classes(&result[1]), vec!["teonsana"]);
+    }
+
+    #[test]
+    fn finnish_rules_iso_koira() {
+        // "iso koira" — "big dog"
+        // Position 0 ("iso"): laatusana (adj)
+        // Position 1 ("koira"): nimisana | teonsana
+        // After adjective, verb reading should be removed.
+        let sentence = vec![
+            vec![make("laatusana")],
+            vec![make("nimisana"), make("teonsana")],
+        ];
+        let rules = finnish_disambiguation_rules();
+        let result = apply_cg_rules(&sentence, &rules);
+
+        assert_eq!(classes(&result[1]), vec!["nimisana"]);
+    }
+
+    #[test]
+    fn finnish_rules_empty_sentence() {
+        let rules = finnish_disambiguation_rules();
+        let result = apply_cg_rules(&[], &rules);
+        assert!(result.is_empty());
     }
 }
