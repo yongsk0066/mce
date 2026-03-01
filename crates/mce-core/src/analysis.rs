@@ -2,6 +2,36 @@
 
 use std::collections::HashMap;
 
+// ---------------------------------------------------------------------------
+// Attribute key constants
+// Origin: Analysis.hpp:44-66 (voikko_mor_analysis::Key enum)
+// ---------------------------------------------------------------------------
+
+pub const ATTR_BASEFORM: &str = "BASEFORM";
+pub const ATTR_CLASS: &str = "CLASS";
+pub const ATTR_COMPARISON: &str = "COMPARISON";
+pub const ATTR_FOCUS: &str = "FOCUS";
+pub const ATTR_FSTOUTPUT: &str = "FSTOUTPUT";
+pub const ATTR_KYSYMYSLIITE: &str = "KYSYMYSLIITE";
+pub const ATTR_MALAGA_VAPAA_JALKIOSA: &str = "MALAGA_VAPAA_JALKIOSA";
+pub const ATTR_MOOD: &str = "MOOD";
+pub const ATTR_NEGATIVE: &str = "NEGATIVE";
+pub const ATTR_NUMBER: &str = "NUMBER";
+pub const ATTR_PARTICIPLE: &str = "PARTICIPLE";
+pub const ATTR_PERSON: &str = "PERSON";
+pub const ATTR_POSSESSIVE: &str = "POSSESSIVE";
+pub const ATTR_POSSIBLE_GEOGRAPHICAL_NAME: &str = "POSSIBLE_GEOGRAPHICAL_NAME";
+pub const ATTR_REQUIRE_FOLLOWING_VERB: &str = "REQUIRE_FOLLOWING_VERB";
+pub const ATTR_SIJAMUOTO: &str = "SIJAMUOTO";
+pub const ATTR_STRUCTURE: &str = "STRUCTURE";
+pub const ATTR_TENSE: &str = "TENSE";
+pub const ATTR_WEIGHT: &str = "WEIGHT";
+pub const ATTR_WORDBASES: &str = "WORDBASES";
+pub const ATTR_WORDIDS: &str = "WORDIDS";
+
+/// Maximum word length for morphological analysis.
+pub const MAX_WORD_CHARS: usize = 255;
+
 /// Result of morphological analysis: a set of key-value attribute pairs.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Analysis {
