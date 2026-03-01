@@ -235,6 +235,32 @@ impl BigramModel {
         model
     }
 
+    /// Build a bigram model from a `HashMap` of transition counts.
+    ///
+    /// Like [`from_counts`](Self::from_counts) but accepts owned `String`
+    /// keys in a `HashMap`, which is the natural output of corpus extraction
+    /// tools such as [`corpus::parse_conllu_pos_bigrams`](crate::corpus::parse_conllu_pos_bigrams).
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use std::collections::HashMap;
+    /// use mce_disambig::bigram::BigramModel;
+    ///
+    /// let mut counts = HashMap::new();
+    /// counts.insert(("NOUN".to_string(), "VERB".to_string()), 150);
+    /// counts.insert(("VERB".to_string(), "NOUN".to_string()), 120);
+    /// let model = BigramModel::from_counts_map(&counts);
+    /// assert!(model.num_weights() > 0);
+    /// ```
+    pub fn from_counts_map(counts: &HashMap<(String, String), u64>) -> Self {
+        let transitions: Vec<((&str, &str), u64)> = counts
+            .iter()
+            .map(|((prev, curr), &count)| ((prev.as_str(), curr.as_str()), count))
+            .collect();
+        Self::from_counts(&transitions)
+    }
+
     /// Set the transition weight for a specific POS bigram.
     pub fn set_weight(&mut self, prev_class: &str, curr_class: &str, weight: f64) {
         self.weights

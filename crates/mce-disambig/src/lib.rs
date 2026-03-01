@@ -11,11 +11,11 @@
 //!    Viterbi decoding over a lattice of candidate readings. Uses POS
 //!    transition weights to find the most probable reading sequence.
 //!
-//! 2. **Compressed Sensing uniqueness verification** (future): For
-//!    morphologically rich word forms, CS can prove that the analysis
-//!    is uniquely determined without needing Viterbi. When the RIP
-//!    condition is satisfied, CS returns immediately; otherwise, Viterbi
-//!    serves as the fallback.
+//! 2. **Compressed Sensing scoring** ([`cs`]): FISTA-based sparse
+//!    recovery scores each candidate analysis by its reconstruction error
+//!    in a high-dimensional morphological feature space. When configured,
+//!    the CS score is combined with the Viterbi emission score as an
+//!    additional disambiguation signal.
 //!
 //! # Modules
 //!
@@ -24,6 +24,8 @@
 //! - [`bigram`]: POS bigram transition model with Finnish defaults, corpus-weight
 //!   infrastructure ([`BigramModel::from_counts`]), and emission scoring
 //!   ([`EmissionScorer`]).
+//! - [`corpus`]: CoNLL-U corpus parsing for bigram extraction and emission priors.
+//! - [`cs`]: Compressed Sensing (FISTA) layer for sparse feature-based scoring.
 //!
 //! # Example
 //!
@@ -57,12 +59,15 @@
 //! ```
 
 pub mod bigram;
+pub mod corpus;
+pub mod cs;
 pub mod lattice;
 pub mod viterbi;
 
 use mce_core::analysis::Analysis;
 
 use crate::bigram::{BigramModel, EmissionScorer};
+use crate::cs::SparseDisambiguator;
 use crate::lattice::{Lattice, LatticeNode, Reading};
 use crate::viterbi::TransitionFn;
 
@@ -97,9 +102,14 @@ pub trait Disambiguator {
 /// When an [`EmissionScorer`] is configured, its adjustments are added to
 /// the lattice emission scores. Use [`disambiguate_with_words`] to provide
 /// surface forms for emission scoring.
+///
+/// An optional [`SparseDisambiguator`] (CS scorer) can be configured to
+/// provide an additional disambiguation signal based on Compressed Sensing
+/// sparse recovery in the morphological feature space.
 pub struct ViterbiDisambiguator {
     model: BigramModel,
     emission_scorer: Option<EmissionScorer>,
+    cs_scorer: Option<SparseDisambiguator>,
 }
 
 impl ViterbiDisambiguator {
@@ -108,6 +118,7 @@ impl ViterbiDisambiguator {
         Self {
             model,
             emission_scorer: None,
+            cs_scorer: None,
         }
     }
 
@@ -121,6 +132,7 @@ impl ViterbiDisambiguator {
         Self {
             model: BigramModel::finnish_defaults(),
             emission_scorer: Some(EmissionScorer::finnish_defaults()),
+            cs_scorer: None,
         }
     }
 
@@ -144,6 +156,19 @@ impl ViterbiDisambiguator {
         self.emission_scorer.as_ref()
     }
 
+    /// Set the Compressed Sensing scorer for this disambiguator.
+    ///
+    /// When present, the CS score (negated reconstruction error) is added
+    /// to the emission score of each reading in the lattice.
+    pub fn set_cs_scorer(&mut self, scorer: SparseDisambiguator) {
+        self.cs_scorer = Some(scorer);
+    }
+
+    /// Access the CS scorer, if configured.
+    pub fn cs_scorer(&self) -> Option<&SparseDisambiguator> {
+        self.cs_scorer.as_ref()
+    }
+
     /// Build a lattice from raw analysis candidates.
     ///
     /// Emission scores are derived from the `WEIGHT` attribute if present,
@@ -165,9 +190,16 @@ impl ViterbiDisambiguator {
             .iter()
             .enumerate()
             .map(|(pos, analyses)| {
+                // Compute CS scores for all analyses at this position (if configured).
+                let cs_scores = self
+                    .cs_scorer
+                    .as_ref()
+                    .map(|scorer| scorer.score_analyses(analyses));
+
                 let readings = analyses
                     .iter()
-                    .map(|a| {
+                    .enumerate()
+                    .map(|(idx, a)| {
                         let mut score = a
                             .get("WEIGHT")
                             .and_then(|w| w.parse::<f64>().ok())
@@ -178,6 +210,11 @@ impl ViterbiDisambiguator {
                             if pos < ws.len() {
                                 score += scorer.score(ws[pos], a);
                             }
+                        }
+
+                        // Apply CS scorer adjustments if available.
+                        if let Some(ref cs) = cs_scores {
+                            score += cs[idx];
                         }
 
                         Reading::new(a.clone(), score)
