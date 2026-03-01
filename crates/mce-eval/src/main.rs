@@ -29,6 +29,10 @@ struct Args {
     end_to_end: bool,
     include_punct: bool,
     max_sentences: Option<usize>,
+    enable_cs: bool,
+    cs_measurements: usize,
+    cs_lambda: f64,
+    cs_only: bool,
 }
 
 fn parse_args() -> Args {
@@ -40,6 +44,10 @@ fn parse_args() -> Args {
     let mut end_to_end = false;
     let mut include_punct = false;
     let mut max_sentences: Option<usize> = None;
+    let mut enable_cs = false;
+    let mut cs_measurements: usize = 50;
+    let mut cs_lambda: f64 = 0.1;
+    let mut cs_only = false;
 
     let mut i = 1;
     while i < args.len() {
@@ -85,6 +93,35 @@ fn parse_args() -> Args {
                     process::exit(1);
                 }));
             }
+            "--enable-cs" => {
+                enable_cs = true;
+            }
+            "--cs-only" => {
+                cs_only = true;
+                enable_cs = true;
+            }
+            "--cs-measurements" => {
+                i += 1;
+                if i >= args.len() {
+                    eprintln!("error: --cs-measurements requires a value.");
+                    process::exit(1);
+                }
+                cs_measurements = args[i].parse().unwrap_or_else(|_| {
+                    eprintln!("error: --cs-measurements must be a positive integer.");
+                    process::exit(1);
+                });
+            }
+            "--cs-lambda" => {
+                i += 1;
+                if i >= args.len() {
+                    eprintln!("error: --cs-lambda requires a value.");
+                    process::exit(1);
+                }
+                cs_lambda = args[i].parse().unwrap_or_else(|_| {
+                    eprintln!("error: --cs-lambda must be a number.");
+                    process::exit(1);
+                });
+            }
             "--help" | "-h" | "help" => {
                 print_usage();
                 process::exit(0);
@@ -125,6 +162,10 @@ fn parse_args() -> Args {
         end_to_end,
         include_punct,
         max_sentences,
+        enable_cs,
+        cs_measurements,
+        cs_lambda,
+        cs_only,
     }
 }
 
@@ -142,6 +183,10 @@ fn print_usage() {
     eprintln!("    --end-to-end             Use MCE tokenizer instead of gold tokens");
     eprintln!("    --include-punct          Include PUNCT/SYM tokens in evaluation");
     eprintln!("    --max-sentences <N>      Evaluate only the first N sentences");
+    eprintln!("    --enable-cs              Enable Compressed Sensing (FISTA) scorer");
+    eprintln!("    --cs-only                Use CS scorer without emission priors");
+    eprintln!("    --cs-measurements <N>    Number of CS measurements (default: 50)");
+    eprintln!("    --cs-lambda <F>          CS L1 regularization (default: 0.1)");
     eprintln!("    --help, -h               Show this help message");
     eprintln!();
     eprintln!("EXAMPLES:");
@@ -176,7 +221,7 @@ fn main() {
     );
 
     // Build pipeline.
-    let pipeline = if let Some(ref train_path) = args.train_path {
+    let mut pipeline = if let Some(ref train_path) = args.train_path {
         eprintln!("Loading training data from {} ...", train_path.display());
         let train_data = match fs::read_to_string(train_path) {
             Ok(d) => d,
@@ -185,12 +230,23 @@ fn main() {
                 process::exit(1);
             }
         };
-        eprintln!("Building corpus-trained bigram model ...");
-        match EvalPipeline::from_bytes_with_corpus(&dict_data, &train_data) {
-            Ok(p) => p,
-            Err(e) => {
-                eprintln!("error: failed to initialize pipeline: {}", e);
-                process::exit(1);
+        if args.cs_only {
+            eprintln!("Building corpus-trained bigram model (no emission priors) ...");
+            match EvalPipeline::from_bytes_with_corpus_no_emission(&dict_data, &train_data) {
+                Ok(p) => p,
+                Err(e) => {
+                    eprintln!("error: failed to initialize pipeline: {}", e);
+                    process::exit(1);
+                }
+            }
+        } else {
+            eprintln!("Building corpus-trained bigram model ...");
+            match EvalPipeline::from_bytes_with_corpus(&dict_data, &train_data) {
+                Ok(p) => p,
+                Err(e) => {
+                    eprintln!("error: failed to initialize pipeline: {}", e);
+                    process::exit(1);
+                }
             }
         }
     } else {
@@ -202,6 +258,21 @@ fn main() {
             }
         }
     };
+
+    // Enable Compressed Sensing scorer if requested.
+    if args.enable_cs {
+        eprintln!(
+            "Enabling Compressed Sensing (FISTA) scorer: m={}, lambda={}{}",
+            args.cs_measurements,
+            args.cs_lambda,
+            if args.cs_only {
+                " (CS-only, no emission priors)"
+            } else {
+                ""
+            }
+        );
+        pipeline.enable_cs(args.cs_measurements, args.cs_lambda);
+    }
 
     // Parse CoNLL-U file.
     eprintln!("Parsing CoNLL-U file: {} ...", args.conllu_path.display());
@@ -257,4 +328,14 @@ fn main() {
     );
     println!("Sentences:        {}", sentences.len(),);
     println!("Mode:             {}", mode);
+    if args.enable_cs {
+        println!(
+            "CS scorer:        enabled (m={}, lambda={}){}",
+            args.cs_measurements,
+            args.cs_lambda,
+            if args.cs_only { " [CS-ONLY]" } else { "" }
+        );
+    } else {
+        println!("CS scorer:        disabled");
+    }
 }

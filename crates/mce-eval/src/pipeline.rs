@@ -16,6 +16,7 @@ use mce_core::analysis::{Analysis, ATTR_BASEFORM, ATTR_CLASS};
 use mce_core::token::TokenType;
 use mce_disambig::bigram::EmissionScorer;
 use mce_disambig::corpus::{build_model_from_conllu, extract_emission_priors};
+use mce_disambig::cs::SparseDisambiguator;
 use mce_disambig::ViterbiDisambiguator;
 use mce_fi::morphology::{Analyzer, FinnishAnalyzer};
 use mce_tokenizer::next_token;
@@ -75,6 +76,36 @@ impl EvalPipeline {
             disambiguator,
             cg_rules,
         })
+    }
+
+    /// Create a pipeline with corpus-trained bigrams but NO emission priors.
+    ///
+    /// This is for the "CS-only" experiment where we want to test whether
+    /// CS scoring can replace emission priors entirely.
+    pub fn from_bytes_with_corpus_no_emission(
+        data: &[u8],
+        train_conllu: &str,
+    ) -> Result<Self, mce_fst::VfstError> {
+        let analyzer = FinnishAnalyzer::from_bytes(data)?;
+        let corpus_model = build_model_from_conllu(train_conllu);
+
+        let disambiguator = ViterbiDisambiguator::new(corpus_model);
+        let cg_rules = finnish_disambiguation_rules();
+        Ok(Self {
+            analyzer,
+            disambiguator,
+            cg_rules,
+        })
+    }
+
+    /// Enable the Compressed Sensing (FISTA) scorer on this pipeline.
+    ///
+    /// Creates a `SparseDisambiguator` with the given number of measurements
+    /// and L1 regularization parameter (lambda), and configures it on the
+    /// internal `ViterbiDisambiguator`.
+    pub fn enable_cs(&mut self, num_measurements: usize, lambda: f64) {
+        let cs_scorer = SparseDisambiguator::new(num_measurements, lambda);
+        self.disambiguator.set_cs_scorer(cs_scorer);
     }
 
     /// Evaluate a set of CoNLL-U sentences, returning aggregate results.
