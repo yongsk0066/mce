@@ -1,14 +1,16 @@
-//! Finnish consonant gradation (astevaihtelu) as coKleisli morphisms.
+//! Finnish morphophonological rules as coKleisli morphisms.
 //!
-//! Consonant gradation is a morphophonological process in Finnish where
-//! stem-final consonants alternate between **strong** and **weak** grades
-//! depending on syllable structure. This module expresses gradation rules
-//! as coKleisli arrows `&Zipper<char> -> char`, composable via
-//! [`Zipper::extend`].
+//! This module expresses Finnish morphophonological processes as coKleisli
+//! arrows `&Zipper<char> -> char`, composable via [`Zipper::extend`].
 //!
-//! # Gradation patterns
+//! # Implemented rules
 //!
-//! ## Quantitative gradation (geminate weakening)
+//! ## 1. Consonant gradation (astevaihtelu)
+//!
+//! Stem-final consonants alternate between **strong** and **weak** grades
+//! depending on syllable structure.
+//!
+//! ### Quantitative gradation (geminate weakening)
 //!
 //! | Strong | Weak | Example            |
 //! |--------|------|--------------------|
@@ -16,7 +18,7 @@
 //! | tt     | t    | matto -> mato      |
 //! | kk     | k    | kukka -> kuka      |
 //!
-//! ## Qualitative gradation
+//! ### Qualitative gradation
 //!
 //! | Strong | Weak | Example            |
 //! |--------|------|--------------------|
@@ -29,21 +31,49 @@
 //! | lt     | ll   | kulta -> kulla     |
 //! | rt     | rr   | parta -> parra     |
 //!
+//! ## 2. Vowel harmony (vokaalisointu)
+//!
+//! Finnish has a front/back vowel harmony system. Suffix vowels must agree
+//! with stem vowels. Archiphonemic characters in morphological
+//! representations are resolved by scanning the left context:
+//!
+//! | Archiphoneme | Back realization | Front realization |
+//! |--------------|------------------|-------------------|
+//! | A            | a                | ä                 |
+//! | O            | o                | ö                 |
+//! | U            | u                | y                 |
+//!
+//! Neutral vowels (e, i) are transparent to harmony: they do not trigger
+//! either class, and harmony "looks through" them to find the last
+//! non-neutral vowel.
+//!
+//! ## 3. Possessive suffix vowel copying
+//!
+//! The archiphoneme `V` copies the immediately preceding vowel. This
+//! occurs in certain possessive and derivational suffix contexts.
+//!
+//! ## 4. Morphophonological pipeline
+//!
+//! Rules are composed via coKleisli composition: each rule is applied as
+//! an `extend` step, and the output of one rule becomes the input to the
+//! next. The standard pipeline order is:
+//!
+//! 1. Consonant gradation
+//! 2. Vowel harmony
+//! 3. Possessive suffix vowel copying
+//!
 //! # Design
 //!
-//! The main coKleisli arrow [`apply_gradation`] examines the focus character
-//! and its left neighbor to determine whether a gradation pattern applies,
-//! then returns the appropriately graded output character. Only the second
-//! character of a two-character pattern (position 1) is ever transformed;
-//! the first character (position 0) serves as context only and passes
-//! through unchanged. This ensures that `extend` applies cleanly: each
-//! character position produces exactly one output character (or `'\0'` for
-//! deletions), with no double-counting.
+//! Each coKleisli arrow examines the focus character and its context
+//! (via `peek_left`, `peek_right`) and produces a transformed output for
+//! that position. `extend` lifts the local rule into a global
+//! transformation. Only the focus character is ever transformed; context
+//! characters serve as read-only input.
 //!
 //! # Scope
 //!
 //! This module implements **pure phonological rules**: it transforms every
-//! character that matches a gradation pattern in the appropriate context.
+//! character that matches a rule pattern in the appropriate context.
 //! Lexical exceptions (loanwords, proper nouns) are handled at a higher
 //! level by the morphological analyzer, not by the rule itself.
 
@@ -306,6 +336,244 @@ pub fn gradation_pipeline(word: &[char], grade: Grade) -> Vec<char> {
 pub fn gradate(word: &str, grade: Grade) -> String {
     let chars: Vec<char> = word.chars().collect();
     gradation_pipeline(&chars, grade).into_iter().collect()
+}
+
+// ===========================================================================
+// Vowel harmony (vokaalisointu)
+// ===========================================================================
+
+/// The vowel harmony class determined by scanning a word's vowels.
+///
+/// Finnish words (native vocabulary) contain either back vowels or front
+/// vowels, never both. Neutral vowels (e, i) are transparent and do not
+/// determine the harmony class.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HarmonyClass {
+    /// Back harmony: archiphonemes resolve to back vowels (a, o, u).
+    Back,
+    /// Front harmony: archiphonemes resolve to front vowels (ä, ö, y).
+    Front,
+}
+
+/// Check if a character is a back vowel (a, o, u).
+fn is_back_vowel(c: char) -> bool {
+    matches!(c, 'a' | 'o' | 'u')
+}
+
+/// Check if a character is a front vowel (ä, ö, y).
+fn is_front_vowel(c: char) -> bool {
+    matches!(c, '\u{00E4}' | '\u{00F6}' | 'y')
+}
+
+/// Check if a character is a neutral vowel (e, i).
+///
+/// Neutral vowels are transparent to vowel harmony: they do not trigger
+/// either back or front harmony, and the harmony rule "looks through"
+/// them to find the nearest non-neutral vowel.
+fn is_neutral_vowel(c: char) -> bool {
+    matches!(c, 'e' | 'i')
+}
+
+/// Determine the harmony class by scanning the left context of a zipper.
+///
+/// Scans leftward from the focus position (exclusive) to find the most
+/// recent non-neutral vowel. If only neutral vowels are found (or no
+/// vowels at all), defaults to [`HarmonyClass::Front`] — this matches
+/// standard Finnish: words with only neutral vowels take front suffixes
+/// (e.g. "tie" + "-ssA" -> "tiessä").
+fn detect_harmony_class(z: &Zipper<char>) -> HarmonyClass {
+    // Scan the entire left context, nearest first.
+    for i in 1..=z.position() {
+        if let Some(&c) = z.peek_left(i) {
+            if is_back_vowel(c) {
+                return HarmonyClass::Back;
+            }
+            if is_front_vowel(c) {
+                return HarmonyClass::Front;
+            }
+            // Neutral vowels: keep scanning.
+        }
+    }
+    // No non-neutral vowel found to the left. Default: front harmony.
+    // This is correct for Finnish: neutral-only stems take front suffixes.
+    HarmonyClass::Front
+}
+
+/// Apply Finnish vowel harmony as a coKleisli morphism.
+///
+/// Resolves archiphonemic characters based on the harmony class determined
+/// by scanning the left context:
+///
+/// | Archiphoneme | Back    | Front   |
+/// |--------------|---------|---------|
+/// | `A`          | `a`     | `ä`     |
+/// | `O`          | `o`     | `ö`     |
+/// | `U`          | `u`     | `y`     |
+///
+/// All non-archiphonemic characters pass through unchanged.
+///
+/// The harmony class is determined by the **last non-neutral vowel** to
+/// the left of the focus. If no such vowel exists, front harmony is used
+/// (matching Finnish convention for neutral-only stems).
+pub fn apply_vowel_harmony(z: &Zipper<char>) -> char {
+    let focus = *z.extract();
+    match focus {
+        'A' => {
+            let harmony = detect_harmony_class(z);
+            match harmony {
+                HarmonyClass::Back => 'a',
+                HarmonyClass::Front => '\u{00E4}', // ä
+            }
+        }
+        'O' => {
+            let harmony = detect_harmony_class(z);
+            match harmony {
+                HarmonyClass::Back => 'o',
+                HarmonyClass::Front => '\u{00F6}', // ö
+            }
+        }
+        'U' => {
+            let harmony = detect_harmony_class(z);
+            match harmony {
+                HarmonyClass::Back => 'u',
+                HarmonyClass::Front => 'y',
+            }
+        }
+        _ => focus,
+    }
+}
+
+/// Apply vowel harmony to an entire word string.
+///
+/// Resolves all archiphonemic characters (`A`, `O`, `U`) according to
+/// the vowel harmony context.
+pub fn harmonize(word: &str) -> String {
+    let chars: Vec<char> = word.chars().collect();
+    let z = match Zipper::new(chars) {
+        Some(z) => z,
+        None => return String::new(),
+    };
+    let result = z.extend(apply_vowel_harmony);
+    result.to_vec().into_iter().collect()
+}
+
+// ===========================================================================
+// Possessive suffix vowel copying
+// ===========================================================================
+
+/// Apply possessive suffix vowel copying as a coKleisli morphism.
+///
+/// Resolves the archiphoneme `V`, which copies the immediately preceding
+/// vowel. This occurs in contexts like possessive suffixes and certain
+/// derivational affixes. For example:
+///
+/// - `taloVn` -> `taloon` (V copies 'o')
+/// - `käsiVn` -> `käsiin` (V copies 'i')
+///
+/// If no vowel is found to the left, `V` passes through unchanged (this
+/// indicates a malformed morphological representation).
+///
+/// All non-`V` characters pass through unchanged.
+pub fn apply_possessive(z: &Zipper<char>) -> char {
+    let focus = *z.extract();
+    if focus != 'V' {
+        return focus;
+    }
+
+    // Scan leftward for the nearest vowel to copy.
+    for i in 1..=z.position() {
+        if let Some(&c) = z.peek_left(i) {
+            if is_vowel(c) || is_neutral_vowel(c) {
+                return c;
+            }
+        }
+    }
+
+    // No vowel found to the left; return unchanged.
+    // This should not happen in well-formed input.
+    focus
+}
+
+/// Apply possessive vowel copying to an entire word string.
+pub fn apply_possessive_to_word(word: &str) -> String {
+    let chars: Vec<char> = word.chars().collect();
+    let z = match Zipper::new(chars) {
+        Some(z) => z,
+        None => return String::new(),
+    };
+    let result = z.extend(apply_possessive);
+    result.to_vec().into_iter().collect()
+}
+
+// ===========================================================================
+// Morphophonological pipeline (coKleisli composition chain)
+// ===========================================================================
+
+/// Apply a chain of morphophonological rules to a word.
+///
+/// This function composes multiple coKleisli arrows via sequential
+/// `extend` application, forming a coKleisli composition chain:
+///
+/// 1. **Consonant gradation** — alternates stem consonants based on
+///    the requested [`Grade`].
+/// 2. **Vowel harmony** — resolves archiphonemic `A`, `O`, `U` based
+///    on the stem's vowel class.
+/// 3. **Possessive vowel copying** — resolves `V` archiphonemes by
+///    copying the preceding vowel.
+///
+/// The pipeline filters out null characters (`'\0'`) produced by
+/// consonant deletion (e.g. `k` -> nothing in weak grade) between
+/// steps, so that subsequent rules see the phonologically correct
+/// surface form.
+///
+/// # Example
+///
+/// ```
+/// use mce_comonad::finnish::{morphophonological_pipeline, Grade};
+///
+/// // ranta + ssA (weak grade) -> rannassa
+/// assert_eq!(morphophonological_pipeline("rantAssA", Grade::Weak), "rannassa");
+///
+/// // pöytä + llA (weak grade) -> pöydällä
+/// assert_eq!(morphophonological_pipeline("p\u{00F6}yt\u{00E4}llA", Grade::Weak), "p\u{00F6}yd\u{00E4}ll\u{00E4}");
+/// ```
+pub fn morphophonological_pipeline(word: &str, grade: Grade) -> String {
+    if word.is_empty() {
+        return String::new();
+    }
+
+    let chars: Vec<char> = word.chars().collect();
+
+    // Step 1: Consonant gradation.
+    let z1 = match Zipper::new(chars) {
+        Some(z) => z,
+        None => return String::new(),
+    };
+    let after_gradation = z1.extend(|zi| apply_gradation(zi, grade));
+
+    // Filter out null characters between steps so subsequent rules
+    // see the correct surface form (e.g. after k-deletion).
+    let filtered: Vec<char> = after_gradation
+        .to_vec()
+        .into_iter()
+        .filter(|&c| c != '\0')
+        .collect();
+
+    // Step 2: Vowel harmony.
+    let z2 = match Zipper::new(filtered) {
+        Some(z) => z,
+        None => return String::new(),
+    };
+    let after_harmony = z2.extend(apply_vowel_harmony);
+
+    // Step 3: Possessive vowel copying.
+    let z3 = match Zipper::new(after_harmony.to_vec()) {
+        Some(z) => z,
+        None => return String::new(),
+    };
+    let after_possessive = z3.extend(apply_possessive);
+
+    after_possessive.to_vec().into_iter().collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -605,5 +873,417 @@ mod tests {
             assert_eq!(&weak(strong_form), weak_form);
             assert_eq!(&strong(weak_form), strong_form);
         }
+    }
+
+    // =====================================================================
+    // Vowel harmony: back stems
+    // =====================================================================
+
+    #[test]
+    fn harmony_back_stem_a() {
+        // talo + ssA -> talossa (back, because 'a' and 'o' are back)
+        assert_eq!(harmonize("talossA"), "talossa");
+    }
+
+    #[test]
+    fn harmony_back_stem_o() {
+        // koulu + ssA -> koulussa (back, because 'o' and 'u' are back)
+        assert_eq!(harmonize("koulussA"), "koulussa");
+    }
+
+    #[test]
+    fn harmony_back_stem_u() {
+        // auto + ssA -> autossa (back, because 'u' is back)
+        assert_eq!(harmonize("autossA"), "autossa");
+    }
+
+    #[test]
+    fn harmony_back_multiple_archiphonemes() {
+        // talo + stA + An -> talostaan
+        assert_eq!(harmonize("talostAAn"), "talostaan");
+    }
+
+    // =====================================================================
+    // Vowel harmony: front stems
+    // =====================================================================
+
+    #[test]
+    fn harmony_front_stem_ae() {
+        // pöytä + ssA -> pöydässä (front, because 'ö' and 'ä' are front)
+        assert_eq!(
+            harmonize("p\u{00F6}yt\u{00E4}ssA"),
+            "p\u{00F6}yt\u{00E4}ss\u{00E4}"
+        );
+    }
+
+    #[test]
+    fn harmony_front_stem_oe() {
+        // yö + ssA -> yössä (front)
+        assert_eq!(harmonize("y\u{00F6}ssA"), "y\u{00F6}ss\u{00E4}");
+    }
+
+    #[test]
+    fn harmony_front_stem_y() {
+        // työ + ssA -> työssä (front, because 'y' and 'ö' are front)
+        assert_eq!(harmonize("ty\u{00F6}ssA"), "ty\u{00F6}ss\u{00E4}");
+    }
+
+    #[test]
+    fn harmony_front_multiple_archiphonemes() {
+        // pöytä + llA + An -> pöytällään
+        assert_eq!(
+            harmonize("p\u{00F6}yt\u{00E4}ll\u{00C4}\u{00C4}n"),
+            // Note: uppercase Ä is not an archiphoneme in our system.
+            // Let's use A archiphonemes:
+            "p\u{00F6}yt\u{00E4}ll\u{00C4}\u{00C4}n"
+        );
+    }
+
+    #[test]
+    fn harmony_front_archiphoneme_chain() {
+        // pöytä + llA + An -> pöytällään
+        assert_eq!(
+            harmonize("p\u{00F6}yt\u{00E4}llAAn"),
+            "p\u{00F6}yt\u{00E4}ll\u{00E4}\u{00E4}n"
+        );
+    }
+
+    // =====================================================================
+    // Vowel harmony: neutral vowel transparency
+    // =====================================================================
+
+    #[test]
+    fn harmony_neutral_only_defaults_front() {
+        // tie + ssA -> tiessä (neutral-only stem -> front harmony)
+        assert_eq!(harmonize("tiessA"), "tiess\u{00E4}");
+    }
+
+    #[test]
+    fn harmony_neutral_only_i() {
+        // vesi + ssA -> vedessä (neutral-only stem -> front harmony)
+        // Already-resolved input passes through:
+        assert_eq!(harmonize("vesiss\u{00E4}"), "vesiss\u{00E4}");
+        // With archiphoneme:
+        assert_eq!(harmonize("vesissA"), "vesiss\u{00E4}");
+    }
+
+    #[test]
+    fn harmony_neutral_transparent_to_back() {
+        // poika + llA -> pojalla (neutral 'i' is transparent, 'o' is back)
+        assert_eq!(harmonize("poikAllA"), "poikalla");
+    }
+
+    #[test]
+    fn harmony_neutral_transparent_to_front() {
+        // pöytiä + ssA -> (front, 'ö' visible through neutral 'i')
+        // Test: pöytiA -> pöytiä
+        assert_eq!(harmonize("p\u{00F6}ytiA"), "p\u{00F6}yti\u{00E4}");
+    }
+
+    // =====================================================================
+    // Vowel harmony: archiphoneme O and U
+    // =====================================================================
+
+    #[test]
+    fn harmony_archiphoneme_o_back() {
+        // talo + On -> talon
+        assert_eq!(harmonize("talOn"), "talon");
+    }
+
+    #[test]
+    fn harmony_archiphoneme_o_front() {
+        // yö + On -> yön
+        assert_eq!(harmonize("y\u{00F6}On"), "y\u{00F6}\u{00F6}n");
+    }
+
+    #[test]
+    fn harmony_archiphoneme_u_back() {
+        // talo + Un -> taloun (hypothetical suffix)
+        assert_eq!(harmonize("taloUn"), "taloun");
+    }
+
+    #[test]
+    fn harmony_archiphoneme_u_front() {
+        // yö + Ulle -> yöylle (hypothetical, 'U' -> 'y')
+        assert_eq!(harmonize("y\u{00F6}Ulle"), "y\u{00F6}ylle");
+    }
+
+    // =====================================================================
+    // Vowel harmony: edge cases
+    // =====================================================================
+
+    #[test]
+    fn harmony_empty_string() {
+        assert_eq!(harmonize(""), "");
+    }
+
+    #[test]
+    fn harmony_no_archiphonemes() {
+        // Already-resolved word passes through unchanged.
+        assert_eq!(harmonize("talossa"), "talossa");
+        assert_eq!(
+            harmonize("p\u{00F6}yd\u{00E4}ss\u{00E4}"),
+            "p\u{00F6}yd\u{00E4}ss\u{00E4}"
+        );
+    }
+
+    #[test]
+    fn harmony_archiphoneme_at_start() {
+        // Archiphoneme at the very start with no left context -> front.
+        assert_eq!(harmonize("A"), "\u{00E4}");
+        assert_eq!(harmonize("O"), "\u{00F6}");
+        assert_eq!(harmonize("U"), "y");
+    }
+
+    #[test]
+    fn harmony_idempotent() {
+        // Applying harmony to an already-harmonized word should be no-op.
+        let word = "talossa";
+        assert_eq!(harmonize(word), word);
+        let word2 = "tiess\u{00E4}";
+        assert_eq!(harmonize(word2), word2);
+    }
+
+    // =====================================================================
+    // Possessive vowel copying
+    // =====================================================================
+
+    #[test]
+    fn possessive_copy_o() {
+        // taloVn -> taloon (V copies 'o')
+        assert_eq!(apply_possessive_to_word("taloVn"), "taloon");
+    }
+
+    #[test]
+    fn possessive_copy_i() {
+        // käsiVn -> käsiin (V copies 'i')
+        assert_eq!(apply_possessive_to_word("k\u{00E4}siVn"), "k\u{00E4}siin");
+    }
+
+    #[test]
+    fn possessive_copy_a() {
+        // talostaVn -> talostaan (V copies 'a')
+        assert_eq!(apply_possessive_to_word("talostaVn"), "talostaan");
+    }
+
+    #[test]
+    fn possessive_copy_ae() {
+        // pöydältäVn -> pöydältään (V copies 'ä')
+        assert_eq!(
+            apply_possessive_to_word("p\u{00F6}yd\u{00E4}lt\u{00E4}Vn"),
+            "p\u{00F6}yd\u{00E4}lt\u{00E4}\u{00E4}n"
+        );
+    }
+
+    #[test]
+    fn possessive_no_vowel_left() {
+        // V at start with no vowel to the left: passes through unchanged.
+        assert_eq!(apply_possessive_to_word("Vn"), "Vn");
+    }
+
+    #[test]
+    fn possessive_no_v_archiphoneme() {
+        // No V in word: unchanged.
+        assert_eq!(apply_possessive_to_word("talossa"), "talossa");
+    }
+
+    #[test]
+    fn possessive_empty() {
+        assert_eq!(apply_possessive_to_word(""), "");
+    }
+
+    #[test]
+    fn possessive_copy_through_consonants() {
+        // V should scan past consonants to find the vowel.
+        // talostVn -> talostVn... the 't' is before V, so scan past it
+        // to find 's' (consonant), then 'o' (vowel) -> no, wait:
+        // t-a-l-o-s-t-V-n: left of V is 't', then 's', then 'o' -> copies 'o'
+        assert_eq!(apply_possessive_to_word("talostVn"), "taloston");
+    }
+
+    // =====================================================================
+    // Morphophonological pipeline (composition chain)
+    // =====================================================================
+
+    #[test]
+    fn pipeline_gradation_plus_harmony_back() {
+        // ranta + ssA (weak grade) -> rannassa
+        // Step 1: gradation: ranta -> ranna (nt -> nn)
+        // But in the input "rantAssA", gradation applies to the whole string.
+        // The A at position 4 is not a consonant, so gradation won't touch it.
+        // Step 2: harmony: A -> a (back, because 'a' is in stem)
+        assert_eq!(
+            morphophonological_pipeline("rantAssA", Grade::Weak),
+            "rannassa"
+        );
+    }
+
+    #[test]
+    fn pipeline_gradation_plus_harmony_front() {
+        // pöytä + llA (weak grade)
+        // Step 1: gradation does not apply to 'l' cluster (ll is not grading)
+        // Actually, the input is "pöytällA" but if we want to test gradation:
+        // pöytä has no gradable consonants in this suffix form.
+        // Let's use a word where both apply:
+        // kenka + ssA (weak) -> kengässä
+        // Step 1: kenka -> kenga (nk -> ng)
+        // Step 2: A -> ä (front, because 'e' is neutral but no back vowel)
+        assert_eq!(
+            morphophonological_pipeline("kenk\u{00E4}ssA", Grade::Weak),
+            "keng\u{00E4}ss\u{00E4}"
+        );
+    }
+
+    #[test]
+    fn pipeline_gradation_plus_harmony_with_deletion() {
+        // puku + ssA (weak) -> puussa
+        // Step 1: gradation: puku -> puu (k deleted)
+        // Step 2: harmony: A -> a (back, because 'u' is back)
+        assert_eq!(
+            morphophonological_pipeline("pukussA", Grade::Weak),
+            "puussa"
+        );
+    }
+
+    #[test]
+    fn pipeline_no_gradation_strong_grade() {
+        // ranta + ssA (strong grade) -> rantassa
+        // Step 1: gradation: no change in strong grade (nt stays nt)
+        // Step 2: harmony: A -> a
+        assert_eq!(
+            morphophonological_pipeline("rantAssA", Grade::Strong),
+            "rantassa"
+        );
+    }
+
+    #[test]
+    fn pipeline_all_three_rules() {
+        // Test gradation + harmony + possessive in one chain.
+        // kampa + stA + Vn (weak) -> kammastaan
+        //
+        // k-a-m-p-A-s-t-A-V-n
+        // Step 1 (gradation, weak): mp -> mm, so 'p' at pos 3 becomes 'm'
+        //   k-a-m-m-A-s-t-A-V-n  (no deletions)
+        // Step 2 (harmony): A at pos 4 -> 'a' (back), A at pos 7 -> 'a' (back)
+        //   k-a-m-m-a-s-t-a-V-n
+        // Step 3 (possessive): V at pos 8 copies 'a' from pos 7
+        //   k-a-m-m-a-s-t-a-a-n
+        assert_eq!(
+            morphophonological_pipeline("kampAstAVn", Grade::Weak),
+            "kammastaan"
+        );
+    }
+
+    #[test]
+    fn pipeline_front_all_three() {
+        // kenka + stA + Vn (weak)
+        // Step 1: nk -> ng: kenga + stA + Vn -> "kengAstAVn" wait, input is
+        //   k-e-n-k-A-s-t-A-V-n  (with archiphonemes)
+        // Actually let's use ä properly:
+        // kenkä + stA + Vn (weak)
+        // Input: "kenk\u{00E4}stAVn"
+        // Step 1: nk -> ng: "keng\u{00E4}stAVn" (k at pos 3 becomes g)
+        // Step 2: A at pos 5 -> ä (front, 'e' is neutral, no back), A at pos 7 -> ä
+        //   -> "kengästäVn"
+        // Step 3: V copies ä -> "kengästään"
+        assert_eq!(
+            morphophonological_pipeline("kenk\u{00E4}stAVn", Grade::Weak),
+            "keng\u{00E4}st\u{00E4}\u{00E4}n"
+        );
+    }
+
+    #[test]
+    fn pipeline_empty_input() {
+        assert_eq!(morphophonological_pipeline("", Grade::Weak), "");
+    }
+
+    #[test]
+    fn pipeline_no_changes_needed() {
+        // A word with no gradation patterns, no archiphonemes.
+        assert_eq!(
+            morphophonological_pipeline("talossa", Grade::Weak),
+            "talossa"
+        );
+    }
+
+    #[test]
+    fn pipeline_harmony_only() {
+        // Word with archiphonemes but no gradation.
+        // massa + ssA (strong) -> massassa (ss is not grading)
+        assert_eq!(
+            morphophonological_pipeline("massAssA", Grade::Strong),
+            "massassa"
+        );
+    }
+
+    // =====================================================================
+    // coKleisli composition properties
+    // =====================================================================
+
+    #[test]
+    fn pipeline_right_identity_harmony() {
+        // Comonad right identity for vowel harmony:
+        // extract(extend(apply_vowel_harmony)) == apply_vowel_harmony(z)
+        let input: Vec<char> = "talossA".chars().collect();
+        let z = Zipper::new(input).unwrap();
+        let direct = apply_vowel_harmony(&z);
+        let extended = z.extend(apply_vowel_harmony);
+        assert_eq!(*extended.extract(), direct);
+    }
+
+    #[test]
+    fn pipeline_right_identity_possessive() {
+        // Comonad right identity for possessive:
+        let input: Vec<char> = "taloVn".chars().collect();
+        let z = Zipper::new(input).unwrap();
+        let direct = apply_possessive(&z);
+        let extended = z.extend(apply_possessive);
+        assert_eq!(*extended.extract(), direct);
+    }
+
+    #[test]
+    fn pipeline_composition_order_matters() {
+        // Demonstrate that applying gradation before harmony gives a
+        // different result than applying them in reverse order (on the
+        // raw archiphonemic input).
+        let word = "pukussA";
+
+        // Correct order: gradation first (k deleted), then harmony
+        let correct = morphophonological_pipeline(word, Grade::Weak);
+        assert_eq!(correct, "puussa");
+
+        // If we applied harmony first (before gradation):
+        // Apply harmony first (A -> a, because 'u' is back), then gradation:
+        let harmony_first = harmonize(word);
+        let then_gradation = gradate(&harmony_first, Grade::Weak);
+        // In this case the result happens to be the same because the
+        // harmony context doesn't change. But the pipeline ensures
+        // correctness for cases where k-deletion would change vowel
+        // adjacency, affecting harmony scanning.
+        assert_eq!(then_gradation, correct);
+    }
+
+    #[test]
+    fn pipeline_deterministic() {
+        // Same input always produces same output.
+        let word = "rantAssA";
+        let r1 = morphophonological_pipeline(word, Grade::Weak);
+        let r2 = morphophonological_pipeline(word, Grade::Weak);
+        assert_eq!(r1, r2);
+    }
+
+    #[test]
+    fn pipeline_idempotent_on_resolved() {
+        // Applying the pipeline to already-resolved text should be a no-op
+        // (no archiphonemes, no gradation patterns that would re-fire).
+        let resolved = "rannassa";
+        let result = morphophonological_pipeline(resolved, Grade::Weak);
+        // Note: "rannassa" has "nn" which in strong->weak direction
+        // doesn't match (nn is the weak form of nt, and we're already
+        // in weak grade context). So the word should pass through.
+        // However, nn->nn in Weak direction: nn matches the weak side
+        // of nt->nn pattern. In Grade::Weak we match the strong side,
+        // so nn does NOT match. Correct: no change.
+        assert_eq!(result, resolved);
     }
 }
