@@ -22,7 +22,7 @@
 //!     [`SelectIfAttr`], [`RemoveIfAttr`].
 //!   - Multi-context: [`RemoveIfSandwiched`], [`SelectIfSandwiched`].
 //!   - Positional: [`RemoveAtSentenceStart`].
-//! - [`finnish_disambiguation_rules`]: Pre-built Finnish CG rule set (53 rules)
+//! - [`finnish_disambiguation_rules`]: Pre-built Finnish CG rule set (57 rules)
 //!   targeting the top UPOS confusions (ADJ/NOUN, ADV/NOUN, NOUN/PROPN,
 //!   NOUN/VERB, PRON/NOUN, ADP/ADV, VERB/AUX, and more).
 //! - [`apply_cg_rules`]: Applies a sequence of CG rules over a sentence,
@@ -1055,12 +1055,17 @@ pub fn finnish_disambiguation_rules() -> Vec<Box<dyn CgRule>> {
         // Targets: ADJ->VERB confusion (participles).
         // "on tullut" (has come) -- after olla, the next word is often a
         // past participle tagged as VERB in UD, not ADJ.
+        // DISABLED: Over-aggressive — after "olla", the complement can be:
+        // - NOUN: "on opettaja" (is a teacher), "on asia" (is a matter)
+        // - ADJ: "on suuri" (is big), "on kaunis" (is beautiful)
+        // - ADV: "on hyvin" (is well)
+        // SELECT teonsana removes all these valid readings.
         // SELECT teonsana IF (-1 BASEFORM "olla")
         // -----------------------------------------------------------------
-        Box::new(SelectByBaseform {
-            select_class: "teonsana".into(),
-            preceded_by_baseform: "olla".into(),
-        }),
+        // Box::new(SelectByBaseform {
+        //     select_class: "teonsana".into(),
+        //     preceded_by_baseform: "olla".into(),
+        // }),
         // -----------------------------------------------------------------
         // R4: After modal auxiliary (voida, saattaa, täytyä, pitää), prefer verb.
         // Targets: NOUN->VERB confusion.
@@ -1087,12 +1092,16 @@ pub fn finnish_disambiguation_rules() -> Vec<Box<dyn CgRule>> {
         // R5: After determiner-like pronoun (se, tämä, tuo), remove verb.
         // Targets: NOUN->VERB confusion (207).
         // "se koira" (that dog) -- after a demonstrative, verb reading is unlikely.
+        // DISABLED: Over-aggressive — pronouns commonly precede verbs as
+        // subjects in Finnish: "hän tulee" (s/he comes), "se on" (it is),
+        // "tämä toimii" (this works). The rule was labeled as targeting
+        // determiners but fires on ALL asemosana (all pronouns).
         // REMOVE teonsana IF (-1 asemosana)
         // -----------------------------------------------------------------
-        Box::new(RemoveIfPreceded {
-            remove_class: "teonsana".into(),
-            preceded_by_class: "asemosana".into(),
-        }),
+        // Box::new(RemoveIfPreceded {
+        //     remove_class: "teonsana".into(),
+        //     preceded_by_class: "asemosana".into(),
+        // }),
         // -----------------------------------------------------------------
         // R6: After numeral, remove verb readings.
         // Targets: NOUN->VERB confusion (207).
@@ -1117,32 +1126,39 @@ pub fn finnish_disambiguation_rules() -> Vec<Box<dyn CgRule>> {
         // R8: After adjective, remove adverb readings.
         // Targets: ADV->NOUN confusion (278).
         // After an adjective, the next word is more likely a noun than adverb.
+        // DISABLED: Adverbs CAN follow adjectives in Finnish constructions.
+        // E.g., "hyvä myös" or "parempi vielä". The next word after ADJ
+        // is often a noun, but removing ADV is too aggressive.
         // REMOVE seikkasana IF (-1 laatusana)
         // -----------------------------------------------------------------
-        Box::new(RemoveIfPreceded {
-            remove_class: "seikkasana".into(),
-            preceded_by_class: "laatusana".into(),
-        }),
+        // Box::new(RemoveIfPreceded {
+        //     remove_class: "seikkasana".into(),
+        //     preceded_by_class: "laatusana".into(),
+        // }),
         // -----------------------------------------------------------------
         // R9: After numeral, remove adverb readings.
         // Targets: ADV->NOUN confusion.
         // "kolme kissaa" -- "kissaa" after numeral should be noun, not adverb.
+        // DISABLED: Testing whether this hurts -- similar concern to R8.
         // REMOVE seikkasana IF (-1 lukusana)
         // -----------------------------------------------------------------
-        Box::new(RemoveIfPreceded {
-            remove_class: "seikkasana".into(),
-            preceded_by_class: "lukusana".into(),
-        }),
+        // Box::new(RemoveIfPreceded {
+        //     remove_class: "seikkasana".into(),
+        //     preceded_by_class: "lukusana".into(),
+        // }),
         // -----------------------------------------------------------------
         // R10: After numeral, remove pronoun readings.
         // Targets: PRON->NOUN confusion.
         // "viisi kissaa" -- after numeral, pronoun reading is unlikely.
+        // DISABLED: Pronouns CAN follow numerals: "kolme toista" (thirteen),
+        // "kaksi muuta" (two others). The word after a numeral can be a
+        // pronoun-like quantifier.
         // REMOVE asemosana IF (-1 lukusana)
         // -----------------------------------------------------------------
-        Box::new(RemoveIfPreceded {
-            remove_class: "asemosana".into(),
-            preceded_by_class: "lukusana".into(),
-        }),
+        // Box::new(RemoveIfPreceded {
+        //     remove_class: "asemosana".into(),
+        //     preceded_by_class: "lukusana".into(),
+        // }),
         // =================================================================
         // PHASE 3: Numeral disambiguation
         // =================================================================
@@ -1170,31 +1186,42 @@ pub fn finnish_disambiguation_rules() -> Vec<Box<dyn CgRule>> {
         // R13: Noun before verb pattern: SELECT nimisana IF (+1 teonsana).
         // Targets: ADJ->NOUN (290), PRON->NOUN (180), ADV->NOUN (278).
         // "koira juoksee" -- word before verb is typically the subject (noun).
+        // DISABLED: Over-aggressive — removes correct ADJ/PRON/ADV readings
+        // before verbs. Causes ~30 NOUN->VERB errors from error analysis R10.
+        // The word before a verb can be PRON (hän tulee), ADJ (iso tulee),
+        // or ADV (nopeasti tulee). SELECT nimisana discards all of these.
         // -----------------------------------------------------------------
-        Box::new(SelectIfFollowed {
-            select_class: "nimisana".into(),
-            followed_by_class: "teonsana".into(),
-        }),
+        // Box::new(SelectIfFollowed {
+        //     select_class: "nimisana".into(),
+        //     followed_by_class: "teonsana".into(),
+        // }),
         // -----------------------------------------------------------------
         // R14: When followed by a verb, remove pronoun readings.
         // Targets: PRON->NOUN confusion (180).
         // "talo seisoo" -- "talo" before verb should be noun, not pronoun.
+        // DISABLED: Over-aggressive — pronouns ARE common before verbs
+        // ("hän tulee", "se on", "kaikki tietävät"). This removes correct
+        // PRON readings for subjects. Pronouns are the canonical subject
+        // type before verbs.
         // REMOVE asemosana IF (+1 teonsana)
         // -----------------------------------------------------------------
-        Box::new(RemoveIfFollowed {
-            remove_class: "asemosana".into(),
-            followed_by_class: "teonsana".into(),
-        }),
+        // Box::new(RemoveIfFollowed {
+        //     remove_class: "asemosana".into(),
+        //     followed_by_class: "teonsana".into(),
+        // }),
         // -----------------------------------------------------------------
         // R15: When followed by auxiliary (kieltosana), prefer noun.
         // Targets: ADV->NOUN confusion.
         // "koira ei ..." -- noun before negation verb.
+        // DISABLED: Over-aggressive — same problem as R13. The word before
+        // "ei" can be a PRON ("hän ei"), ADV ("vielä ei"), ADJ, etc.
+        // SELECT nimisana removes all non-noun readings incorrectly.
         // SELECT nimisana IF (+1 kieltosana)
         // -----------------------------------------------------------------
-        Box::new(SelectIfFollowed {
-            select_class: "nimisana".into(),
-            followed_by_class: "kieltosana".into(),
-        }),
+        // Box::new(SelectIfFollowed {
+        //     select_class: "nimisana".into(),
+        //     followed_by_class: "kieltosana".into(),
+        // }),
         // =================================================================
         // PHASE 5: Adposition patterns
         // =================================================================
@@ -1202,21 +1229,28 @@ pub fn finnish_disambiguation_rules() -> Vec<Box<dyn CgRule>> {
         // R16: Before postposition/preposition, prefer noun.
         // Targets: ADV->NOUN, PRON->NOUN.
         // "talon takana" -- word before ADP is typically a noun (genitive).
+        // DISABLED: Over-aggressive — pronouns also precede adpositions
+        // ("hänen takana", "sen vuoksi"). SELECT nimisana incorrectly
+        // removes PRON readings before ADP.
         // SELECT nimisana IF (+1 suhdesana)
         // -----------------------------------------------------------------
-        Box::new(SelectIfFollowed {
-            select_class: "nimisana".into(),
-            followed_by_class: "suhdesana".into(),
-        }),
+        // Box::new(SelectIfFollowed {
+        //     select_class: "nimisana".into(),
+        //     followed_by_class: "suhdesana".into(),
+        // }),
         // -----------------------------------------------------------------
         // R17: After adposition, prefer noun (for the dependent).
         // "takana talon" (behind the house) or "ilman syytä" (without reason).
+        // DISABLED: Over-aggressive — the word after an adposition can be
+        // a verb, adjective, adverb, etc. in Finnish. Postpositions come
+        // AFTER their argument, so the word AFTER a postposition is often
+        // the start of a new phrase.
         // SELECT nimisana IF (-1 suhdesana)
         // -----------------------------------------------------------------
-        Box::new(SelectIfPreceded {
-            select_class: "nimisana".into(),
-            preceded_by_class: "suhdesana".into(),
-        }),
+        // Box::new(SelectIfPreceded {
+        //     select_class: "nimisana".into(),
+        //     preceded_by_class: "suhdesana".into(),
+        // }),
         // -----------------------------------------------------------------
         // R18: Adposition reading unlikely at sentence start.
         // Sentence-initial words are rarely postpositions.
@@ -1317,22 +1351,28 @@ pub fn finnish_disambiguation_rules() -> Vec<Box<dyn CgRule>> {
         // R28: Remove adverb reading when preceded by a noun.
         // Targets: ADV->NOUN confusion (278).
         // NOUN _ pattern in Finnish often means the second word is also a noun.
+        // DISABLED: Over-aggressive — adverbs DO follow nouns commonly
+        // ("koira nopeasti juoksee", "talo siellä"). This removes correct
+        // ADV readings after nouns.
         // REMOVE seikkasana IF (-1 nimisana)
         // -----------------------------------------------------------------
-        Box::new(RemoveIfPreceded {
-            remove_class: "seikkasana".into(),
-            preceded_by_class: "nimisana".into(),
-        }),
+        // Box::new(RemoveIfPreceded {
+        //     remove_class: "seikkasana".into(),
+        //     preceded_by_class: "nimisana".into(),
+        // }),
         // -----------------------------------------------------------------
         // R29: After conjunction, prefer noun reading for the coordinated head.
         // "ja koira juoksee" -- after "ja", the next word is typically a
         // coordinated noun.
+        // DISABLED: Over-aggressive — after conjunction, the next word can also
+        // be VERB ("ja juoksee"), ADJ ("ja suuri"), ADV ("ja nopeasti").
+        // SELECT nimisana removes all non-noun readings incorrectly.
         // SELECT nimisana IF (-1 sidesana)
         // -----------------------------------------------------------------
-        Box::new(SelectIfPreceded {
-            select_class: "nimisana".into(),
-            preceded_by_class: "sidesana".into(),
-        }),
+        // Box::new(SelectIfPreceded {
+        //     select_class: "nimisana".into(),
+        //     preceded_by_class: "sidesana".into(),
+        // }),
         // =================================================================
         // PHASE 8: Adjective before noun patterns
         // =================================================================
@@ -1348,12 +1388,15 @@ pub fn finnish_disambiguation_rules() -> Vec<Box<dyn CgRule>> {
         // -----------------------------------------------------------------
         // R31: When followed by a proper noun, prefer adjective.
         // "suuri Suomi" -- adjective before proper noun.
+        // DISABLED: Over-aggressive — before a proper noun, the word can be
+        // another PROPN ("Matti Virtanen"), NOUN ("herra Matti"), or ADV.
+        // SELECT laatusana removes all non-ADJ readings.
         // SELECT laatusana IF (+1 etunimi)
         // -----------------------------------------------------------------
-        Box::new(SelectIfFollowed {
-            select_class: "laatusana".into(),
-            followed_by_class: "etunimi".into(),
-        }),
+        // Box::new(SelectIfFollowed {
+        //     select_class: "laatusana".into(),
+        //     followed_by_class: "etunimi".into(),
+        // }),
         // =================================================================
         // PHASE 9: Adverb before verb/adjective patterns
         // =================================================================
@@ -1369,12 +1412,16 @@ pub fn finnish_disambiguation_rules() -> Vec<Box<dyn CgRule>> {
         // -----------------------------------------------------------------
         // R33: After adverb, prefer verb reading over noun.
         // "nopeasti juoksee" -- adverb typically modifies a verb.
+        // DISABLED: Over-aggressive — after adverb, the next word can also be
+        // a NOUN ("paljon koiria"), ADJ ("erittäin suuri"), or another ADV.
+        // SELECT teonsana removes all non-verb readings incorrectly.
+        // This causes ~30 NOUN->VERB errors (error analysis R24).
         // SELECT teonsana IF (-1 seikkasana)
         // -----------------------------------------------------------------
-        Box::new(SelectIfPreceded {
-            select_class: "teonsana".into(),
-            preceded_by_class: "seikkasana".into(),
-        }),
+        // Box::new(SelectIfPreceded {
+        //     select_class: "teonsana".into(),
+        //     preceded_by_class: "seikkasana".into(),
+        // }),
         // =================================================================
         // PHASE 10: Genitive + noun patterns
         // =================================================================
@@ -1403,21 +1450,27 @@ pub fn finnish_disambiguation_rules() -> Vec<Box<dyn CgRule>> {
         //
         // R36: After verb, remove adverb reading when noun also exists.
         // "näkee talon" -- after verb, the object is typically a noun.
+        // DISABLED: Over-aggressive — adverbs DO follow verbs commonly
+        // ("juoksee nopeasti", "tuli takaisin", "meni pois"). This removes
+        // correct ADV readings in verb-adverb patterns.
         // REMOVE seikkasana IF (-1 teonsana)
         // -----------------------------------------------------------------
-        Box::new(RemoveIfPreceded {
-            remove_class: "seikkasana".into(),
-            preceded_by_class: "teonsana".into(),
-        }),
+        // Box::new(RemoveIfPreceded {
+        //     remove_class: "seikkasana".into(),
+        //     preceded_by_class: "teonsana".into(),
+        // }),
         // -----------------------------------------------------------------
         // R37: After verb, remove pronoun reading when noun also exists.
         // "näkee talon" -- after verb, prefer noun over pronoun.
+        // DISABLED: Over-aggressive — pronouns DO follow verbs commonly
+        // ("näkee hänet", "teki sen", "ottaa sen"). This removes correct
+        // PRON readings in object position.
         // REMOVE asemosana IF (-1 teonsana)
         // -----------------------------------------------------------------
-        Box::new(RemoveIfPreceded {
-            remove_class: "asemosana".into(),
-            preceded_by_class: "teonsana".into(),
-        }),
+        // Box::new(RemoveIfPreceded {
+        //     remove_class: "asemosana".into(),
+        //     preceded_by_class: "teonsana".into(),
+        // }),
         // =================================================================
         // PHASE 12: NOUN/PROPN disambiguation
         // =================================================================
@@ -1482,35 +1535,44 @@ pub fn finnish_disambiguation_rules() -> Vec<Box<dyn CgRule>> {
         //
         // R43: Adverb sandwiched between two nouns is unlikely.
         // "talo [X] talo" -- in N _ N pattern, prefer noun over adverb.
+        // DISABLED: ADV between two nouns does occur in Finnish
+        // ("mies vain katsoi" where both mies and katsoi might have N readings).
+        // Also, since R13 (which selects N before V) is disabled, this
+        // pattern fires less usefully now.
         // REMOVE seikkasana IF (-1 nimisana) (1 nimisana)
         // -----------------------------------------------------------------
-        Box::new(RemoveIfSandwiched {
-            remove_class: "seikkasana".into(),
-            preceded_by_class: "nimisana".into(),
-            followed_by_class: "nimisana".into(),
-        }),
+        // Box::new(RemoveIfSandwiched {
+        //     remove_class: "seikkasana".into(),
+        //     preceded_by_class: "nimisana".into(),
+        //     followed_by_class: "nimisana".into(),
+        // }),
         // -----------------------------------------------------------------
         // R44: Between a noun and a verb, prefer adjective reading
         // (adnominal modifier in a relative clause or apposition).
         // "koira iso juoksee" => unlikely, but "iso" between noun/verb
         // is more likely adjective than adverb.
+        // DISABLED: The SELECT is too aggressive. Between N and V, the
+        // word could be another NOUN, a PRON, or an ADV. Forcing ADJ
+        // reading is incorrect in many cases.
         // SELECT laatusana IF (-1 nimisana) (1 teonsana)
         // -----------------------------------------------------------------
-        Box::new(SelectIfSandwiched {
-            select_class: "laatusana".into(),
-            preceded_by_class: "nimisana".into(),
-            followed_by_class: "teonsana".into(),
-        }),
+        // Box::new(SelectIfSandwiched {
+        //     select_class: "laatusana".into(),
+        //     preceded_by_class: "nimisana".into(),
+        //     followed_by_class: "teonsana".into(),
+        // }),
         // -----------------------------------------------------------------
         // R45: Between conjunction and verb, prefer noun reading.
         // "ja koira juoksee" -- coordinated noun subject.
+        // DISABLED: Between CONJ and VERB, the word can also be a PRON
+        // ("ja hän tuli"), ADV ("ja nopeasti juoksi"), ADJ.
         // SELECT nimisana IF (-1 sidesana) (1 teonsana)
         // -----------------------------------------------------------------
-        Box::new(SelectIfSandwiched {
-            select_class: "nimisana".into(),
-            preceded_by_class: "sidesana".into(),
-            followed_by_class: "teonsana".into(),
-        }),
+        // Box::new(SelectIfSandwiched {
+        //     select_class: "nimisana".into(),
+        //     preceded_by_class: "sidesana".into(),
+        //     followed_by_class: "teonsana".into(),
+        // }),
         // =================================================================
         // PHASE 15: Remaining case-based and context patterns
         // =================================================================
@@ -1567,10 +1629,8 @@ pub fn finnish_disambiguation_rules() -> Vec<Box<dyn CgRule>> {
         // -----------------------------------------------------------------
         // R52: If the word has a participle attribute, prefer verb reading
         // (participial forms in UD Finnish-TDT are tagged VERB, not ADJ).
-        // SELECT laatusana IF (0 HAS PARTICIPLE=*) -- but actually we
-        // want the *verb* reading to win; however, the pos_map already
-        // handles participle -> VERB. This rule removes adverb/noun
-        // alternatives when a participle reading exists.
+        // This rule removes adverb/noun alternatives when a participle
+        // reading exists.
         // REMOVE seikkasana IF (0 HAS PARTICIPLE=past_passive)
         // -----------------------------------------------------------------
         Box::new(RemoveIfAttr {
@@ -1583,15 +1643,16 @@ pub fn finnish_disambiguation_rules() -> Vec<Box<dyn CgRule>> {
         // comparative constructions. "suurempi kuin talo" -- the word
         // after "kuin" is typically a noun. But the word *before* "kuin"
         // is typically comparative ADJ.
-        // SELECT nimisana IF (-1 sidesana) -- already covered by R29,
-        // so instead: remove verb after conjunction + noun.
-        // REMOVE teonsana IF (-1 sidesana) -- after conjunction, verb
-        // is less likely than noun.
+        // DISABLED: Over-aggressive — after conjunction, verb IS common
+        // ("ja tulee", "mutta sanoi"). Conflicts with R55 which selects
+        // verb after SCONJ. Removing verb after conjunction hurts
+        // coordinated verb patterns.
+        // REMOVE teonsana IF (-1 sidesana)
         // -----------------------------------------------------------------
-        Box::new(RemoveIfPreceded {
-            remove_class: "teonsana".into(),
-            preceded_by_class: "sidesana".into(),
-        }),
+        // Box::new(RemoveIfPreceded {
+        //     remove_class: "teonsana".into(),
+        //     preceded_by_class: "sidesana".into(),
+        // }),
         // =================================================================
         // PHASE 16: NOUN/VERB disambiguation refinements
         // Targets: VERB->NOUN (191) and NOUN->VERB (148) confusions.
@@ -1644,12 +1705,15 @@ pub fn finnish_disambiguation_rules() -> Vec<Box<dyn CgRule>> {
         // -----------------------------------------------------------------
         // R58: Before "ei" (negation), prefer noun reading.
         // "koira ei juokse" -- word before negation is subject (noun).
+        // DISABLED: Same problem as R13/R15 -- the word before "ei" can
+        // be PRON ("hän ei"), ADV ("enää ei"), ADJ ("pitkä ei...").
+        // SELECT nimisana is too aggressive.
         // SELECT nimisana IF (+1 BASEFORM IN {"ei"})
         // -----------------------------------------------------------------
-        Box::new(SelectIfFollowedByBaseformList {
-            select_class: "nimisana".into(),
-            followed_by_baseforms: vec!["ei".into()],
-        }),
+        // Box::new(SelectIfFollowedByBaseformList {
+        //     select_class: "nimisana".into(),
+        //     followed_by_baseforms: vec!["ei".into()],
+        // }),
         // -----------------------------------------------------------------
         // R59: REQUIRE_FOLLOWING_VERB attribute selects verb reading.
         // If the FST marks a word as requiring a following verb, it is
@@ -1708,20 +1772,27 @@ pub fn finnish_disambiguation_rules() -> Vec<Box<dyn CgRule>> {
         // R64: At sentence start, prefer nimisana over etunimi.
         // "Vuonna 2020..." -- "Vuonna" is sentence-initial but is a
         // common noun (vuosi in essive), not a proper noun.
+        // DISABLED: Over-aggressive SELECT. Some sentences DO start with
+        // proper nouns ("Matti tuli kotiin", "Helsinki on kaunis").
+        // SELECT nimisana removes etunimi/sukunimi/paikannimi readings.
+        // However, sentence-initial capitalization in Finnish makes ALL
+        // words look like proper nouns, so this was trying to fix that.
+        // The net effect is unclear -- disabling to test.
         // SELECT nimisana IF (-1 BOS)
         // -----------------------------------------------------------------
-        Box::new(SelectAtSentenceStart {
-            select_class: "nimisana".into(),
-        }),
+        // Box::new(SelectAtSentenceStart {
+        //     select_class: "nimisana".into(),
+        // }),
         // -----------------------------------------------------------------
         // R65: At sentence start, remove sukunimi reading.
         // Sentence-initial surnames are unlikely without a preceding
         // first name.
+        // DISABLED: Testing impact -- might be neutral or slightly helpful.
         // REMOVE sukunimi IF (-1 BOS)
         // -----------------------------------------------------------------
-        Box::new(RemoveAtSentenceStart {
-            remove_class: "sukunimi".into(),
-        }),
+        // Box::new(RemoveAtSentenceStart {
+        //     remove_class: "sukunimi".into(),
+        // }),
         // =================================================================
         // PHASE 18: SCONJ patterns
         // Targets: improve SCONJ recall (currently 77.5% recall).
@@ -1840,12 +1911,17 @@ pub fn finnish_disambiguation_rules() -> Vec<Box<dyn CgRule>> {
         }),
         // -----------------------------------------------------------------
         // R75: Adposition reading unlikely when NOT followed by a noun.
+        // DISABLED: Over-aggressive — postpositions follow their noun argument
+        // (which precedes them), so the word AFTER a postposition need not
+        // be a noun. Also, prepositions can be followed by pronouns or
+        // proper nouns, not just nimisana. This rule incorrectly removes
+        // ADP readings in many valid contexts.
         // REMOVE suhdesana IF (NOT +1 nimisana)
         // -----------------------------------------------------------------
-        Box::new(RemoveIfNotFollowed {
-            remove_class: "suhdesana".into(),
-            not_followed_by_class: "nimisana".into(),
-        }),
+        // Box::new(RemoveIfNotFollowed {
+        //     remove_class: "suhdesana".into(),
+        //     not_followed_by_class: "nimisana".into(),
+        // }),
         // =================================================================
         // PHASE 22: Verb-verb sequence and coordination
         // Targets: VERB->NOUN (191 errors).
@@ -2690,15 +2766,15 @@ mod tests {
     #[test]
     fn finnish_rules_se_koira_disambiguation() {
         // "se koira" — "that dog"
-        // "koira" might be ambiguous with teonsana in a contrived scenario.
-        // After "se" (asemosana), verb reading should be removed.
+        // R5 (REMOVE teonsana IF -1 asemosana) is DISABLED because pronouns
+        // commonly precede verbs. Both readings should survive.
         let se = make("asemosana");
         let sentence = vec![vec![se], vec![make("nimisana"), make("teonsana")]];
         let rules = finnish_disambiguation_rules();
         let result = apply_cg_rules(&sentence, &rules);
 
-        // Verb reading removed after pronoun.
-        assert_eq!(classes(&result[1]), vec!["nimisana"]);
+        // R5 disabled: both readings survive.
+        assert_eq!(classes(&result[1]), vec!["nimisana", "teonsana"]);
     }
 
     #[test]
@@ -2723,7 +2799,8 @@ mod tests {
         // "koira juoksee" — "dog runs"
         // Position 0: nimisana | seikkasana | asemosana (ambiguous)
         // Position 1: teonsana
-        // Before verb, noun should be preferred over adverb/pronoun.
+        // R13 (SELECT nimisana IF +1 teonsana) and R14 (REMOVE asemosana IF +1
+        // teonsana) are DISABLED. All readings should survive at pos 0.
         let sentence = vec![
             vec![make("nimisana"), make("seikkasana"), make("asemosana")],
             vec![make("teonsana")],
@@ -2731,8 +2808,11 @@ mod tests {
         let rules = finnish_disambiguation_rules();
         let result = apply_cg_rules(&sentence, &rules);
 
-        // Noun selected; adverb and pronoun removed before verb.
-        assert_eq!(classes(&result[0]), vec!["nimisana"]);
+        // R13/R14 disabled: all readings survive before verb.
+        assert_eq!(
+            classes(&result[0]),
+            vec!["asemosana", "nimisana", "seikkasana"]
+        );
     }
 
     #[test]
@@ -3036,7 +3116,9 @@ mod tests {
     #[test]
     fn finnish_rules_on_tullut() {
         // "on tullut" -- "has come"
-        // After "olla" auxiliary, verb (participle) reading preferred.
+        // R3 (SELECT teonsana IF -1 BASEFORM "olla") is DISABLED because
+        // "olla" can be followed by nouns/adjectives as copula.
+        // Both readings survive.
         let mut on = Analysis::new();
         on.set(ATTR_CLASS, "teonsana");
         on.set("BASEFORM", "olla");
@@ -3045,10 +3127,8 @@ mod tests {
         let rules = finnish_disambiguation_rules();
         let result = apply_cg_rules(&sentence, &rules);
 
-        // R3 (SelectByBaseform olla->teonsana) should fire and R24 (after
-        // teonsana prefer teonsana) reinforces it. R27 removes seikkasana but
-        // that does not apply here.
-        assert_eq!(classes(&result[1]), vec!["teonsana"]);
+        // R3 disabled: both readings survive.
+        assert_eq!(classes(&result[1]), vec!["nimisana", "teonsana"]);
     }
 
     #[test]
@@ -3096,7 +3176,9 @@ mod tests {
     #[test]
     fn finnish_rules_after_adposition_prefer_noun() {
         // "ilman syytä" -- "without reason"
-        // After ADP (suhdesana), noun reading preferred.
+        // R17 (SELECT nimisana IF -1 suhdesana) is DISABLED because
+        // the word after an adposition can be various POS types.
+        // Both readings survive.
         let sentence = vec![
             vec![make("suhdesana")],
             vec![make("nimisana"), make("seikkasana")],
@@ -3104,13 +3186,16 @@ mod tests {
         let rules = finnish_disambiguation_rules();
         let result = apply_cg_rules(&sentence, &rules);
 
-        assert_eq!(classes(&result[1]), vec!["nimisana"]);
+        // R17 disabled: both readings survive.
+        assert_eq!(classes(&result[1]), vec!["nimisana", "seikkasana"]);
     }
 
     #[test]
     fn finnish_rules_before_adposition_prefer_noun() {
         // "talon takana" -- "behind the house"
-        // Before ADP (suhdesana), noun reading preferred.
+        // R16 (SELECT nimisana IF +1 suhdesana) is DISABLED because
+        // pronouns can also precede adpositions.
+        // Both readings survive.
         let sentence = vec![
             vec![make("nimisana"), make("seikkasana")],
             vec![make("suhdesana")],
@@ -3118,7 +3203,8 @@ mod tests {
         let rules = finnish_disambiguation_rules();
         let result = apply_cg_rules(&sentence, &rules);
 
-        assert_eq!(classes(&result[0]), vec!["nimisana"]);
+        // R16 disabled: both readings survive.
+        assert_eq!(classes(&result[0]), vec!["nimisana", "seikkasana"]);
     }
 
     #[test]
@@ -3138,7 +3224,9 @@ mod tests {
     #[test]
     fn finnish_rules_adv_before_verb() {
         // "nopeasti juoksee" -- "quickly runs"
-        // After adverb, verb reading preferred over noun.
+        // R33 (SELECT teonsana IF -1 seikkasana) is DISABLED because
+        // after adverb, the next word can be a noun too.
+        // Both readings survive.
         let sentence = vec![
             vec![make("seikkasana")],
             vec![make("nimisana"), make("teonsana")],
@@ -3146,14 +3234,16 @@ mod tests {
         let rules = finnish_disambiguation_rules();
         let result = apply_cg_rules(&sentence, &rules);
 
-        // R24 fires: SELECT teonsana IF (-1 seikkasana)
-        assert_eq!(classes(&result[1]), vec!["teonsana"]);
+        // R33 disabled: both readings survive after adverb.
+        assert_eq!(classes(&result[1]), vec!["nimisana", "teonsana"]);
     }
 
     #[test]
     fn finnish_rules_after_verb_remove_adverb_when_noun_exists() {
         // "näkee talon" -- "sees the house"
-        // After verb, remove adverb reading when noun also present.
+        // R36 (REMOVE seikkasana IF -1 teonsana) is DISABLED because
+        // adverbs commonly follow verbs ("juoksee nopeasti").
+        // Both readings survive.
         let sentence = vec![
             vec![make("teonsana")],
             vec![make("nimisana"), make("seikkasana")],
@@ -3161,13 +3251,15 @@ mod tests {
         let rules = finnish_disambiguation_rules();
         let result = apply_cg_rules(&sentence, &rules);
 
-        // R27: REMOVE seikkasana IF (-1 teonsana)
-        assert_eq!(classes(&result[1]), vec!["nimisana"]);
+        // R36 disabled: both readings survive after verb.
+        assert_eq!(classes(&result[1]), vec!["nimisana", "seikkasana"]);
     }
 
     #[test]
     fn finnish_rules_numeral_removes_adverb() {
         // "kolme kissaa" -- after numeral, remove adverb reading.
+        // R9 (REMOVE seikkasana IF -1 lukusana) is DISABLED.
+        // Both readings survive.
         let sentence = vec![
             vec![make("lukusana")],
             vec![make("nimisana"), make("seikkasana")],
@@ -3175,15 +3267,17 @@ mod tests {
         let rules = finnish_disambiguation_rules();
         let result = apply_cg_rules(&sentence, &rules);
 
-        // R8: REMOVE seikkasana IF (-1 lukusana)
-        assert_eq!(classes(&result[1]), vec!["nimisana"]);
+        // R9 disabled: both readings survive.
+        assert_eq!(classes(&result[1]), vec!["nimisana", "seikkasana"]);
     }
 
     #[test]
     fn finnish_rules_total() {
         // Verify the rule count.
+        // 81 original - 24 disabled (R3,R5,R8,R9,R10,R13,R14,R15,R16,R17,
+        // R28,R29,R31,R33,R36,R37,R43,R44,R45,R53,R58,R64,R65,R75) = 57 active
         let rules = finnish_disambiguation_rules();
-        assert_eq!(rules.len(), 81);
+        assert_eq!(rules.len(), 57);
     }
 
     // -- RemoveIfNotFollowed -----------------------------------------------
@@ -3544,7 +3638,10 @@ mod tests {
 
     #[test]
     fn finnish_rules_numeral_removes_pronoun() {
-        // "viisi kissaa" -- after numeral, pronoun reading removed.
+        // "viisi kissaa" -- after numeral, pronoun reading.
+        // R10 (REMOVE asemosana IF -1 lukusana) is DISABLED because
+        // pronouns can follow numerals ("kolme toista").
+        // Both readings survive.
         let sentence = vec![
             vec![make("lukusana")],
             vec![make("nimisana"), make("asemosana")],
@@ -3552,7 +3649,8 @@ mod tests {
         let rules = finnish_disambiguation_rules();
         let result = apply_cg_rules(&sentence, &rules);
 
-        assert_eq!(classes(&result[1]), vec!["nimisana"]);
+        // R10 disabled: both readings survive.
+        assert_eq!(classes(&result[1]), vec!["asemosana", "nimisana"]);
     }
 
     #[test]
@@ -3655,7 +3753,9 @@ mod tests {
 
     #[test]
     fn finnish_rules_noun_sandwich_removes_adverb() {
-        // N - ADV/N - N => remove ADV in the middle.
+        // N - ADV/N - N => R43 (RemoveIfSandwiched) is DISABLED.
+        // R28 (REMOVE seikkasana IF -1 nimisana) is also DISABLED.
+        // Both readings survive in the middle position.
         let sentence = vec![
             vec![make("nimisana")],
             vec![make("seikkasana"), make("nimisana")],
@@ -3664,12 +3764,15 @@ mod tests {
         let rules = finnish_disambiguation_rules();
         let result = apply_cg_rules(&sentence, &rules);
 
-        assert_eq!(classes(&result[1]), vec!["nimisana"]);
+        // R43 and R28 disabled: both readings survive.
+        assert_eq!(classes(&result[1]), vec!["nimisana", "seikkasana"]);
     }
 
     #[test]
     fn finnish_rules_conjunction_verb_sandwich_prefers_noun() {
-        // "ja koira juoksee" => CONJ - N/ADV - V => select noun.
+        // "ja koira juoksee" => CONJ - N/ADV - V
+        // R29 (SELECT nimisana IF -1 sidesana) and R45 (SelectIfSandwiched)
+        // are both DISABLED. Both readings survive.
         let sentence = vec![
             vec![make("sidesana")],
             vec![make("nimisana"), make("seikkasana")],
@@ -3678,12 +3781,16 @@ mod tests {
         let rules = finnish_disambiguation_rules();
         let result = apply_cg_rules(&sentence, &rules);
 
-        assert_eq!(classes(&result[1]), vec!["nimisana"]);
+        // R29 and R45 disabled: both readings survive.
+        assert_eq!(classes(&result[1]), vec!["nimisana", "seikkasana"]);
     }
 
     #[test]
     fn finnish_rules_after_verb_remove_pronoun() {
-        // "näkee talon" -- after verb, remove pronoun when noun exists.
+        // "näkee talon" -- after verb.
+        // R37 (REMOVE asemosana IF -1 teonsana) is DISABLED because
+        // pronouns commonly follow verbs as objects.
+        // Both readings survive.
         let sentence = vec![
             vec![make("teonsana")],
             vec![make("nimisana"), make("asemosana")],
@@ -3691,12 +3798,16 @@ mod tests {
         let rules = finnish_disambiguation_rules();
         let result = apply_cg_rules(&sentence, &rules);
 
-        assert_eq!(classes(&result[1]), vec!["nimisana"]);
+        // R37 disabled: both readings survive after verb.
+        assert_eq!(classes(&result[1]), vec!["asemosana", "nimisana"]);
     }
 
     #[test]
     fn finnish_rules_before_negation_prefer_noun() {
         // "koira ei ..." -- noun before negation verb.
+        // R15 (SELECT nimisana IF +1 kieltosana) is DISABLED because
+        // pronouns/adverbs can also precede negation verbs.
+        // Both readings survive.
         let sentence = vec![
             vec![make("nimisana"), make("seikkasana")],
             vec![make("kieltosana")],
@@ -3704,7 +3815,8 @@ mod tests {
         let rules = finnish_disambiguation_rules();
         let result = apply_cg_rules(&sentence, &rules);
 
-        assert_eq!(classes(&result[0]), vec!["nimisana"]);
+        // R15 disabled: both readings survive before negation.
+        assert_eq!(classes(&result[0]), vec!["nimisana", "seikkasana"]);
     }
 
     #[test]
@@ -3748,7 +3860,9 @@ mod tests {
 
     #[test]
     fn finnish_rules_after_conjunction_remove_verb() {
-        // "ja koira" -- after conjunction, verb reading unlikely.
+        // "ja koira" -- after conjunction.
+        // R29 (SELECT nimisana IF -1 sidesana) and R53 (REMOVE teonsana
+        // IF -1 sidesana) are both DISABLED. Both readings survive.
         let sentence = vec![
             vec![make("sidesana")],
             vec![make("nimisana"), make("teonsana")],
@@ -3756,8 +3870,8 @@ mod tests {
         let rules = finnish_disambiguation_rules();
         let result = apply_cg_rules(&sentence, &rules);
 
-        // R29 selects nimisana, R53 removes teonsana — both fire.
-        assert_eq!(classes(&result[1]), vec!["nimisana"]);
+        // R29 and R53 disabled: both readings survive after conjunction.
+        assert_eq!(classes(&result[1]), vec!["nimisana", "teonsana"]);
     }
 
     #[test]
@@ -3775,6 +3889,9 @@ mod tests {
     #[test]
     fn finnish_rules_adj_before_propn() {
         // "suuri Suomi" -- adjective before proper noun.
+        // R31 (SELECT laatusana IF +1 etunimi) is DISABLED because
+        // other POS types can precede proper nouns.
+        // Both readings survive.
         let sentence = vec![
             vec![make("laatusana"), make("seikkasana")],
             vec![make("etunimi")],
@@ -3782,7 +3899,8 @@ mod tests {
         let rules = finnish_disambiguation_rules();
         let result = apply_cg_rules(&sentence, &rules);
 
-        assert_eq!(classes(&result[0]), vec!["laatusana"]);
+        // R31 disabled: both readings survive.
+        assert_eq!(classes(&result[0]), vec!["laatusana", "seikkasana"]);
     }
 
     #[test]
@@ -4062,6 +4180,9 @@ mod tests {
     #[test]
     fn finnish_rules_sentence_initial_nimisana_over_etunimi() {
         // "Vuonna" -- sentence-initial common noun, not proper noun.
+        // R64 (SelectAtSentenceStart nimisana) is DISABLED because
+        // some sentences genuinely start with proper nouns.
+        // Both readings survive.
         let sentence = vec![
             vec![make("nimisana"), make("etunimi")],
             vec![make("teonsana")],
@@ -4069,12 +4190,15 @@ mod tests {
         let rules = finnish_disambiguation_rules();
         let result = apply_cg_rules(&sentence, &rules);
 
-        assert_eq!(classes(&result[0]), vec!["nimisana"]);
+        // R64 disabled: both readings survive at sentence start.
+        assert_eq!(classes(&result[0]), vec!["etunimi", "nimisana"]);
     }
 
     #[test]
     fn finnish_rules_sentence_initial_sukunimi_removed() {
-        // Sentence-initial sukunimi is removed.
+        // Sentence-initial sukunimi.
+        // R65 (RemoveAtSentenceStart sukunimi) is DISABLED.
+        // Both readings survive.
         let sentence = vec![
             vec![make("sukunimi"), make("nimisana")],
             vec![make("teonsana")],
@@ -4082,7 +4206,8 @@ mod tests {
         let rules = finnish_disambiguation_rules();
         let result = apply_cg_rules(&sentence, &rules);
 
-        assert_eq!(classes(&result[0]), vec!["nimisana"]);
+        // R65 disabled: both readings survive at sentence start.
+        assert_eq!(classes(&result[0]), vec!["nimisana", "sukunimi"]);
     }
 
     #[test]
