@@ -6,6 +6,7 @@
 
 use mce_core::analysis::{
     Analysis, ATTR_BASEFORM, ATTR_CLASS, ATTR_PARTICIPLE, ATTR_POSSIBLE_GEOGRAPHICAL_NAME,
+    ATTR_SIJAMUOTO,
 };
 
 /// Map an MCE Analysis to a UD UPOS tag.
@@ -31,8 +32,23 @@ pub fn mce_class_to_upos(analysis: &Analysis) -> &'static str {
 
     match class {
         // Nominals
-        "nimisana" => "NOUN",
+        "nimisana" => {
+            // Some words classified as nimisana by the Voikko FST are
+            // actually pronouns in UD Finnish-TDT (e.g., kaikki, itse, sama).
+            if let Some(baseform) = analysis.get(ATTR_BASEFORM) {
+                if PRONOUN_OVERRIDES.contains(&baseform) {
+                    return "PRON";
+                }
+            }
+            "NOUN"
+        }
         "laatusana" => {
+            // Finnish manner adverbs in -sti (instructive case of adjectives)
+            // are classified as laatusana + SIJAMUOTO=kerrontosti by the FST.
+            // In UD Finnish-TDT, these are always ADV, not ADJ.
+            if analysis.get(ATTR_SIJAMUOTO) == Some("kerrontosti") {
+                return "ADV";
+            }
             // If this was originally a verb form (participle), map to VERB.
             // post_process_attributes changes past_passive participles to
             // "laatusana", but the PARTICIPLE attribute is preserved.
@@ -131,17 +147,32 @@ const FINNISH_AUX_LEMMAS: &[&str] = &[
 /// A future integration with M3/M4' could use head-noun detection.
 const FINNISH_DET_FORMS: &[&str] = &[];
 
+/// Words that the Voikko FST classifies as `nimisana` (or `lukusana`) but
+/// that UD Finnish-TDT tags as PRON.
+///
+/// The Voikko FST was designed for spell-checking, not UD POS tagging.
+/// In Voikko's classification, `kaikki` (all) is a nominal quantifier
+/// (`nimisana`), not a pronoun (`asemosana`). We override to match UD.
+const PRONOUN_OVERRIDES: &[&str] = &[
+    "kaikki", "itse", "sama", "toinen", "moni", "harva", "kumpikin", "molemmat", "ainoa",
+];
+
 /// Finnish particles that MCE might tag as `seikkasana` but UD tags as PART.
 pub const FINNISH_PARTICLES: &[&str] = &[
     "myös", "vain", "kin", "kaan", "jo", "vielä", "edes", "kyllä", "kai", "nyt", "niin", "ihan",
     "aivan", "-ko", "-kö", "-han", "-hän", "-pa", "-pä",
 ];
 
-/// Finnish particle baseforms that UD Finnish-TDT tags as PART.
+/// Finnish particle baseforms — DISABLED for UD Finnish-TDT evaluation.
 ///
-/// These are words that MCE typically tags as `seikkasana` (ADV) but that
-/// the UD standard classifies as particles. They are function words that
-/// do not fit the ADV category semantically.
+/// UD Finnish-TDT does NOT use the PART tag. All words that were previously
+/// mapped to PART (myös, vain, jo, nyt, etc.) are tagged ADV in the gold
+/// standard. This list is retained for reference but is no longer used in
+/// the mapping logic.
+///
+/// If evaluating against a treebank that uses PART, re-enable this list in
+/// the `mce_to_upos` function's ADV arm.
+#[allow(dead_code)]
 const FINNISH_PARTICLE_BASEFORMS: &[&str] = &[
     "myös", "vain", "jo", "edes", "kyllä", "nyt", "ihan", "aivan", "vasta", "asti", "saakka",
     "mukaan",
@@ -189,20 +220,9 @@ pub fn mce_to_upos(analysis: &Analysis, surface: &str) -> &'static str {
             "PRON"
         }
         "ADV" => {
-            // Some adverbs are actually particles in UD.
-            // Check baseform first, then surface form.
-            if let Some(baseform) = analysis.get(ATTR_BASEFORM) {
-                if FINNISH_PARTICLE_BASEFORMS.contains(&baseform) {
-                    return "PART";
-                }
-            }
-            let lower: String = surface
-                .chars()
-                .map(|c| c.to_lowercase().next().unwrap_or(c))
-                .collect();
-            if FINNISH_PARTICLE_BASEFORMS.contains(&lower.as_str()) {
-                return "PART";
-            }
+            // NOTE: UD Finnish-TDT does not use the PART tag.
+            // All words previously mapped to PART (myös, vain, jo, nyt, etc.)
+            // are tagged ADV in the gold standard. We keep them as ADV.
             "ADV"
         }
         other => other,
@@ -303,16 +323,16 @@ mod tests {
     }
 
     #[test]
-    fn particle_mapping() {
-        // "myös" (also) is PART in UD, not ADV.
+    fn particle_words_stay_adv_for_finnish_tdt() {
+        // UD Finnish-TDT does NOT use the PART tag.
+        // Words like "myös", "vain", "jo" are ADV, not PART.
         let mut a = make_analysis("seikkasana");
         a.set(ATTR_BASEFORM, "myös");
-        assert_eq!(mce_to_upos(&a, "myös"), "PART");
+        assert_eq!(mce_to_upos(&a, "myös"), "ADV");
 
-        // "vain" (only) is PART.
         let mut a2 = make_analysis("seikkasana");
         a2.set(ATTR_BASEFORM, "vain");
-        assert_eq!(mce_to_upos(&a2, "vain"), "PART");
+        assert_eq!(mce_to_upos(&a2, "vain"), "ADV");
 
         // "nopeasti" (quickly) stays ADV.
         let mut a3 = make_analysis("seikkasana");
@@ -321,12 +341,15 @@ mod tests {
     }
 
     #[test]
-    fn particle_by_surface_form() {
-        // When baseform is missing, surface form is used.
+    fn particle_words_stay_adv_by_surface_form() {
+        // When baseform is missing, these still stay ADV (not PART).
         let a = make_analysis("seikkasana");
-        assert_eq!(mce_to_upos(&a, "myös"), "PART");
-        assert_eq!(mce_to_upos(&a, "vain"), "PART");
-        assert_eq!(mce_to_upos(&a, "jo"), "PART");
+        assert_eq!(mce_to_upos(&a, "myös"), "ADV");
+        assert_eq!(mce_to_upos(&a, "vain"), "ADV");
+        assert_eq!(mce_to_upos(&a, "jo"), "ADV");
+        assert_eq!(mce_to_upos(&a, "nyt"), "ADV");
+        assert_eq!(mce_to_upos(&a, "ihan"), "ADV");
+        assert_eq!(mce_to_upos(&a, "kyllä"), "ADV");
     }
 
     #[test]
@@ -353,5 +376,95 @@ mod tests {
         let mut a = make_analysis("laatusana");
         a.set(ATTR_PARTICIPLE, "past_passive");
         assert_eq!(mce_class_to_upos(&a), "VERB");
+    }
+
+    #[test]
+    fn kerrontosti_adverbs_map_to_adv() {
+        // Finnish manner adverbs in -sti have SIJAMUOTO=kerrontosti.
+        // They should map to ADV, not ADJ.
+        let mut a = make_analysis("laatusana");
+        a.set(ATTR_SIJAMUOTO, "kerrontosti");
+        a.set(ATTR_BASEFORM, "erityinen");
+        assert_eq!(mce_class_to_upos(&a), "ADV");
+        assert_eq!(mce_to_upos(&a, "erityisesti"), "ADV");
+
+        // "nopeasti" -> ADV
+        let mut a2 = make_analysis("laatusana");
+        a2.set(ATTR_SIJAMUOTO, "kerrontosti");
+        a2.set(ATTR_BASEFORM, "nopea");
+        assert_eq!(mce_class_to_upos(&a2), "ADV");
+
+        // "todennäköisesti" -> ADV
+        let mut a3 = make_analysis("laatusana");
+        a3.set(ATTR_SIJAMUOTO, "kerrontosti");
+        a3.set(ATTR_BASEFORM, "todennäköinen");
+        assert_eq!(mce_class_to_upos(&a3), "ADV");
+    }
+
+    #[test]
+    fn kerrontosti_takes_priority_over_participle() {
+        // If a word has both kerrontosti and participle attributes,
+        // kerrontosti should win (checked first).
+        let mut a = make_analysis("laatusana");
+        a.set(ATTR_SIJAMUOTO, "kerrontosti");
+        a.set(ATTR_PARTICIPLE, "present_active");
+        assert_eq!(mce_class_to_upos(&a), "ADV");
+    }
+
+    #[test]
+    fn laatusana_without_kerrontosti_stays_adj() {
+        // Normal adjectives (not -sti, no participle) remain ADJ.
+        let mut a = make_analysis("laatusana");
+        a.set(ATTR_SIJAMUOTO, "nimento");
+        a.set(ATTR_BASEFORM, "suuri");
+        assert_eq!(mce_class_to_upos(&a), "ADJ");
+    }
+
+    #[test]
+    fn pronoun_overrides() {
+        // "kaikki" is nimisana in FST but PRON in UD Finnish-TDT.
+        let mut a = make_analysis("nimisana");
+        a.set(ATTR_BASEFORM, "kaikki");
+        assert_eq!(mce_class_to_upos(&a), "PRON");
+        assert_eq!(mce_to_upos(&a, "kaikki"), "PRON");
+
+        // "itse" -> PRON
+        let mut a2 = make_analysis("nimisana");
+        a2.set(ATTR_BASEFORM, "itse");
+        assert_eq!(mce_class_to_upos(&a2), "PRON");
+
+        // "sama" -> PRON
+        let mut a3 = make_analysis("nimisana");
+        a3.set(ATTR_BASEFORM, "sama");
+        assert_eq!(mce_class_to_upos(&a3), "PRON");
+
+        // "toinen" -> PRON
+        let mut a4 = make_analysis("nimisana");
+        a4.set(ATTR_BASEFORM, "toinen");
+        assert_eq!(mce_class_to_upos(&a4), "PRON");
+
+        // "moni" -> PRON
+        let mut a5 = make_analysis("nimisana");
+        a5.set(ATTR_BASEFORM, "moni");
+        assert_eq!(mce_class_to_upos(&a5), "PRON");
+    }
+
+    #[test]
+    fn regular_nouns_not_affected_by_pronoun_overrides() {
+        // Regular nouns should not be affected.
+        let mut a = make_analysis("nimisana");
+        a.set(ATTR_BASEFORM, "koira");
+        assert_eq!(mce_class_to_upos(&a), "NOUN");
+
+        let mut a2 = make_analysis("nimisana");
+        a2.set(ATTR_BASEFORM, "talo");
+        assert_eq!(mce_class_to_upos(&a2), "NOUN");
+    }
+
+    #[test]
+    fn nimisana_without_baseform_stays_noun() {
+        // If no baseform is available, nimisana defaults to NOUN.
+        let a = make_analysis("nimisana");
+        assert_eq!(mce_class_to_upos(&a), "NOUN");
     }
 }
