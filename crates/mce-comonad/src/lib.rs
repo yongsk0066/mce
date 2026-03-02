@@ -52,6 +52,7 @@
 pub mod bench;
 pub mod cg;
 pub mod finnish;
+pub mod writer;
 pub mod zipper;
 
 pub use zipper::Zipper;
