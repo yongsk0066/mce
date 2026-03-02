@@ -218,7 +218,18 @@ impl EvalPipeline {
                 } else {
                     None
                 };
-                let log_probs = tagger.emission_scores(&words[i], prev, next, i, n);
+                let prev2 = if i > 1 {
+                    Some(words[i - 2].as_str())
+                } else {
+                    None
+                };
+                let next2 = if i + 2 < n {
+                    Some(words[i + 2].as_str())
+                } else {
+                    None
+                };
+                let log_probs =
+                    tagger.emission_scores_ext(&words[i], prev, next, prev2, next2, i, n);
 
                 // Find the best UPOS tag from the suffix tagger.
                 let classes = tagger.classes();

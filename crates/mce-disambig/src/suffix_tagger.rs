@@ -60,23 +60,26 @@ const PUNCT_CHARS_EXTENDED: &str = ".,;:!?\"'()[]{}–—";
 /// Configuration for feature extraction from word surface forms.
 #[derive(Debug, Clone)]
 pub struct FeatureConfig {
-    /// Maximum suffix length to extract (1..=max_suffix_len). Default: 6.
+    /// Maximum suffix length to extract (1..=max_suffix_len). Default: 8.
     pub max_suffix_len: usize,
-    /// Maximum prefix length to extract (1..=max_prefix_len). Default: 4.
+    /// Maximum prefix length to extract (1..=max_prefix_len). Default: 5.
     pub max_prefix_len: usize,
     /// Whether to extract context features from neighboring words. Default: true.
     pub use_context: bool,
     /// Maximum word length for which we include the word form as a feature. Default: 6.
     pub max_word_form_len: usize,
+    /// Maximum word length for extended word form feature. Default: 8.
+    pub max_word_form_ext_len: usize,
 }
 
 impl Default for FeatureConfig {
     fn default() -> Self {
         Self {
-            max_suffix_len: 6,
-            max_prefix_len: 4,
+            max_suffix_len: 8,
+            max_prefix_len: 5,
             use_context: true,
             max_word_form_len: 6,
+            max_word_form_ext_len: 8,
         }
     }
 }
@@ -114,16 +117,17 @@ fn compressed_shape(word: &str) -> String {
 
 /// Extract features from a single word in context.
 ///
-/// Returns a vector of (feature_name, value) pairs. All values are 1.0
-/// for binary features; numeric features use their actual value.
+/// Returns a vector of feature names. All features are binary (present/absent).
 ///
 /// The feature set matches the Python prototype exactly:
 /// - Suffix 1-6, prefix 1-4
 /// - Word shape, capitalization, digit patterns
 /// - Position (first/last/relative)
 /// - Punctuation type
-/// - Finnish-specific suffix patterns (case endings, verb endings)
-/// - Context: previous/next word suffix-3, shape, capitalization
+/// - Finnish-specific suffix patterns (case endings, verb endings, participles)
+/// - Character bigrams (internal morphological patterns)
+/// - Context: previous/next word suffix-3, shape, capitalization, form
+/// - Extended context: prev-2/next-2 word suffixes and forms
 /// - Word form (for short words)
 pub fn extract_features(
     config: &FeatureConfig,
@@ -133,7 +137,26 @@ pub fn extract_features(
     position: usize,
     sent_len: usize,
 ) -> Vec<String> {
-    let mut features = Vec::with_capacity(32);
+    extract_features_ext(
+        config, word, prev_word, next_word, None, None, position, sent_len,
+    )
+}
+
+/// Extract features with extended context (prev-2 and next-2 words).
+///
+/// This is the full-featured version used when the wider context is available.
+#[allow(clippy::too_many_arguments)]
+pub fn extract_features_ext(
+    config: &FeatureConfig,
+    word: &str,
+    prev_word: Option<&str>,
+    next_word: Option<&str>,
+    prev2_word: Option<&str>,
+    next2_word: Option<&str>,
+    position: usize,
+    sent_len: usize,
+) -> Vec<String> {
+    let mut features = Vec::with_capacity(48);
     let lower = word.to_lowercase();
     let lower_len = lower.chars().count();
 
@@ -241,6 +264,88 @@ pub fn extract_features(
         }
     }
 
+    // ── Additional Finnish morphological patterns ──
+
+    // Translative -ksi
+    if lower.ends_with("ksi") {
+        features.push("fi_case_transl=True".into());
+    }
+    // Essive -na/-nä
+    if lower.ends_with("na") || lower.ends_with("n\u{00E4}") {
+        features.push("fi_case_ess=True".into());
+    }
+    // Partitive -ta/-tä (only reliable for longer words)
+    if lower_len >= 4 && (lower.ends_with("ta") || lower.ends_with("t\u{00E4}")) {
+        features.push("fi_case_part=True".into());
+    }
+    // Genitive -n (less common endings)
+    if lower_len >= 3 && lower.ends_with('n') {
+        let last_two = &lower[char_boundary_from_end(&lower, 2)..];
+        if !matches!(
+            last_two,
+            "en" | "an" | "in" | "on" | "un" | "yn" | "\u{00E4}n" | "\u{00F6}n"
+        ) {
+            features.push("fi_case_gen_other=True".into());
+        }
+    }
+    // Passive/past participle -ttu/-tty
+    if lower.ends_with("ttu") || lower.ends_with("tty") {
+        features.push("fi_ptcp_pass=True".into());
+    }
+    // Active past participle -nut/-nyt/-neet
+    if lower.ends_with("nut") || lower.ends_with("nyt") || lower.ends_with("neet") {
+        features.push("fi_ptcp_act=True".into());
+    }
+    // Agent participle -ma/-mä
+    if lower.ends_with("ma") || lower.ends_with("m\u{00E4}") {
+        features.push("fi_ptcp_agent=True".into());
+    }
+    // 1st infinitive -da/-dä
+    if lower_len >= 3 && (lower.ends_with("da") || lower.ends_with("d\u{00E4}")) {
+        features.push("fi_inf1=True".into());
+    }
+    // 3rd infinitive -maan/-mään
+    if lower.ends_with("maan") || lower.ends_with("m\u{00E4}\u{00E4}n") {
+        features.push("fi_inf3=True".into());
+    }
+    // Comparative -mpi
+    if lower.ends_with("mpi") {
+        features.push("fi_comp=True".into());
+    }
+    // Superlative -in (only for longer words)
+    if lower_len >= 4 && lower.ends_with("in") {
+        features.push("fi_super=True".into());
+    }
+    // Possessive suffixes -ni, -si, -nsa/-nsä
+    if lower.ends_with("ni")
+        || lower.ends_with("si")
+        || lower.ends_with("nsa")
+        || lower.ends_with("ns\u{00E4}")
+    {
+        features.push("fi_poss=True".into());
+    }
+    // Conditional mood marker -isi-
+    if lower_len >= 4 && lower.contains("isi") {
+        features.push("fi_cond=True".into());
+    }
+    // Negation verb forms
+    if matches!(
+        lower.as_str(),
+        "en" | "et" | "ei" | "emme" | "ette" | "eiv\u{00E4}t"
+    ) {
+        features.push("fi_neg=True".into());
+    }
+
+    // ── Character bigrams ──
+    if lower_len >= 2 {
+        let chars: Vec<char> = lower.chars().take(11).collect();
+        let limit = chars.len().min(11).saturating_sub(1);
+        for i in 0..limit {
+            let bi: String = chars[i..=i + 1].iter().collect();
+            features.push(format!("bi={}", bi));
+        }
+    }
+
     // ── Context features ──
     if config.use_context {
         if let Some(prev) = prev_word {
@@ -256,6 +361,10 @@ pub fn extract_features(
             }
             if prev.len() == 1 && PUNCT_CHARS_EXTENDED.contains(prev) {
                 features.push("prev_is_punct=True".into());
+            }
+            // Word form for short context words
+            if prev_char_len <= 4 {
+                features.push(format!("prev_form={}", prev_lower));
             }
         } else {
             features.push("prev_BOS=True".into());
@@ -275,14 +384,49 @@ pub fn extract_features(
             if next.len() == 1 && PUNCT_CHARS_EXTENDED.contains(next) {
                 features.push("next_is_punct=True".into());
             }
+            // Word form for short context words
+            if next_char_len <= 4 {
+                features.push(format!("next_form={}", next_lower));
+            }
         } else {
             features.push("next_EOS=True".into());
+        }
+
+        // ── Extended context (prev-2, next-2) ──
+        if let Some(p2) = prev2_word {
+            let p2_lower = p2.to_lowercase();
+            let p2_char_len = p2_lower.chars().count();
+            if p2_char_len >= 3 {
+                let start = char_boundary_from_end(&p2_lower, 3);
+                features.push(format!("prev2_suf3={}", &p2_lower[start..]));
+            }
+            if p2_char_len <= 4 {
+                features.push(format!("prev2_form={}", p2_lower));
+            }
+        } else {
+            features.push("prev2_BOS=True".into());
+        }
+
+        if let Some(n2) = next2_word {
+            let n2_lower = n2.to_lowercase();
+            let n2_char_len = n2_lower.chars().count();
+            if n2_char_len >= 3 {
+                let start = char_boundary_from_end(&n2_lower, 3);
+                features.push(format!("next2_suf3={}", &n2_lower[start..]));
+            }
+            if n2_char_len <= 4 {
+                features.push(format!("next2_form={}", n2_lower));
+            }
+        } else {
+            features.push("next2_EOS=True".into());
         }
     }
 
     // ── Word form (for short, common words) ──
     if lower_len <= config.max_word_form_len {
         features.push(format!("word_form={}", lower));
+    } else if lower_len <= config.max_word_form_ext_len {
+        features.push(format!("word_form_ext={}", lower));
     }
 
     features
@@ -545,6 +689,34 @@ impl SuffixTagger {
         self.compute_log_probs(&features)
     }
 
+    /// Compute emission log-probabilities with extended context.
+    ///
+    /// Like [`emission_scores`](Self::emission_scores), but also considers
+    /// prev-2 and next-2 words for wider context features.
+    #[allow(clippy::too_many_arguments)]
+    pub fn emission_scores_ext(
+        &self,
+        word: &str,
+        prev: Option<&str>,
+        next: Option<&str>,
+        prev2: Option<&str>,
+        next2: Option<&str>,
+        position: usize,
+        sent_len: usize,
+    ) -> Vec<f64> {
+        let features = extract_features_ext(
+            &self.config,
+            word,
+            prev,
+            next,
+            prev2,
+            next2,
+            position,
+            sent_len,
+        );
+        self.compute_log_probs(&features)
+    }
+
     /// Compute emission log-probabilities for a pre-extracted feature set.
     ///
     /// This is the core inference routine: sparse dot product + log-softmax.
@@ -591,7 +763,9 @@ impl SuffixTagger {
             .map(|(i, word)| {
                 let prev = if i > 0 { Some(words[i - 1]) } else { None };
                 let next = if i + 1 < n { Some(words[i + 1]) } else { None };
-                let log_probs = self.emission_scores(word, prev, next, i, n);
+                let prev2 = if i > 1 { Some(words[i - 2]) } else { None };
+                let next2 = if i + 2 < n { Some(words[i + 2]) } else { None };
+                let log_probs = self.emission_scores_ext(word, prev, next, prev2, next2, i, n);
                 let best_idx = log_probs
                     .iter()
                     .enumerate()
@@ -747,6 +921,7 @@ mod tests {
         assert!(features.contains(&"suf4=ksee".to_string()));
         assert!(features.contains(&"suf5=oksee".to_string()));
         assert!(features.contains(&"suf6=uoksee".to_string())); // last 6 of "juoksee"
+        assert!(features.contains(&"suf7=juoksee".to_string())); // last 7 = full word
     }
 
     #[test]
@@ -757,6 +932,7 @@ mod tests {
         assert!(features.contains(&"pre2=ju".to_string()));
         assert!(features.contains(&"pre3=juo".to_string()));
         assert!(features.contains(&"pre4=juok".to_string()));
+        assert!(features.contains(&"pre5=juoks".to_string()));
     }
 
     #[test]
@@ -801,11 +977,21 @@ mod tests {
     }
 
     #[test]
-    fn extract_word_form_long_excluded() {
+    fn extract_word_form_ext_for_medium_words() {
         let config = FeatureConfig::default();
         let features = extract_features(&config, "nopeasti", None, None, 0, 1);
-        // "nopeasti" has 8 chars, above the 6-char threshold
+        // "nopeasti" has 8 chars, above 6 but within 8 -> word_form_ext
+        assert!(!features.contains(&"word_form=nopeasti".to_string()));
+        assert!(features.contains(&"word_form_ext=nopeasti".to_string()));
+    }
+
+    #[test]
+    fn extract_word_form_very_long_excluded() {
+        let config = FeatureConfig::default();
+        let features = extract_features(&config, "kirjoitettu", None, None, 0, 1);
+        // "kirjoitettu" has 11 chars, above both thresholds
         assert!(!features.iter().any(|f| f.starts_with("word_form=")));
+        assert!(!features.iter().any(|f| f.starts_with("word_form_ext=")));
     }
 
     #[test]
@@ -892,11 +1078,22 @@ mod tests {
             use_context: false,
             ..Default::default()
         };
-        let features = extract_features(&config, "juoksee", Some("koira"), Some("pihalla"), 1, 3);
+        let features = extract_features_ext(
+            &config,
+            "juoksee",
+            Some("koira"),
+            Some("pihalla"),
+            Some("Iso"),
+            Some("nopeasti"),
+            1,
+            5,
+        );
         assert!(!features.iter().any(|f| f.starts_with("prev_")));
         assert!(!features.iter().any(|f| f.starts_with("next_")));
         assert!(!features.iter().any(|f| f.starts_with("prev_BOS")));
         assert!(!features.iter().any(|f| f.starts_with("next_EOS")));
+        assert!(!features.iter().any(|f| f.starts_with("prev2_")));
+        assert!(!features.iter().any(|f| f.starts_with("next2_")));
     }
 
     // ── Word shape tests ──
@@ -1158,5 +1355,126 @@ mod tests {
         let s = "\u{00E4}\u{00F6}y"; // "äöy"
         assert_eq!(char_boundary_from_start(s, 1), 2); // ä is 2 bytes
         assert_eq!(char_boundary_from_start(s, 2), 4); // ä + ö = 4 bytes
+    }
+
+    // ── New feature tests ──
+
+    #[test]
+    fn extract_character_bigrams() {
+        let config = FeatureConfig::default();
+        let features = extract_features(&config, "koira", None, None, 0, 1);
+        assert!(features.contains(&"bi=ko".to_string()));
+        assert!(features.contains(&"bi=oi".to_string()));
+        assert!(features.contains(&"bi=ir".to_string()));
+        assert!(features.contains(&"bi=ra".to_string()));
+    }
+
+    #[test]
+    fn extract_finnish_participle_features() {
+        let config = FeatureConfig::default();
+        // Past participle passive: -ttu
+        let features = extract_features(&config, "kirjoitettu", None, None, 0, 1);
+        assert!(features.contains(&"fi_ptcp_pass=True".to_string()));
+
+        // Active past participle: -nut
+        let features_nut = extract_features(&config, "saanut", None, None, 0, 1);
+        assert!(features_nut.contains(&"fi_ptcp_act=True".to_string()));
+
+        // -nyt form
+        let features_nyt = extract_features(&config, "n\u{00E4}hnyt", None, None, 0, 1);
+        assert!(features_nyt.contains(&"fi_ptcp_act=True".to_string()));
+    }
+
+    #[test]
+    fn extract_finnish_translative() {
+        let config = FeatureConfig::default();
+        let features = extract_features(&config, "opettajaksi", None, None, 0, 1);
+        assert!(features.contains(&"fi_case_transl=True".to_string()));
+    }
+
+    #[test]
+    fn extract_finnish_negation_verb() {
+        let config = FeatureConfig::default();
+        let features = extract_features(&config, "ei", None, None, 0, 1);
+        assert!(features.contains(&"fi_neg=True".to_string()));
+
+        let features_en = extract_features(&config, "en", None, None, 0, 1);
+        assert!(features_en.contains(&"fi_neg=True".to_string()));
+    }
+
+    #[test]
+    fn extract_prev_word_form_short() {
+        let config = FeatureConfig::default();
+        let features = extract_features(&config, "tule", Some("ei"), None, 1, 2);
+        assert!(features.contains(&"prev_form=ei".to_string()));
+    }
+
+    #[test]
+    fn extract_prev_word_form_long_excluded() {
+        let config = FeatureConfig::default();
+        // "koira" has 5 chars, above the 4-char threshold for prev_form
+        let features = extract_features(&config, "juoksee", Some("koira"), None, 1, 2);
+        assert!(!features.iter().any(|f| f.starts_with("prev_form=")));
+    }
+
+    #[test]
+    fn extract_next_word_form_short() {
+        let config = FeatureConfig::default();
+        let features = extract_features(&config, "koira", None, Some("on"), 0, 2);
+        assert!(features.contains(&"next_form=on".to_string()));
+    }
+
+    #[test]
+    fn extract_extended_context() {
+        let config = FeatureConfig::default();
+        let features = extract_features_ext(
+            &config,
+            "juoksee",
+            Some("koira"),
+            Some("nopeasti"),
+            Some("Iso"),
+            Some("pihalla"),
+            2,
+            5,
+        );
+        // prev2 features
+        assert!(features.contains(&"prev2_form=iso".to_string()));
+        // next2 features
+        assert!(features.iter().any(|f| f.starts_with("next2_suf3=")));
+    }
+
+    #[test]
+    fn extract_extended_context_bos() {
+        let config = FeatureConfig::default();
+        let features = extract_features_ext(
+            &config,
+            "koira",
+            None,
+            Some("juoksee"),
+            None,
+            Some("nopeasti"),
+            0,
+            3,
+        );
+        assert!(features.contains(&"prev2_BOS=True".to_string()));
+    }
+
+    #[test]
+    fn extract_comparative_superlative() {
+        let config = FeatureConfig::default();
+        // Comparative: -mpi
+        let features = extract_features(&config, "suurempi", None, None, 0, 1);
+        assert!(features.contains(&"fi_comp=True".to_string()));
+
+        // 3rd infinitive: -maan
+        let features_inf = extract_features(&config, "tulemaan", None, None, 0, 1);
+        assert!(features_inf.contains(&"fi_inf3=True".to_string()));
+    }
+
+    #[test]
+    fn extract_conditional_mood() {
+        let config = FeatureConfig::default();
+        let features = extract_features(&config, "tulisi", None, None, 0, 1);
+        assert!(features.contains(&"fi_cond=True".to_string()));
     }
 }

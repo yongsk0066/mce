@@ -225,6 +225,7 @@ impl ViterbiDisambiguator {
     ) -> Lattice {
         // Pre-compute suffix tagger emission scores for all positions.
         // This is done once per sentence, outside the per-reading loop.
+        // Uses extended context (prev-2 and next-2 words) when available.
         let suffix_emissions: Option<Vec<Vec<f64>>> = match (&self.suffix_tagger, words) {
             (Some(tagger), Some(ws)) => {
                 let n = ws.len();
@@ -233,7 +234,9 @@ impl ViterbiDisambiguator {
                         .map(|i| {
                             let prev = if i > 0 { Some(ws[i - 1]) } else { None };
                             let next = if i + 1 < n { Some(ws[i + 1]) } else { None };
-                            tagger.emission_scores(ws[i], prev, next, i, n)
+                            let prev2 = if i > 1 { Some(ws[i - 2]) } else { None };
+                            let next2 = if i + 2 < n { Some(ws[i + 2]) } else { None };
+                            tagger.emission_scores_ext(ws[i], prev, next, prev2, next2, i, n)
                         })
                         .collect(),
                 )
