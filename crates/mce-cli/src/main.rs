@@ -29,6 +29,7 @@ use std::path::PathBuf;
 use std::process;
 use std::time::Instant;
 
+use mce_comonad::bench::{bench_cg_rules, bench_cokleisli_arrows};
 use mce_core::analysis::{
     Analysis, ATTR_BASEFORM, ATTR_CLASS, ATTR_COMPARISON, ATTR_MOOD, ATTR_NEGATIVE, ATTR_NUMBER,
     ATTR_PARTICIPLE, ATTR_PERSON, ATTR_SIJAMUOTO, ATTR_STRUCTURE, ATTR_TENSE, ATTR_WORDBASES,
@@ -346,12 +347,22 @@ fn cmd_hyphenate_text(text: &str) {
     println!("{}", result);
 }
 
-/// `mce-cli generate <baseform> [--case <case>] [--all]` -- morphological generation.
+/// `mce-cli generate <baseform> [--case <case>] [--all]` -- noun morphological generation.
+/// `mce-cli generate --verb <infinitive> [--tense <t>] [--person <pn>] [--polarity <p>] [--all]`
 fn cmd_generate(args: &[String]) {
     if args.is_empty() {
-        eprintln!("error: 'generate' requires a baseform argument.");
+        eprintln!("error: 'generate' requires a baseform or --verb argument.");
         eprintln!("usage: mce-cli generate <baseform> [--case <case>] [--all]");
+        eprintln!(
+            "       mce-cli generate --verb <infinitive> [--tense <t>] [--person <pn>] [--all]"
+        );
         process::exit(1);
+    }
+
+    // Check if this is a verb generation request.
+    if args[0] == "--verb" {
+        cmd_generate_verb(&args[1..]);
+        return;
     }
 
     let baseform = &args[0];
@@ -413,6 +424,210 @@ fn cmd_generate(args: &[String]) {
         println!("{:-<40}", "");
         for (case, form) in &paradigm {
             println!("  {:<15} {}", case, form);
+        }
+    }
+}
+
+/// `mce-cli generate --verb <infinitive> [--tense <t>] [--person <pn>] [--polarity <p>] [--all]`
+fn cmd_generate_verb(args: &[String]) {
+    use mce_fi::generator::{
+        parse_person_number, parse_polarity, parse_tense, VerbNumber, VerbPerson, VerbPolarity,
+        VerbTense,
+    };
+
+    if args.is_empty() {
+        eprintln!("error: --verb requires an infinitive argument.");
+        eprintln!(
+            "usage: mce-cli generate --verb <infinitive> [--tense <t>] [--person <pn>] [--all]"
+        );
+        process::exit(1);
+    }
+
+    let infinitive = &args[0];
+    let mut tense_str: Option<String> = None;
+    let mut person_str: Option<String> = None;
+    let mut polarity_str: Option<String> = None;
+    let mut show_all = false;
+
+    let mut i = 1;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--tense" => {
+                i += 1;
+                if i >= args.len() {
+                    eprintln!("error: --tense requires a value.");
+                    process::exit(1);
+                }
+                tense_str = Some(args[i].clone());
+            }
+            "--person" => {
+                i += 1;
+                if i >= args.len() {
+                    eprintln!("error: --person requires a value.");
+                    process::exit(1);
+                }
+                person_str = Some(args[i].clone());
+            }
+            "--polarity" => {
+                i += 1;
+                if i >= args.len() {
+                    eprintln!("error: --polarity requires a value.");
+                    process::exit(1);
+                }
+                polarity_str = Some(args[i].clone());
+            }
+            "--all" => {
+                show_all = true;
+            }
+            other => {
+                eprintln!("error: unknown verb generate option '{other}'.");
+                eprintln!("usage: mce-cli generate --verb <inf> [--tense <t>] [--person <pn>] [--polarity <p>] [--all]");
+                process::exit(1);
+            }
+        }
+        i += 1;
+    }
+
+    let generator = MorphGenerator::new();
+
+    if show_all {
+        match generator.generate_verb_paradigm(infinitive) {
+            Some(paradigm) => {
+                println!("Verb paradigm for: {infinitive}");
+                println!("{:-<50}", "");
+                let mut last_tense = String::new();
+                for (label, form) in &paradigm {
+                    let tense_prefix: String = label
+                        .split_whitespace()
+                        .take(label.split_whitespace().count() - 1)
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    if tense_prefix != last_tense {
+                        if !last_tense.is_empty() {
+                            println!();
+                        }
+                        last_tense = tense_prefix;
+                    }
+                    println!("  {:<22} {}", label, form);
+                }
+            }
+            None => {
+                eprintln!("error: cannot determine verb type for '{infinitive}'.");
+                process::exit(1);
+            }
+        }
+    } else if let (Some(ref ts), Some(ref ps)) = (&tense_str, &person_str) {
+        let tense = match parse_tense(ts) {
+            Some(t) => t,
+            None => {
+                eprintln!("error: unknown tense '{ts}'.");
+                eprintln!("valid tenses: present, past, conditional");
+                process::exit(1);
+            }
+        };
+        let (person, number) = match parse_person_number(ps) {
+            Some(pn) => pn,
+            None => {
+                eprintln!("error: unknown person '{ps}'.");
+                eprintln!("valid persons: 1sg, 2sg, 3sg, 1pl, 2pl, 3pl");
+                process::exit(1);
+            }
+        };
+        let polarity = match polarity_str.as_deref() {
+            Some(p) => match parse_polarity(p) {
+                Some(pol) => pol,
+                None => {
+                    eprintln!("error: unknown polarity '{p}'.");
+                    eprintln!("valid polarities: affirmative, negative");
+                    process::exit(1);
+                }
+            },
+            None => VerbPolarity::Affirmative,
+        };
+
+        match generator.generate_verb(infinitive, tense, person, number, polarity) {
+            Some(form) => println!("{form}"),
+            None => {
+                eprintln!("error: cannot determine verb type for '{infinitive}'.");
+                process::exit(1);
+            }
+        }
+    } else if let Some(ref ts) = tense_str {
+        let tense = match parse_tense(ts) {
+            Some(t) => t,
+            None => {
+                eprintln!("error: unknown tense '{ts}'.");
+                eprintln!("valid tenses: present, past, conditional");
+                process::exit(1);
+            }
+        };
+        let polarity = match polarity_str.as_deref() {
+            Some(p) => match parse_polarity(p) {
+                Some(pol) => pol,
+                None => {
+                    eprintln!("error: unknown polarity '{p}'.");
+                    process::exit(1);
+                }
+            },
+            None => VerbPolarity::Affirmative,
+        };
+
+        let persons = [
+            (VerbPerson::First, VerbNumber::Singular, "1sg"),
+            (VerbPerson::Second, VerbNumber::Singular, "2sg"),
+            (VerbPerson::Third, VerbNumber::Singular, "3sg"),
+            (VerbPerson::First, VerbNumber::Plural, "1pl"),
+            (VerbPerson::Second, VerbNumber::Plural, "2pl"),
+            (VerbPerson::Third, VerbNumber::Plural, "3pl"),
+        ];
+
+        let tense_name = match tense {
+            VerbTense::Present => "present",
+            VerbTense::Past => "past",
+            VerbTense::Conditional => "conditional",
+        };
+
+        let pol_label = if polarity == VerbPolarity::Negative {
+            " (negative)"
+        } else {
+            ""
+        };
+        println!("{}{} of: {}", tense_name, pol_label, infinitive);
+        println!("{:-<40}", "");
+        for (person, number, label) in &persons {
+            match generator.generate_verb(infinitive, tense, *person, *number, polarity) {
+                Some(form) => println!("  {:<6} {}", label, form),
+                None => {
+                    eprintln!("error: cannot determine verb type for '{infinitive}'.");
+                    process::exit(1);
+                }
+            }
+        }
+    } else {
+        match generator.generate_verb_paradigm(infinitive) {
+            Some(paradigm) => {
+                println!("Verb paradigm for: {infinitive}");
+                println!("{:-<50}", "");
+                let mut last_tense = String::new();
+                for (label, form) in &paradigm {
+                    let tense_prefix: String = label
+                        .split_whitespace()
+                        .take(label.split_whitespace().count() - 1)
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    if tense_prefix != last_tense {
+                        if !last_tense.is_empty() {
+                            println!();
+                        }
+                        last_tense = tense_prefix;
+                    }
+                    println!("  {:<22} {}", label, form);
+                }
+            }
+            None => {
+                eprintln!("error: cannot determine verb type for '{infinitive}'.");
+                process::exit(1);
+            }
         }
     }
 }
@@ -627,12 +842,14 @@ fn cmd_eval(args: &[String]) {
     }
 }
 
-/// `mce-cli benchmark [--iterations N] [--warmup W]`
+/// `mce-cli benchmark [--iterations N] [--warmup W] [--rules]`
 ///
 /// Run performance benchmarks on the full MCE pipeline.
+/// With `--rules`, also benchmark individual coKleisli arrows and CG rules.
 fn cmd_benchmark(args: &[String]) {
     let mut iterations: usize = 1000;
     let mut warmup: usize = 100;
+    let mut show_rules = false;
 
     let mut i = 0;
     while i < args.len() {
@@ -659,9 +876,12 @@ fn cmd_benchmark(args: &[String]) {
                     process::exit(1);
                 });
             }
+            "--rules" => {
+                show_rules = true;
+            }
             other => {
                 eprintln!("error: unknown benchmark option '{other}'.");
-                eprintln!("usage: mce-cli benchmark [--iterations N] [--warmup W]");
+                eprintln!("usage: mce-cli benchmark [--iterations N] [--warmup W] [--rules]");
                 process::exit(1);
             }
         }
@@ -805,6 +1025,12 @@ fn cmd_benchmark(args: &[String]) {
         total_tokens, iterations
     );
     println!("Throughput:              {:.0} tokens/sec", tokens_per_sec);
+
+    // Per-rule latency benchmarks (coKleisli arrows + CG rules).
+    if show_rules {
+        println!();
+        cmd_benchmark_rules(iterations);
+    }
 }
 
 /// Tokenize text and analyze each word. Returns words and their analyses.
@@ -850,6 +1076,132 @@ fn bench_phase<F: FnMut()>(warmup: usize, iterations: usize, mut f: F) -> std::t
     let elapsed = start.elapsed();
 
     elapsed / iterations as u32
+}
+
+/// `mce-cli benchmark --rules` -- per-rule latency benchmarks.
+///
+/// Measures individual coKleisli arrow execution times for consonant
+/// gradation (11 patterns), vowel harmony, possessive suffixes, the
+/// full morphophonological pipeline, and all 12 CG rule types.
+fn cmd_benchmark_rules(iterations: usize) {
+    println!("=== Per-rule Latency (coKleisli arrows) ===");
+    println!(
+        "{:<42} {:>10} {:>10}   {:<20} {:<20}",
+        "Rule", "Mean (us)", "Std (us)", "Input", "Output"
+    );
+    println!("{:-<110}", "");
+
+    let morpho_results = bench_cokleisli_arrows(iterations);
+    for r in &morpho_results {
+        println!(
+            "{:<42} {:>10.2} {:>10.2}   {:<20} {:<20}",
+            r.rule_name, r.mean_us, r.std_us, r.input, r.output
+        );
+    }
+
+    println!();
+    println!("=== Per-rule Latency (CG disambiguation) ===");
+    println!(
+        "{:<42} {:>10} {:>10}   {:<20}",
+        "Rule", "Mean (us)", "Std (us)", "Output"
+    );
+    println!("{:-<90}", "");
+
+    let cg_results = bench_cg_rules(iterations);
+    for r in &cg_results {
+        println!(
+            "{:<42} {:>10.2} {:>10.2}   {:<20}",
+            r.rule_name, r.mean_us, r.std_us, r.output
+        );
+    }
+
+    // Summary statistics.
+    println!();
+    println!("=== Rule Latency Summary ===");
+
+    // Compute aggregate stats for morpho rules.
+    let gradation_results: Vec<_> = morpho_results
+        .iter()
+        .filter(|r| r.rule_name.starts_with("gradation "))
+        .collect();
+    let harmony_results: Vec<_> = morpho_results
+        .iter()
+        .filter(|r| r.rule_name.starts_with("harmony "))
+        .collect();
+    let possessive_results: Vec<_> = morpho_results
+        .iter()
+        .filter(|r| r.rule_name.starts_with("possessive "))
+        .collect();
+    let pipeline_results: Vec<_> = morpho_results
+        .iter()
+        .filter(|r| r.rule_name.starts_with("pipeline "))
+        .collect();
+
+    if !gradation_results.is_empty() {
+        let mean: f64 = gradation_results.iter().map(|r| r.mean_us).sum::<f64>()
+            / gradation_results.len() as f64;
+        println!(
+            "  Consonant gradation (avg over {} patterns):  {:.2} us",
+            gradation_results.len(),
+            mean
+        );
+    }
+
+    if !harmony_results.is_empty() {
+        let mean: f64 =
+            harmony_results.iter().map(|r| r.mean_us).sum::<f64>() / harmony_results.len() as f64;
+        println!(
+            "  Vowel harmony (avg over {} cases):            {:.2} us",
+            harmony_results.len(),
+            mean
+        );
+    }
+
+    if !possessive_results.is_empty() {
+        let mean: f64 = possessive_results.iter().map(|r| r.mean_us).sum::<f64>()
+            / possessive_results.len() as f64;
+        println!(
+            "  Possessive suffix (avg over {} cases):         {:.2} us",
+            possessive_results.len(),
+            mean
+        );
+    }
+
+    if !pipeline_results.is_empty() {
+        let mean: f64 =
+            pipeline_results.iter().map(|r| r.mean_us).sum::<f64>() / pipeline_results.len() as f64;
+        println!(
+            "  Full morpho pipeline (avg over {} words):     {:.2} us",
+            pipeline_results.len(),
+            mean
+        );
+    }
+
+    // CG summary.
+    let cg_individual: Vec<_> = cg_results
+        .iter()
+        .filter(|r| !r.rule_name.contains("full_pipeline"))
+        .collect();
+    let cg_full = cg_results
+        .iter()
+        .find(|r| r.rule_name.contains("full_pipeline"));
+
+    if !cg_individual.is_empty() {
+        let mean: f64 =
+            cg_individual.iter().map(|r| r.mean_us).sum::<f64>() / cg_individual.len() as f64;
+        println!(
+            "  CG single rule (avg over {} types):           {:.2} us",
+            cg_individual.len(),
+            mean
+        );
+    }
+
+    if let Some(full) = cg_full {
+        println!(
+            "  CG full pipeline (53 rules, 5 positions):    {:.2} us",
+            full.mean_us
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -966,9 +1318,16 @@ fn print_usage() {
     eprintln!("    eval [OPTIONS]            Evaluate UPOS/Lemma accuracy against CoNLL-U");
     eprintln!("    benchmark [OPTIONS]       Run performance benchmarks");
     eprintln!();
-    eprintln!("GENERATE OPTIONS:");
+    eprintln!("GENERATE OPTIONS (nouns):");
     eprintln!("    --case <CASE>             Case name (e.g., genitive, omanto)");
-    eprintln!("    --all                     Show full paradigm (all cases)");
+    eprintln!("    --all                     Show full noun paradigm (all cases)");
+    eprintln!();
+    eprintln!("GENERATE OPTIONS (verbs):");
+    eprintln!("    --verb <INFINITIVE>       Verb infinitive (e.g., puhua, syoda)");
+    eprintln!("    --tense <TENSE>           present, past, conditional");
+    eprintln!("    --person <PERSON>         1sg, 2sg, 3sg, 1pl, 2pl, 3pl");
+    eprintln!("    --polarity <POL>          affirmative (default), negative");
+    eprintln!("    --all                     Show full verb paradigm");
     eprintln!();
     eprintln!("EVAL OPTIONS:");
     eprintln!("    --conllu <FILE>           Path to CoNLL-U file (required)");
@@ -978,6 +1337,7 @@ fn print_usage() {
     eprintln!("BENCHMARK OPTIONS:");
     eprintln!("    --iterations <N>          Number of iterations (default: 1000)");
     eprintln!("    --warmup <W>              Warmup iterations (default: 100)");
+    eprintln!("    --rules                   Show per-rule coKleisli arrow latency");
     eprintln!();
     eprintln!("ENVIRONMENT:");
     eprintln!("    MCE_DICT_PATH        Directory containing mor.vfst (required for");
@@ -993,6 +1353,8 @@ fn print_usage() {
     eprintln!("    mce-cli grammar \"Koira koira juoksee pihalla.\"");
     eprintln!("    mce-cli generate kaappi --case genitive");
     eprintln!("    mce-cli generate talo --all");
+    eprintln!("    mce-cli generate --verb puhua --tense present --person 1sg");
+    eprintln!("    mce-cli generate --verb puhua --all");
     eprintln!("    mce-cli hyphenate suomalainen rautatieasema kissanpentu");
     eprintln!("    mce-cli hyphenate-text \"Koira juoksee pihalla nopeasti.\"");
     eprintln!("    mce-cli info");

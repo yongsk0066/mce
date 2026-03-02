@@ -21,9 +21,12 @@ use mce_fi::morphology::{Analyzer, FinnishAnalyzer};
 use mce_tokenizer::next_token;
 
 use crate::rules::{
-    AgreementRule, CapitalizationRule, CommaBeforeConjunctionRule, CompoundSpacingRule,
-    DoubleNegationRule, DoubleSpaceRule, NegationAgreementRule, NumberAgreementRule,
-    QuotationMarkRule, RepeatedWordRule,
+    AgreementRule, CapitalizationRule, CommaBeforeConjunctionRule, CommaInSubordinateRule,
+    ComparativePartitiveRule, CompoundSpacingRule, DoubleNegationRule, DoubleSpaceRule,
+    ExcessiveExclamationRule, ExtraSpaceBeforePunctuationRule, MissingMainVerbRule,
+    MissingSpaceAfterPunctuationRule, NegationAgreementRule, NumberAgreementRule,
+    PartitiveObjectRule, PossessiveSuffixRule, PostpositionCaseRule, QuotationMarkRule,
+    RepeatedWordRule, SentenceInitialLowercaseRule, SubjectVerbAgreementRule,
 };
 use crate::{AnnotatedToken, GrammarChecker, GrammarError, GrammarRule};
 
@@ -212,6 +215,7 @@ impl GrammarChecker for FinnishGrammarChecker {
 /// Build the default set of Finnish grammar rules.
 fn default_rules() -> Vec<Box<dyn GrammarRule>> {
     vec![
+        // --- Original 10 rules ---
         Box::new(RepeatedWordRule::new()),
         Box::new(CapitalizationRule::new()),
         Box::new(AgreementRule::new()),
@@ -222,6 +226,18 @@ fn default_rules() -> Vec<Box<dyn GrammarRule>> {
         Box::new(NumberAgreementRule::new()),
         Box::new(NegationAgreementRule::new()),
         Box::new(DoubleNegationRule::new()),
+        // --- New 11 rules ---
+        Box::new(MissingSpaceAfterPunctuationRule::new()),
+        Box::new(ExtraSpaceBeforePunctuationRule::new()),
+        Box::new(PartitiveObjectRule::new()),
+        Box::new(SubjectVerbAgreementRule::new()),
+        Box::new(PostpositionCaseRule::new()),
+        Box::new(ComparativePartitiveRule::new()),
+        Box::new(MissingMainVerbRule::new()),
+        Box::new(SentenceInitialLowercaseRule::new()),
+        Box::new(ExcessiveExclamationRule::new()),
+        Box::new(CommaInSubordinateRule::new()),
+        Box::new(PossessiveSuffixRule::new()),
     ]
 }
 
@@ -432,10 +448,11 @@ mod tests {
     // -----------------------------------------------------------------------
 
     #[test]
-    fn default_rules_has_ten_rules() {
+    fn default_rules_has_twenty_one_rules() {
         let rules = default_rules();
-        assert_eq!(rules.len(), 10);
+        assert_eq!(rules.len(), 21);
         let ids: Vec<&str> = rules.iter().map(|r| r.id()).collect();
+        // Original 10
         assert!(ids.contains(&"REPEATED_WORD"));
         assert!(ids.contains(&"CAPITALIZATION_ERROR"));
         assert!(ids.contains(&"AGREEMENT_ERROR"));
@@ -446,5 +463,17 @@ mod tests {
         assert!(ids.contains(&"NUMBER_AGREEMENT"));
         assert!(ids.contains(&"NEGATION_AGREEMENT"));
         assert!(ids.contains(&"DOUBLE_NEGATION"));
+        // New 11
+        assert!(ids.contains(&"MISSING_SPACE_AFTER_PUNCT"));
+        assert!(ids.contains(&"EXTRA_SPACE_BEFORE_PUNCT"));
+        assert!(ids.contains(&"PARTITIVE_OBJECT"));
+        assert!(ids.contains(&"SUBJECT_VERB_PERSON"));
+        assert!(ids.contains(&"POSTPOSITION_CASE"));
+        assert!(ids.contains(&"COMPARATIVE_PARTITIVE"));
+        assert!(ids.contains(&"MISSING_MAIN_VERB"));
+        assert!(ids.contains(&"SENTENCE_INITIAL_LOWERCASE"));
+        assert!(ids.contains(&"EXCESSIVE_EXCLAMATION"));
+        assert!(ids.contains(&"COMMA_BEFORE_RELATIVE"));
+        assert!(ids.contains(&"POSSESSIVE_REDUNDANCY"));
     }
 }

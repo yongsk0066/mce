@@ -25,6 +25,17 @@
 //! - [`rules::number_agreement`]: Numeral-noun case/number agreement
 //! - [`rules::negation_agreement`]: Negation verb person/number agreement with pronouns
 //! - [`rules::double_negation`]: Non-standard double negation detection
+//! - [`rules::missing_space_after_punctuation`]: No space after comma/period/semicolon
+//! - [`rules::extra_space_before_punctuation`]: Space before comma/period (error in Finnish)
+//! - [`rules::partitive_object`]: Negated sentences require partitive object
+//! - [`rules::subject_verb_agreement`]: Subject-verb person agreement via pronouns
+//! - [`rules::postposition_case`]: Postpositions require specific cases (genitive)
+//! - [`rules::comparative_partitive`]: Comparative + partitive without "kuin"
+//! - [`rules::missing_main_verb`]: Sentence without a finite verb (heuristic)
+//! - [`rules::sentence_initial_lowercase`]: Lowercase after colon/semicolon
+//! - [`rules::excessive_exclamation`]: Multiple exclamation/question marks (!!!, ???)
+//! - [`rules::comma_in_subordinate`]: Missing comma before relative pronouns (joka, etc.)
+//! - [`rules::possessive_suffix`]: Redundant possessive pronoun + suffix
 //!
 //! # Example
 //!

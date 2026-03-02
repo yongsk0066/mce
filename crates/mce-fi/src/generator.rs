@@ -6,7 +6,7 @@
 //! performs GENERATION (baseform + features -> surface form) using the
 //! coKleisli pipeline from [`mce_comonad::finnish`].
 //!
-//! # Pipeline
+//! # Noun generation pipeline
 //!
 //! 1. Determine gradation grade from the target case.
 //! 2. Append the case suffix (with archiphonemic characters) to the stem.
@@ -14,15 +14,24 @@
 //! 4. Apply vowel harmony via [`mce_comonad::finnish::apply_vowel_harmony`].
 //! 5. Apply possessive suffix vowel copying via [`mce_comonad::finnish::apply_possessive`].
 //!
+//! # Verb generation pipeline
+//!
+//! 1. Extract verb stem from the infinitive (e.g., "puhua" -> "puhu").
+//! 2. Apply consonant gradation to the stem (weak grade for most persons).
+//! 3. Append tense marker (e.g., "-i-" for past tense).
+//! 4. Append person suffix (e.g., "-n" for 1sg).
+//! 5. Apply vowel harmony via the coKleisli pipeline.
+//!
 //! # Scope
 //!
 //! This is a **simplified** generator that handles regular Finnish noun
-//! inflection. It does not cover:
+//! inflection and regular verb conjugation. It does not cover:
 //!
 //! - Irregular stems (e.g., stems that change vowels beyond gradation)
-//! - Verb conjugation
 //! - Adjective comparison
 //! - Numeral inflection
+//! - Irregular verbs (e.g., "olla")
+//! - Passive voice, imperative mood, potential mood
 //!
 //! For full morphological generation, the VFST transducer should be used
 //! in reverse (generation) mode. This module demonstrates the coKleisli
@@ -30,6 +39,75 @@
 //! common regular patterns.
 
 use mce_comonad::finnish::{apply_possessive_to_word, gradate, harmonize, Grade};
+
+// ---------------------------------------------------------------------------
+// Finnish verb feature enums
+// ---------------------------------------------------------------------------
+
+/// Verb tense for Finnish conjugation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VerbTense {
+    /// Present tense (preesens).
+    Present,
+    /// Past tense / imperfect (imperfekti), uses `-i-` tense marker.
+    Past,
+    /// Conditional mood (konditionaali), uses `-isi-` marker.
+    Conditional,
+}
+
+/// Grammatical person.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VerbPerson {
+    /// First person (minä / me).
+    First,
+    /// Second person (sinä / te).
+    Second,
+    /// Third person (hän / he).
+    Third,
+}
+
+/// Grammatical number.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VerbNumber {
+    /// Singular.
+    Singular,
+    /// Plural.
+    Plural,
+}
+
+/// Polarity (affirmative vs negative).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VerbPolarity {
+    /// Affirmative form (puhun, puhuit, ...).
+    Affirmative,
+    /// Negative form (en puhu, ei puhunut, ...).
+    Negative,
+}
+
+/// Finnish verb conjugation type, determined from the infinitive ending.
+///
+/// The conjugation type dictates how the stem is extracted and how certain
+/// tense markers interact with the stem vowel.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum VerbType {
+    /// Type 1: infinitive ends in two vowels + optional consonant pattern.
+    /// Examples: puhu-a, luke-a, anta-a.
+    /// Stem: drop the final vowel + 'a'/'ä' (the infinitive marker).
+    Type1,
+    /// Type 2: infinitive ends in a consonant + 'dä'/'da'.
+    /// Examples: syö-dä, juo-da, vie-dä.
+    /// Stem: drop '-da'/'-dä'.
+    Type2,
+    /// Type 3: infinitive ends in consonant + 'la'/'lä'/'na'/'nä'/'ra'/'rä'/'sta'/'stä'.
+    /// Examples: tul-la, men-nä, pur-ra, nous-ta.
+    /// Stem: drop the doubled consonant + 'a'/'ä', add 'e' for present.
+    Type3,
+    /// Type 4: infinitive ends in vowel + 'ta'/'tä'.
+    /// Examples: halu-ta, pelä-tä.
+    /// Stem: replace 'ta'/'tä' with the preceding vowel for strong stem,
+    /// or drop for weak stem. Present stem has 'a'/'ä' appended.
+    Type4,
+}
 
 // ---------------------------------------------------------------------------
 // Finnish case definitions
@@ -219,6 +297,94 @@ impl MorphGenerator {
             })
             .collect()
     }
+
+    /// Generate a conjugated verb form from an infinitive and grammatical features.
+    ///
+    /// The infinitive should be the dictionary form (e.g., "puhua", "syödä",
+    /// "lukea", "tulla", "haluta").
+    ///
+    /// Returns `None` if the verb type cannot be determined from the infinitive.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use mce_fi::generator::{MorphGenerator, VerbTense, VerbPerson, VerbNumber, VerbPolarity};
+    ///
+    /// let gen = MorphGenerator::new();
+    /// let form = gen.generate_verb(
+    ///     "puhua",
+    ///     VerbTense::Present,
+    ///     VerbPerson::First,
+    ///     VerbNumber::Singular,
+    ///     VerbPolarity::Affirmative,
+    /// );
+    /// assert_eq!(form, Some("puhun".to_string()));
+    /// ```
+    pub fn generate_verb(
+        &self,
+        infinitive: &str,
+        tense: VerbTense,
+        person: VerbPerson,
+        number: VerbNumber,
+        polarity: VerbPolarity,
+    ) -> Option<String> {
+        let verb_type = classify_verb(infinitive)?;
+        Some(conjugate(
+            infinitive, verb_type, tense, person, number, polarity,
+        ))
+    }
+
+    /// Generate all conjugated forms for a verb (present, past, conditional,
+    /// and negative present tenses).
+    ///
+    /// Returns a vector of `(label, form)` pairs.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use mce_fi::generator::MorphGenerator;
+    ///
+    /// let gen = MorphGenerator::new();
+    /// let paradigm = gen.generate_verb_paradigm("puhua");
+    /// assert!(paradigm.is_some());
+    /// let paradigm = paradigm.unwrap();
+    /// assert!(paradigm.iter().any(|(label, form)| label == "present 1sg" && form == "puhun"));
+    /// ```
+    pub fn generate_verb_paradigm(&self, infinitive: &str) -> Option<Vec<(String, String)>> {
+        let verb_type = classify_verb(infinitive)?;
+
+        let persons = [
+            (VerbPerson::First, VerbNumber::Singular, "1sg"),
+            (VerbPerson::Second, VerbNumber::Singular, "2sg"),
+            (VerbPerson::Third, VerbNumber::Singular, "3sg"),
+            (VerbPerson::First, VerbNumber::Plural, "1pl"),
+            (VerbPerson::Second, VerbNumber::Plural, "2pl"),
+            (VerbPerson::Third, VerbNumber::Plural, "3pl"),
+        ];
+
+        let tenses = [
+            (VerbTense::Present, VerbPolarity::Affirmative, "present"),
+            (VerbTense::Past, VerbPolarity::Affirmative, "past"),
+            (
+                VerbTense::Conditional,
+                VerbPolarity::Affirmative,
+                "conditional",
+            ),
+            (VerbTense::Present, VerbPolarity::Negative, "neg present"),
+        ];
+
+        let mut result = Vec::new();
+
+        for (tense, polarity, tense_label) in &tenses {
+            for (person, number, person_label) in &persons {
+                let label = format!("{} {}", tense_label, person_label);
+                let form = conjugate(infinitive, verb_type, *tense, *person, *number, *polarity);
+                result.push((label, form));
+            }
+        }
+
+        Some(result)
+    }
 }
 
 impl Default for MorphGenerator {
@@ -267,6 +433,462 @@ fn apply_case(baseform: &str, case_info: &CaseInfo) -> String {
 
     // Step 4: Apply possessive vowel copying.
     apply_possessive_to_word(&after_harmony)
+}
+
+// ---------------------------------------------------------------------------
+// Verb generation internals
+// ---------------------------------------------------------------------------
+
+/// Check if a character is a Finnish vowel (lowercase).
+fn is_vowel_char(c: char) -> bool {
+    matches!(
+        c,
+        'a' | 'e' | 'i' | 'o' | 'u' | 'y' | '\u{00E4}' | '\u{00F6}'
+    )
+}
+
+/// Classify a Finnish verb infinitive into its conjugation type.
+///
+/// Returns `None` if the infinitive form is not recognized.
+fn classify_verb(infinitive: &str) -> Option<VerbType> {
+    let lower = infinitive.to_lowercase();
+
+    // Type 3: consonant doubling + a/ä (tulla, mennä, purra, nousta)
+    // -lla/-llä, -nna/-nnä, -rra/-rrä, -sta/-stä
+    if lower.ends_with("lla")
+        || lower.ends_with("ll\u{00E4}")
+        || lower.ends_with("nna")
+        || lower.ends_with("nn\u{00E4}")
+        || lower.ends_with("rra")
+        || lower.ends_with("rr\u{00E4}")
+        || lower.ends_with("sta")
+        || lower.ends_with("st\u{00E4}")
+    {
+        return Some(VerbType::Type3);
+    }
+
+    // Type 2: vowel + da/dä (syödä, juoda, viedä)
+    if lower.ends_with("da") || lower.ends_with("d\u{00E4}") {
+        let chars: Vec<char> = lower.chars().collect();
+        // 'dä' is 2 chars, so drop last 2 chars to get what's before da/dä
+        if chars.len() >= 3 {
+            let before_last = chars[chars.len() - 3];
+            if is_vowel_char(before_last) {
+                return Some(VerbType::Type2);
+            }
+        }
+    }
+
+    // Type 4: vowel + ta/tä (haluta, pelätä, tavata)
+    if lower.ends_with("ta") || lower.ends_with("t\u{00E4}") {
+        let before_ta: Vec<char> = lower[..lower.len() - "ta".len()].chars().collect();
+        if let Some(&last) = before_ta.last() {
+            if is_vowel_char(last) {
+                return Some(VerbType::Type4);
+            }
+        }
+    }
+
+    // Type 1: vowel + a/ä (puhua, lukea, antaa) or two vowels ending
+    if lower.ends_with('a') || lower.ends_with('\u{00E4}') {
+        // Check there are at least 2 characters and the char before last is a vowel
+        let chars: Vec<char> = lower.chars().collect();
+        if chars.len() >= 2 {
+            let penult = chars[chars.len() - 2];
+            if is_vowel_char(penult) {
+                return Some(VerbType::Type1);
+            }
+        }
+    }
+
+    None
+}
+
+/// Extract the present-tense stem from a verb infinitive.
+///
+/// For type 1 (puhua -> puhu), type 2 (syödä -> syö), type 3 (tulla -> tule),
+/// type 4 (haluta -> halua).
+fn extract_stem(infinitive: &str, verb_type: VerbType) -> String {
+    let chars: Vec<char> = infinitive.chars().collect();
+    match verb_type {
+        VerbType::Type1 => {
+            // Drop the last two characters (vowel + a/ä infinitive marker).
+            // puhua -> puhu, lukea -> luke, antaa -> anta
+            let stem: String = chars[..chars.len() - 1].iter().collect();
+            stem
+        }
+        VerbType::Type2 => {
+            // Drop '-da'/'-dä': syödä -> syö, juoda -> juo
+            let stem: String = chars[..chars.len() - 2].iter().collect();
+            stem
+        }
+        VerbType::Type3 => {
+            // Drop the doubled consonant + a/ä, add 'e'.
+            // tulla -> tule, mennä -> mene, purra -> pure, nousta -> nouse
+            if infinitive.to_lowercase().ends_with("sta")
+                || infinitive.to_lowercase().ends_with("st\u{00E4}")
+            {
+                // nousta -> nous + e -> nouse
+                let stem: String = chars[..chars.len() - 2].iter().collect();
+                format!("{}e", stem)
+            } else {
+                // tulla -> tul + e -> tule (drop last 2: la/lä, then drop
+                // the doubled consonant's duplicate)
+                // The infinitive has doubled consonant: tulla = tul+la,
+                // stem = tul + e = tule
+                let stem: String = chars[..chars.len() - 2].iter().collect();
+                format!("{}e", stem)
+            }
+        }
+        VerbType::Type4 => {
+            // Drop '-ta'/'-tä', add 'a'/'ä' (the infinitive final vowel).
+            // haluta -> halua (drop 'ta', add 'a')
+            // pelätä -> peläa (drop 'tä', add 'ä')
+            let before_ta: String = chars[..chars.len() - 2].iter().collect();
+            // The vowel to add is the infinitive's final vowel (a or ä)
+            let inf_vowel = chars[chars.len() - 1]; // 'a' or 'ä'
+            format!("{}{}", before_ta, inf_vowel)
+        }
+    }
+}
+
+/// Extract the consonant stem (without the final stem vowel) for negative
+/// and past-tense forms.
+///
+/// For type 1: puhua -> puhu (final stem vowel kept for negative).
+/// For type 2: syödä -> syö.
+/// For type 3: tulla -> tul (without the -e- stem extension).
+/// For type 4: haluta -> halut (for the negative: halu + t -> halut? No).
+///
+/// In Finnish, the negative present uses the "connegative" form which is
+/// typically the bare stem (without the final -a/-ä for type 1) or the
+/// present stem without person endings.
+fn extract_connegative_stem(infinitive: &str, verb_type: VerbType) -> String {
+    let chars: Vec<char> = infinitive.chars().collect();
+    match verb_type {
+        VerbType::Type1 => {
+            // puhua -> puhu (drop final 'a')
+            chars[..chars.len() - 1].iter().collect()
+        }
+        VerbType::Type2 => {
+            // syödä -> syö (drop 'dä')
+            chars[..chars.len() - 2].iter().collect()
+        }
+        VerbType::Type3 => {
+            // tulla -> tule (same as present stem -- connegative = present stem)
+            extract_stem(infinitive, VerbType::Type3)
+        }
+        VerbType::Type4 => {
+            // haluta -> halua (same as present stem)
+            extract_stem(infinitive, VerbType::Type4)
+        }
+    }
+}
+
+/// Extract the past tense stem. In Finnish past tense, the tense marker -i-
+/// replaces the stem vowel in many cases.
+///
+/// Type 1: puhua -> puhu + i -> puhui (stem vowel 'u' + 'i')
+///         lukea -> luke + i -> luki (stem vowel 'e' replaced by 'i')
+///         antaa -> anto + i -> antoi (stem vowel 'a' -> 'o' before 'i')
+/// Type 2: syödä -> syö + i -> syöi
+///         juoda -> juo + i -> juoi (simplified)
+/// Type 3: tulla -> tul + i -> tuli
+///         mennä -> men + i -> meni
+/// Type 4: haluta -> halu + si -> halusi (with -s- marker)
+fn extract_past_stem(infinitive: &str, verb_type: VerbType) -> String {
+    let chars: Vec<char> = infinitive.chars().collect();
+    match verb_type {
+        VerbType::Type1 => {
+            // Drop final 'a'/'ä' (infinitive marker).
+            // The stem vowel stays unless it's 'e' (which is replaced by 'i')
+            // or 'a' in certain patterns.
+            let stem: String = chars[..chars.len() - 1].iter().collect();
+            let stem_chars: Vec<char> = stem.chars().collect();
+            if let Some(&last_vowel) = stem_chars.last() {
+                if last_vowel == 'e' {
+                    // luke + i -> luki: drop 'e', use 'i' directly
+                    let without_e: String = stem_chars[..stem_chars.len() - 1].iter().collect();
+                    return without_e;
+                }
+            }
+            // For other stem vowels (u, o, a, etc.), keep the stem vowel,
+            // the 'i' tense marker is appended by the caller.
+            stem
+        }
+        VerbType::Type2 => {
+            // syödä -> syö, juoda -> juo: drop 'dä'/'da'
+            // Past: syö + i -> söi (vowel shortening can occur but we keep it simple)
+            let stem: String = chars[..chars.len() - 2].iter().collect();
+            stem
+        }
+        VerbType::Type3 => {
+            // tulla -> tul, mennä -> men: drop doubled consonant + a/ä
+            if infinitive.to_lowercase().ends_with("sta")
+                || infinitive.to_lowercase().ends_with("st\u{00E4}")
+            {
+                // nousta -> nous: drop 'ta'
+                chars[..chars.len() - 2].iter().collect()
+            } else {
+                // tulla -> tul: drop 'la'
+                chars[..chars.len() - 2].iter().collect()
+            }
+        }
+        VerbType::Type4 => {
+            // haluta -> halus: replace 'ta' with 's'
+            // pelätä -> peläs: replace 'tä' with 's'
+            let without_ta: String = chars[..chars.len() - 2].iter().collect();
+            format!("{}s", without_ta)
+        }
+    }
+}
+
+/// Get the last vowel of a string, for 3sg present tense vowel lengthening.
+fn last_vowel(s: &str) -> Option<char> {
+    s.chars().rev().find(|c| is_vowel_char(*c))
+}
+
+/// Get the negative auxiliary for a given person and number.
+fn negative_auxiliary(person: VerbPerson, number: VerbNumber) -> &'static str {
+    match (person, number) {
+        (VerbPerson::First, VerbNumber::Singular) => "en",
+        (VerbPerson::Second, VerbNumber::Singular) => "et",
+        (VerbPerson::Third, VerbNumber::Singular) => "ei",
+        (VerbPerson::First, VerbNumber::Plural) => "emme",
+        (VerbPerson::Second, VerbNumber::Plural) => "ette",
+        (VerbPerson::Third, VerbNumber::Plural) => "eivAt",
+    }
+}
+
+/// Conjugate a verb given its infinitive, type, and grammatical features.
+///
+/// This is the main verb generation pipeline:
+/// 1. Extract the appropriate stem.
+/// 2. Apply consonant gradation via the coKleisli pipeline.
+/// 3. Append tense marker and person suffix.
+/// 4. Apply vowel harmony.
+fn conjugate(
+    infinitive: &str,
+    verb_type: VerbType,
+    tense: VerbTense,
+    person: VerbPerson,
+    number: VerbNumber,
+    polarity: VerbPolarity,
+) -> String {
+    match polarity {
+        VerbPolarity::Negative => conjugate_negative(infinitive, verb_type, tense, person, number),
+        VerbPolarity::Affirmative => {
+            conjugate_affirmative(infinitive, verb_type, tense, person, number)
+        }
+    }
+}
+
+/// Conjugate an affirmative verb form.
+fn conjugate_affirmative(
+    infinitive: &str,
+    verb_type: VerbType,
+    tense: VerbTense,
+    person: VerbPerson,
+    number: VerbNumber,
+) -> String {
+    match tense {
+        VerbTense::Present => conjugate_present_affirmative(infinitive, verb_type, person, number),
+        VerbTense::Past => conjugate_past_affirmative(infinitive, verb_type, person, number),
+        VerbTense::Conditional => {
+            conjugate_conditional_affirmative(infinitive, verb_type, person, number)
+        }
+    }
+}
+
+/// Conjugate present tense affirmative.
+///
+/// Pipeline: stem -> gradation (weak for 1sg/2sg, depends on type) -> person suffix -> harmony
+fn conjugate_present_affirmative(
+    infinitive: &str,
+    verb_type: VerbType,
+    person: VerbPerson,
+    number: VerbNumber,
+) -> String {
+    let stem = extract_stem(infinitive, verb_type);
+
+    // In Finnish verbs, gradation grade depends on the syllable structure:
+    // - The present stem takes **weak** grade for forms that add a
+    //   consonant-initial suffix (closing the syllable).
+    // - 3sg has strong grade (open syllable: stem vowel lengthening).
+    //
+    // For simplicity in this regular verb generator:
+    // - 3sg: strong grade
+    // - All others: weak grade (the personal suffix closes the syllable)
+    let grade = match (person, number) {
+        (VerbPerson::Third, VerbNumber::Singular) => Grade::Strong,
+        _ => Grade::Weak,
+    };
+
+    let graded = gradate(&stem, grade);
+
+    // Build the suffixed form with archiphonemic characters.
+    let suffixed = match (person, number) {
+        (VerbPerson::First, VerbNumber::Singular) => format!("{}n", graded),
+        (VerbPerson::Second, VerbNumber::Singular) => format!("{}t", graded),
+        (VerbPerson::Third, VerbNumber::Singular) => {
+            // 3sg: lengthen the stem-final vowel.
+            if let Some(v) = last_vowel(&graded) {
+                format!("{}{}", graded, v)
+            } else {
+                graded.to_string()
+            }
+        }
+        (VerbPerson::First, VerbNumber::Plural) => format!("{}mme", graded),
+        (VerbPerson::Second, VerbNumber::Plural) => format!("{}tte", graded),
+        (VerbPerson::Third, VerbNumber::Plural) => format!("{}vAt", graded),
+    };
+
+    // Apply vowel harmony.
+    harmonize(&suffixed)
+}
+
+/// Conjugate past tense (imperfect) affirmative.
+///
+/// Pipeline: past stem -> gradation (weak) -> 'i' tense marker -> person suffix -> harmony
+fn conjugate_past_affirmative(
+    infinitive: &str,
+    verb_type: VerbType,
+    person: VerbPerson,
+    number: VerbNumber,
+) -> String {
+    let past_stem = extract_past_stem(infinitive, verb_type);
+
+    // Past tense uses weak grade.
+    let graded = gradate(&past_stem, Grade::Weak);
+
+    // Append tense marker 'i' and person suffix.
+    let suffixed = match (person, number) {
+        (VerbPerson::First, VerbNumber::Singular) => format!("{}in", graded),
+        (VerbPerson::Second, VerbNumber::Singular) => format!("{}it", graded),
+        (VerbPerson::Third, VerbNumber::Singular) => format!("{}i", graded),
+        (VerbPerson::First, VerbNumber::Plural) => format!("{}imme", graded),
+        (VerbPerson::Second, VerbNumber::Plural) => format!("{}itte", graded),
+        (VerbPerson::Third, VerbNumber::Plural) => format!("{}ivAt", graded),
+    };
+
+    harmonize(&suffixed)
+}
+
+/// Extract the conditional stem. For most types this is the same as the past
+/// stem, but Type 4 uses the bare stem (halu) rather than the -s- form (halus).
+fn extract_conditional_stem(infinitive: &str, verb_type: VerbType) -> String {
+    match verb_type {
+        VerbType::Type4 => {
+            // haluta -> halu (drop 'ta'/'tä')
+            let chars: Vec<char> = infinitive.chars().collect();
+            chars[..chars.len() - 2].iter().collect()
+        }
+        _ => extract_past_stem(infinitive, verb_type),
+    }
+}
+
+/// Conjugate conditional mood affirmative.
+///
+/// Pipeline: stem -> gradation (weak) -> 'isi' conditional marker -> person suffix -> harmony
+fn conjugate_conditional_affirmative(
+    infinitive: &str,
+    verb_type: VerbType,
+    person: VerbPerson,
+    number: VerbNumber,
+) -> String {
+    let cond_stem = extract_conditional_stem(infinitive, verb_type);
+
+    let graded = gradate(&cond_stem, Grade::Weak);
+
+    let suffixed = match (person, number) {
+        (VerbPerson::First, VerbNumber::Singular) => format!("{}isin", graded),
+        (VerbPerson::Second, VerbNumber::Singular) => format!("{}isit", graded),
+        (VerbPerson::Third, VerbNumber::Singular) => format!("{}isi", graded),
+        (VerbPerson::First, VerbNumber::Plural) => format!("{}isimme", graded),
+        (VerbPerson::Second, VerbNumber::Plural) => format!("{}isitte", graded),
+        (VerbPerson::Third, VerbNumber::Plural) => format!("{}isivAt", graded),
+    };
+
+    harmonize(&suffixed)
+}
+
+/// Conjugate negative forms.
+///
+/// Negative present: negative auxiliary + connegative stem
+/// (e.g., "en puhu", "eivät puhu")
+fn conjugate_negative(
+    infinitive: &str,
+    verb_type: VerbType,
+    tense: VerbTense,
+    person: VerbPerson,
+    number: VerbNumber,
+) -> String {
+    let aux = negative_auxiliary(person, number);
+    let aux_harmonized = harmonize(aux);
+
+    match tense {
+        VerbTense::Present => {
+            // Connegative present = bare stem (weak grade).
+            let stem = extract_connegative_stem(infinitive, verb_type);
+            let graded = gradate(&stem, Grade::Weak);
+            format!("{} {}", aux_harmonized, graded)
+        }
+        VerbTense::Past => {
+            // Negative past uses the past participle (e.g., "ei puhunut").
+            // This is out of scope for the current regular verb generator;
+            // we produce the connegative past form as stem + "nUt"/"neet".
+            // Simplified: use past participle singular.
+            let past_stem = extract_past_stem(infinitive, verb_type);
+            let graded = gradate(&past_stem, Grade::Weak);
+            let participle = format!("{}nUt", graded);
+            let harmonized = harmonize(&participle);
+            format!("{} {}", aux_harmonized, harmonized)
+        }
+        VerbTense::Conditional => {
+            // Negative conditional: "en puhuisi"
+            let cond_stem = extract_conditional_stem(infinitive, verb_type);
+            let graded = gradate(&cond_stem, Grade::Weak);
+            format!("{} {}isi", aux_harmonized, graded)
+        }
+    }
+}
+
+/// Parse a person+number string like "1sg", "3pl" into (VerbPerson, VerbNumber).
+///
+/// Returns `None` if the string is not recognized.
+pub fn parse_person_number(s: &str) -> Option<(VerbPerson, VerbNumber)> {
+    match s.to_lowercase().as_str() {
+        "1sg" => Some((VerbPerson::First, VerbNumber::Singular)),
+        "2sg" => Some((VerbPerson::Second, VerbNumber::Singular)),
+        "3sg" => Some((VerbPerson::Third, VerbNumber::Singular)),
+        "1pl" => Some((VerbPerson::First, VerbNumber::Plural)),
+        "2pl" => Some((VerbPerson::Second, VerbNumber::Plural)),
+        "3pl" => Some((VerbPerson::Third, VerbNumber::Plural)),
+        _ => None,
+    }
+}
+
+/// Parse a tense string into a `VerbTense`.
+///
+/// Returns `None` if the string is not recognized.
+pub fn parse_tense(s: &str) -> Option<VerbTense> {
+    match s.to_lowercase().as_str() {
+        "present" => Some(VerbTense::Present),
+        "past" | "imperfect" => Some(VerbTense::Past),
+        "conditional" => Some(VerbTense::Conditional),
+        _ => None,
+    }
+}
+
+/// Parse a polarity string into a `VerbPolarity`.
+///
+/// Returns `None` if the string is not recognized.
+pub fn parse_polarity(s: &str) -> Option<VerbPolarity> {
+    match s.to_lowercase().as_str() {
+        "affirmative" | "aff" | "positive" => Some(VerbPolarity::Affirmative),
+        "negative" | "neg" => Some(VerbPolarity::Negative),
+        _ => None,
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -700,5 +1322,758 @@ mod tests {
         // Strong grade for partitive, k stays
         let form = g.generate("puku", &[("SIJAMUOTO", "partitive")]);
         assert_eq!(form, Some("pukua".to_string()));
+    }
+
+    // =====================================================================
+    // Verb type classification
+    // =====================================================================
+
+    #[test]
+    fn classify_type1_puhua() {
+        assert_eq!(classify_verb("puhua"), Some(VerbType::Type1));
+    }
+
+    #[test]
+    fn classify_type1_lukea() {
+        assert_eq!(classify_verb("lukea"), Some(VerbType::Type1));
+    }
+
+    #[test]
+    fn classify_type2_syoda() {
+        assert_eq!(classify_verb("sy\u{00F6}d\u{00E4}"), Some(VerbType::Type2));
+    }
+
+    #[test]
+    fn classify_type3_tulla() {
+        assert_eq!(classify_verb("tulla"), Some(VerbType::Type3));
+    }
+
+    #[test]
+    fn classify_type4_haluta() {
+        assert_eq!(classify_verb("haluta"), Some(VerbType::Type4));
+    }
+
+    #[test]
+    fn classify_unknown_returns_none() {
+        assert_eq!(classify_verb("xyz"), None);
+    }
+
+    // =====================================================================
+    // puhua (Type 1, back harmony, no gradation)
+    // =====================================================================
+
+    #[test]
+    fn puhua_present_1sg() {
+        let g = gen();
+        let form = g.generate_verb(
+            "puhua",
+            VerbTense::Present,
+            VerbPerson::First,
+            VerbNumber::Singular,
+            VerbPolarity::Affirmative,
+        );
+        assert_eq!(form, Some("puhun".to_string()));
+    }
+
+    #[test]
+    fn puhua_present_2sg() {
+        let g = gen();
+        let form = g.generate_verb(
+            "puhua",
+            VerbTense::Present,
+            VerbPerson::Second,
+            VerbNumber::Singular,
+            VerbPolarity::Affirmative,
+        );
+        assert_eq!(form, Some("puhut".to_string()));
+    }
+
+    #[test]
+    fn puhua_present_3sg() {
+        let g = gen();
+        let form = g.generate_verb(
+            "puhua",
+            VerbTense::Present,
+            VerbPerson::Third,
+            VerbNumber::Singular,
+            VerbPolarity::Affirmative,
+        );
+        assert_eq!(form, Some("puhuu".to_string()));
+    }
+
+    #[test]
+    fn puhua_present_1pl() {
+        let g = gen();
+        let form = g.generate_verb(
+            "puhua",
+            VerbTense::Present,
+            VerbPerson::First,
+            VerbNumber::Plural,
+            VerbPolarity::Affirmative,
+        );
+        assert_eq!(form, Some("puhumme".to_string()));
+    }
+
+    #[test]
+    fn puhua_present_2pl() {
+        let g = gen();
+        let form = g.generate_verb(
+            "puhua",
+            VerbTense::Present,
+            VerbPerson::Second,
+            VerbNumber::Plural,
+            VerbPolarity::Affirmative,
+        );
+        assert_eq!(form, Some("puhutte".to_string()));
+    }
+
+    #[test]
+    fn puhua_present_3pl() {
+        let g = gen();
+        let form = g.generate_verb(
+            "puhua",
+            VerbTense::Present,
+            VerbPerson::Third,
+            VerbNumber::Plural,
+            VerbPolarity::Affirmative,
+        );
+        assert_eq!(form, Some("puhuvat".to_string()));
+    }
+
+    // =====================================================================
+    // puhua — past tense (imperfect)
+    // =====================================================================
+
+    #[test]
+    fn puhua_past_1sg() {
+        let g = gen();
+        let form = g.generate_verb(
+            "puhua",
+            VerbTense::Past,
+            VerbPerson::First,
+            VerbNumber::Singular,
+            VerbPolarity::Affirmative,
+        );
+        assert_eq!(form, Some("puhuin".to_string()));
+    }
+
+    #[test]
+    fn puhua_past_2sg() {
+        let g = gen();
+        let form = g.generate_verb(
+            "puhua",
+            VerbTense::Past,
+            VerbPerson::Second,
+            VerbNumber::Singular,
+            VerbPolarity::Affirmative,
+        );
+        assert_eq!(form, Some("puhuit".to_string()));
+    }
+
+    #[test]
+    fn puhua_past_3sg() {
+        let g = gen();
+        let form = g.generate_verb(
+            "puhua",
+            VerbTense::Past,
+            VerbPerson::Third,
+            VerbNumber::Singular,
+            VerbPolarity::Affirmative,
+        );
+        assert_eq!(form, Some("puhui".to_string()));
+    }
+
+    #[test]
+    fn puhua_past_1pl() {
+        let g = gen();
+        let form = g.generate_verb(
+            "puhua",
+            VerbTense::Past,
+            VerbPerson::First,
+            VerbNumber::Plural,
+            VerbPolarity::Affirmative,
+        );
+        assert_eq!(form, Some("puhuimme".to_string()));
+    }
+
+    #[test]
+    fn puhua_past_2pl() {
+        let g = gen();
+        let form = g.generate_verb(
+            "puhua",
+            VerbTense::Past,
+            VerbPerson::Second,
+            VerbNumber::Plural,
+            VerbPolarity::Affirmative,
+        );
+        assert_eq!(form, Some("puhuitte".to_string()));
+    }
+
+    #[test]
+    fn puhua_past_3pl() {
+        let g = gen();
+        let form = g.generate_verb(
+            "puhua",
+            VerbTense::Past,
+            VerbPerson::Third,
+            VerbNumber::Plural,
+            VerbPolarity::Affirmative,
+        );
+        assert_eq!(form, Some("puhuivat".to_string()));
+    }
+
+    // =====================================================================
+    // puhua — negative present
+    // =====================================================================
+
+    #[test]
+    fn puhua_neg_present_1sg() {
+        let g = gen();
+        let form = g.generate_verb(
+            "puhua",
+            VerbTense::Present,
+            VerbPerson::First,
+            VerbNumber::Singular,
+            VerbPolarity::Negative,
+        );
+        assert_eq!(form, Some("en puhu".to_string()));
+    }
+
+    #[test]
+    fn puhua_neg_present_2sg() {
+        let g = gen();
+        let form = g.generate_verb(
+            "puhua",
+            VerbTense::Present,
+            VerbPerson::Second,
+            VerbNumber::Singular,
+            VerbPolarity::Negative,
+        );
+        assert_eq!(form, Some("et puhu".to_string()));
+    }
+
+    #[test]
+    fn puhua_neg_present_3sg() {
+        let g = gen();
+        let form = g.generate_verb(
+            "puhua",
+            VerbTense::Present,
+            VerbPerson::Third,
+            VerbNumber::Singular,
+            VerbPolarity::Negative,
+        );
+        assert_eq!(form, Some("ei puhu".to_string()));
+    }
+
+    #[test]
+    fn puhua_neg_present_1pl() {
+        let g = gen();
+        let form = g.generate_verb(
+            "puhua",
+            VerbTense::Present,
+            VerbPerson::First,
+            VerbNumber::Plural,
+            VerbPolarity::Negative,
+        );
+        assert_eq!(form, Some("emme puhu".to_string()));
+    }
+
+    #[test]
+    fn puhua_neg_present_2pl() {
+        let g = gen();
+        let form = g.generate_verb(
+            "puhua",
+            VerbTense::Present,
+            VerbPerson::Second,
+            VerbNumber::Plural,
+            VerbPolarity::Negative,
+        );
+        assert_eq!(form, Some("ette puhu".to_string()));
+    }
+
+    #[test]
+    fn puhua_neg_present_3pl() {
+        let g = gen();
+        let form = g.generate_verb(
+            "puhua",
+            VerbTense::Present,
+            VerbPerson::Third,
+            VerbNumber::Plural,
+            VerbPolarity::Negative,
+        );
+        assert_eq!(form, Some("eiv\u{00E4}t puhu".to_string()));
+    }
+
+    // =====================================================================
+    // puhua — conditional
+    // =====================================================================
+
+    #[test]
+    fn puhua_conditional_1sg() {
+        let g = gen();
+        let form = g.generate_verb(
+            "puhua",
+            VerbTense::Conditional,
+            VerbPerson::First,
+            VerbNumber::Singular,
+            VerbPolarity::Affirmative,
+        );
+        assert_eq!(form, Some("puhuisin".to_string()));
+    }
+
+    #[test]
+    fn puhua_conditional_3sg() {
+        let g = gen();
+        let form = g.generate_verb(
+            "puhua",
+            VerbTense::Conditional,
+            VerbPerson::Third,
+            VerbNumber::Singular,
+            VerbPolarity::Affirmative,
+        );
+        assert_eq!(form, Some("puhuisi".to_string()));
+    }
+
+    // =====================================================================
+    // syödä (Type 2, front harmony)
+    // =====================================================================
+
+    #[test]
+    fn syoda_present_1sg() {
+        let g = gen();
+        let form = g.generate_verb(
+            "sy\u{00F6}d\u{00E4}",
+            VerbTense::Present,
+            VerbPerson::First,
+            VerbNumber::Singular,
+            VerbPolarity::Affirmative,
+        );
+        assert_eq!(form, Some("sy\u{00F6}n".to_string()));
+    }
+
+    #[test]
+    fn syoda_present_3sg() {
+        let g = gen();
+        let form = g.generate_verb(
+            "sy\u{00F6}d\u{00E4}",
+            VerbTense::Present,
+            VerbPerson::Third,
+            VerbNumber::Singular,
+            VerbPolarity::Affirmative,
+        );
+        assert_eq!(form, Some("sy\u{00F6}\u{00F6}".to_string()));
+    }
+
+    #[test]
+    fn syoda_present_3pl() {
+        let g = gen();
+        let form = g.generate_verb(
+            "sy\u{00F6}d\u{00E4}",
+            VerbTense::Present,
+            VerbPerson::Third,
+            VerbNumber::Plural,
+            VerbPolarity::Affirmative,
+        );
+        // Front harmony: -vAt -> -vät
+        assert_eq!(form, Some("sy\u{00F6}v\u{00E4}t".to_string()));
+    }
+
+    #[test]
+    fn syoda_past_1sg() {
+        let g = gen();
+        let form = g.generate_verb(
+            "sy\u{00F6}d\u{00E4}",
+            VerbTense::Past,
+            VerbPerson::First,
+            VerbNumber::Singular,
+            VerbPolarity::Affirmative,
+        );
+        assert_eq!(form, Some("sy\u{00F6}in".to_string()));
+    }
+
+    #[test]
+    fn syoda_neg_present_3sg() {
+        let g = gen();
+        let form = g.generate_verb(
+            "sy\u{00F6}d\u{00E4}",
+            VerbTense::Present,
+            VerbPerson::Third,
+            VerbNumber::Singular,
+            VerbPolarity::Negative,
+        );
+        assert_eq!(form, Some("ei sy\u{00F6}".to_string()));
+    }
+
+    #[test]
+    fn syoda_neg_present_3pl() {
+        let g = gen();
+        let form = g.generate_verb(
+            "sy\u{00F6}d\u{00E4}",
+            VerbTense::Present,
+            VerbPerson::Third,
+            VerbNumber::Plural,
+            VerbPolarity::Negative,
+        );
+        assert_eq!(form, Some("eiv\u{00E4}t sy\u{00F6}".to_string()));
+    }
+
+    // =====================================================================
+    // lukea (Type 1 with gradation: k -> deleted in weak grade)
+    // =====================================================================
+
+    #[test]
+    fn lukea_present_1sg() {
+        let g = gen();
+        let form = g.generate_verb(
+            "lukea",
+            VerbTense::Present,
+            VerbPerson::First,
+            VerbNumber::Singular,
+            VerbPolarity::Affirmative,
+        );
+        // lukea -> luke (stem) -> lue (weak grade: k deleted) -> luen
+        assert_eq!(form, Some("luen".to_string()));
+    }
+
+    #[test]
+    fn lukea_present_3sg() {
+        let g = gen();
+        let form = g.generate_verb(
+            "lukea",
+            VerbTense::Present,
+            VerbPerson::Third,
+            VerbNumber::Singular,
+            VerbPolarity::Affirmative,
+        );
+        // 3sg strong grade: lukee
+        assert_eq!(form, Some("lukee".to_string()));
+    }
+
+    #[test]
+    fn lukea_present_3pl() {
+        let g = gen();
+        let form = g.generate_verb(
+            "lukea",
+            VerbTense::Present,
+            VerbPerson::Third,
+            VerbNumber::Plural,
+            VerbPolarity::Affirmative,
+        );
+        // weak grade: k deleted -> luevat
+        assert_eq!(form, Some("luevat".to_string()));
+    }
+
+    #[test]
+    fn lukea_past_1sg() {
+        let g = gen();
+        let form = g.generate_verb(
+            "lukea",
+            VerbTense::Past,
+            VerbPerson::First,
+            VerbNumber::Singular,
+            VerbPolarity::Affirmative,
+        );
+        // Past stem: luk (e drops before i) -> lu (weak grade) -> luin
+        assert_eq!(form, Some("luin".to_string()));
+    }
+
+    #[test]
+    fn lukea_past_3sg() {
+        let g = gen();
+        let form = g.generate_verb(
+            "lukea",
+            VerbTense::Past,
+            VerbPerson::Third,
+            VerbNumber::Singular,
+            VerbPolarity::Affirmative,
+        );
+        // Past stem: luk -> lu (weak grade k deleted) -> lui
+        assert_eq!(form, Some("lui".to_string()));
+    }
+
+    #[test]
+    fn lukea_neg_present_1sg() {
+        let g = gen();
+        let form = g.generate_verb(
+            "lukea",
+            VerbTense::Present,
+            VerbPerson::First,
+            VerbNumber::Singular,
+            VerbPolarity::Negative,
+        );
+        // Connegative: luke -> lue (weak grade)
+        assert_eq!(form, Some("en lue".to_string()));
+    }
+
+    // =====================================================================
+    // tulla (Type 3)
+    // =====================================================================
+
+    #[test]
+    fn tulla_present_1sg() {
+        let g = gen();
+        let form = g.generate_verb(
+            "tulla",
+            VerbTense::Present,
+            VerbPerson::First,
+            VerbNumber::Singular,
+            VerbPolarity::Affirmative,
+        );
+        // tulla -> tule (present stem) -> tulen
+        assert_eq!(form, Some("tulen".to_string()));
+    }
+
+    #[test]
+    fn tulla_present_3sg() {
+        let g = gen();
+        let form = g.generate_verb(
+            "tulla",
+            VerbTense::Present,
+            VerbPerson::Third,
+            VerbNumber::Singular,
+            VerbPolarity::Affirmative,
+        );
+        // 3sg: tulee (strong grade, stem vowel 'e' lengthened)
+        assert_eq!(form, Some("tulee".to_string()));
+    }
+
+    #[test]
+    fn tulla_present_3pl() {
+        let g = gen();
+        let form = g.generate_verb(
+            "tulla",
+            VerbTense::Present,
+            VerbPerson::Third,
+            VerbNumber::Plural,
+            VerbPolarity::Affirmative,
+        );
+        assert_eq!(form, Some("tulevat".to_string()));
+    }
+
+    #[test]
+    fn tulla_past_1sg() {
+        let g = gen();
+        let form = g.generate_verb(
+            "tulla",
+            VerbTense::Past,
+            VerbPerson::First,
+            VerbNumber::Singular,
+            VerbPolarity::Affirmative,
+        );
+        // Past: tul + i -> tulin
+        assert_eq!(form, Some("tulin".to_string()));
+    }
+
+    #[test]
+    fn tulla_past_3sg() {
+        let g = gen();
+        let form = g.generate_verb(
+            "tulla",
+            VerbTense::Past,
+            VerbPerson::Third,
+            VerbNumber::Singular,
+            VerbPolarity::Affirmative,
+        );
+        assert_eq!(form, Some("tuli".to_string()));
+    }
+
+    #[test]
+    fn tulla_neg_present_3sg() {
+        let g = gen();
+        let form = g.generate_verb(
+            "tulla",
+            VerbTense::Present,
+            VerbPerson::Third,
+            VerbNumber::Singular,
+            VerbPolarity::Negative,
+        );
+        // Connegative: tule
+        assert_eq!(form, Some("ei tule".to_string()));
+    }
+
+    // =====================================================================
+    // haluta (Type 4, with gradation t -> deleted in weak grade)
+    // =====================================================================
+
+    #[test]
+    fn haluta_present_1sg() {
+        let g = gen();
+        let form = g.generate_verb(
+            "haluta",
+            VerbTense::Present,
+            VerbPerson::First,
+            VerbNumber::Singular,
+            VerbPolarity::Affirmative,
+        );
+        // haluta -> halua (present stem) -> haluan (weak grade: no gradation
+        // since 'a' is not in a gradating context)
+        assert_eq!(form, Some("haluan".to_string()));
+    }
+
+    #[test]
+    fn haluta_present_3sg() {
+        let g = gen();
+        let form = g.generate_verb(
+            "haluta",
+            VerbTense::Present,
+            VerbPerson::Third,
+            VerbNumber::Singular,
+            VerbPolarity::Affirmative,
+        );
+        assert_eq!(form, Some("haluaa".to_string()));
+    }
+
+    #[test]
+    fn haluta_present_3pl() {
+        let g = gen();
+        let form = g.generate_verb(
+            "haluta",
+            VerbTense::Present,
+            VerbPerson::Third,
+            VerbNumber::Plural,
+            VerbPolarity::Affirmative,
+        );
+        assert_eq!(form, Some("haluavat".to_string()));
+    }
+
+    #[test]
+    fn haluta_past_1sg() {
+        let g = gen();
+        let form = g.generate_verb(
+            "haluta",
+            VerbTense::Past,
+            VerbPerson::First,
+            VerbNumber::Singular,
+            VerbPolarity::Affirmative,
+        );
+        // Past: halus + i -> halusin
+        assert_eq!(form, Some("halusin".to_string()));
+    }
+
+    #[test]
+    fn haluta_past_3sg() {
+        let g = gen();
+        let form = g.generate_verb(
+            "haluta",
+            VerbTense::Past,
+            VerbPerson::Third,
+            VerbNumber::Singular,
+            VerbPolarity::Affirmative,
+        );
+        assert_eq!(form, Some("halusi".to_string()));
+    }
+
+    #[test]
+    fn haluta_neg_present_1sg() {
+        let g = gen();
+        let form = g.generate_verb(
+            "haluta",
+            VerbTense::Present,
+            VerbPerson::First,
+            VerbNumber::Singular,
+            VerbPolarity::Negative,
+        );
+        assert_eq!(form, Some("en halua".to_string()));
+    }
+
+    #[test]
+    fn haluta_conditional_1sg() {
+        let g = gen();
+        let form = g.generate_verb(
+            "haluta",
+            VerbTense::Conditional,
+            VerbPerson::First,
+            VerbNumber::Singular,
+            VerbPolarity::Affirmative,
+        );
+        // Conditional: halus + isi + n -> haluisin
+        assert_eq!(form, Some("haluisin".to_string()));
+    }
+
+    // =====================================================================
+    // Verb paradigm generation
+    // =====================================================================
+
+    #[test]
+    fn verb_paradigm_puhua() {
+        let g = gen();
+        let paradigm = g.generate_verb_paradigm("puhua");
+        assert!(paradigm.is_some());
+        let paradigm = paradigm.unwrap();
+        // Should have 4 tenses * 6 persons = 24 forms
+        assert_eq!(paradigm.len(), 24);
+
+        // Spot-check a few
+        assert!(paradigm
+            .iter()
+            .any(|(label, form)| label == "present 1sg" && form == "puhun"));
+        assert!(paradigm
+            .iter()
+            .any(|(label, form)| label == "past 3sg" && form == "puhui"));
+        assert!(paradigm
+            .iter()
+            .any(|(label, form)| label == "neg present 3pl" && form == "eiv\u{00E4}t puhu"));
+    }
+
+    #[test]
+    fn verb_paradigm_unknown_returns_none() {
+        let g = gen();
+        assert!(g.generate_verb_paradigm("xyz").is_none());
+    }
+
+    // =====================================================================
+    // generate_verb returns None for unrecognized infinitive
+    // =====================================================================
+
+    #[test]
+    fn generate_verb_unknown_returns_none() {
+        let g = gen();
+        assert_eq!(
+            g.generate_verb(
+                "xyz",
+                VerbTense::Present,
+                VerbPerson::First,
+                VerbNumber::Singular,
+                VerbPolarity::Affirmative,
+            ),
+            None
+        );
+    }
+
+    // =====================================================================
+    // Parser helpers
+    // =====================================================================
+
+    #[test]
+    fn parse_person_number_valid() {
+        assert_eq!(
+            parse_person_number("1sg"),
+            Some((VerbPerson::First, VerbNumber::Singular))
+        );
+        assert_eq!(
+            parse_person_number("3pl"),
+            Some((VerbPerson::Third, VerbNumber::Plural))
+        );
+    }
+
+    #[test]
+    fn parse_person_number_invalid() {
+        assert_eq!(parse_person_number("4sg"), None);
+    }
+
+    #[test]
+    fn parse_tense_valid() {
+        assert_eq!(parse_tense("present"), Some(VerbTense::Present));
+        assert_eq!(parse_tense("past"), Some(VerbTense::Past));
+        assert_eq!(parse_tense("conditional"), Some(VerbTense::Conditional));
+    }
+
+    #[test]
+    fn parse_polarity_valid() {
+        assert_eq!(
+            parse_polarity("affirmative"),
+            Some(VerbPolarity::Affirmative)
+        );
+        assert_eq!(parse_polarity("neg"), Some(VerbPolarity::Negative));
     }
 }

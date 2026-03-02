@@ -569,6 +569,77 @@ impl MceEngine {
         buf.push(']');
         buf
     }
+
+    /// Generate a conjugated verb form.
+    ///
+    /// Parameters:
+    /// - `baseform`: The verb infinitive (e.g., "puhua", "syödä").
+    /// - `tense`: "present", "past", or "conditional".
+    /// - `person`: "1sg", "2sg", "3sg", "1pl", "2pl", or "3pl".
+    /// - `polarity`: "affirmative" or "negative".
+    ///
+    /// Returns the conjugated form, or the baseform unchanged if parameters
+    /// are not recognized.
+    ///
+    /// Example: `generate_verb_form("puhua", "present", "1sg", "affirmative")` -> `"puhun"`
+    pub fn generate_verb_form(
+        &self,
+        baseform: &str,
+        tense: &str,
+        person: &str,
+        polarity: &str,
+    ) -> String {
+        use mce_fi::generator::{parse_person_number, parse_polarity, parse_tense};
+
+        let tense = match parse_tense(tense) {
+            Some(t) => t,
+            None => return baseform.to_string(),
+        };
+        let (person, number) = match parse_person_number(person) {
+            Some(pn) => pn,
+            None => return baseform.to_string(),
+        };
+        let polarity = match parse_polarity(polarity) {
+            Some(p) => p,
+            None => return baseform.to_string(),
+        };
+
+        let generator = mce_fi::generator::MorphGenerator::new();
+        generator
+            .generate_verb(baseform, tense, person, number, polarity)
+            .unwrap_or_else(|| baseform.to_string())
+    }
+
+    /// Generate all conjugated forms for a verb.
+    ///
+    /// Returns a JSON array of `{"label": "<tense person>", "form": "<conjugated>"}` objects.
+    /// Includes present, past, conditional, and negative present tenses.
+    ///
+    /// Returns `"[]"` if the verb infinitive is not recognized.
+    ///
+    /// Example: `generate_verb_paradigm("puhua")` returns a JSON array with
+    /// entries like `{"label":"present 1sg","form":"puhun"}`.
+    pub fn generate_verb_paradigm(&self, baseform: &str) -> String {
+        let generator = mce_fi::generator::MorphGenerator::new();
+        let paradigm = match generator.generate_verb_paradigm(baseform) {
+            Some(p) => p,
+            None => return "[]".to_string(),
+        };
+
+        let mut buf = String::from('[');
+        for (i, (label, form)) in paradigm.iter().enumerate() {
+            if i > 0 {
+                buf.push(',');
+            }
+            buf.push_str("{\"label\":\"");
+            json_escape_into(&mut buf, label);
+            buf.push_str("\",\"form\":\"");
+            json_escape_into(&mut buf, form);
+            buf.push_str("\"}");
+        }
+        buf.push(']');
+        buf
+    }
 }
 
 // ===========================================================================
