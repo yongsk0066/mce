@@ -317,12 +317,29 @@ pub fn apply_gradation(z: &Zipper<char>, grade: Grade) -> char {
 
 /// Apply consonant gradation to an entire word.
 ///
-/// Creates a [`Zipper`] from the word's characters, extends it with
-/// [`apply_gradation`], collects the result, and filters out any null
-/// characters (which represent deletions, e.g. `k -> (nothing)`).
+/// Uses the Writer Comonad pipeline by default, which accumulates deletions
+/// algebraically via [`DeletionSet`] instead of using `'\0'` sentinels.
+/// This produces identical output to the legacy pipeline.
 ///
 /// Returns an empty `Vec` if the input is empty.
+///
+/// [`DeletionSet`]: crate::writer::DeletionSet
 pub fn gradation_pipeline(word: &[char], grade: Grade) -> Vec<char> {
+    crate::writer::gradation_pipeline_pure(word, grade)
+}
+
+/// Convenience wrapper: apply gradation to a `&str` and return a `String`.
+///
+/// Uses the Writer Comonad pipeline by default.
+pub fn gradate(word: &str, grade: Grade) -> String {
+    crate::writer::gradate_pure(word, grade)
+}
+
+/// Legacy gradation pipeline using `'\0'` sentinels for deletions.
+///
+/// Kept as a fallback for validation. The Writer Comonad version
+/// ([`gradation_pipeline`]) is now the default.
+pub fn gradation_pipeline_legacy(word: &[char], grade: Grade) -> Vec<char> {
     let z = match Zipper::new(word.to_vec()) {
         Some(z) => z,
         None => return Vec::new(),
@@ -332,10 +349,14 @@ pub fn gradation_pipeline(word: &[char], grade: Grade) -> Vec<char> {
     result.to_vec().into_iter().filter(|&c| c != '\0').collect()
 }
 
-/// Convenience wrapper: apply gradation to a `&str` and return a `String`.
-pub fn gradate(word: &str, grade: Grade) -> String {
+/// Legacy convenience wrapper: apply gradation using `'\0'` sentinels.
+///
+/// Kept as a fallback for validation.
+pub fn gradate_legacy(word: &str, grade: Grade) -> String {
     let chars: Vec<char> = word.chars().collect();
-    gradation_pipeline(&chars, grade).into_iter().collect()
+    gradation_pipeline_legacy(&chars, grade)
+        .into_iter()
+        .collect()
 }
 
 // ===========================================================================
@@ -578,8 +599,8 @@ pub fn apply_possessive_to_word(word: &str) -> String {
 
 /// Apply a chain of morphophonological rules to a word.
 ///
-/// This function composes multiple coKleisli arrows via sequential
-/// `extend` application, forming a coKleisli composition chain:
+/// This function composes multiple coKleisli arrows via the Writer
+/// Comonad pipeline, forming a pure coKleisli composition chain:
 ///
 /// 1. **Consonant gradation** — alternates stem consonants based on
 ///    the requested [`Grade`].
@@ -588,10 +609,11 @@ pub fn apply_possessive_to_word(word: &str) -> String {
 /// 3. **Possessive vowel copying** — resolves `V` archiphonemes by
 ///    copying the preceding vowel.
 ///
-/// The pipeline filters out null characters (`'\0'`) produced by
-/// consonant deletion (e.g. `k` -> nothing in weak grade) between
-/// steps, so that subsequent rules see the phonologically correct
-/// surface form.
+/// Uses the Writer Comonad pipeline by default, which accumulates
+/// deletions algebraically via [`DeletionSet`] instead of using
+/// `'\0'` sentinels. The output is identical to the legacy pipeline.
+///
+/// [`DeletionSet`]: crate::writer::DeletionSet
 ///
 /// # Example
 ///
@@ -605,6 +627,15 @@ pub fn apply_possessive_to_word(word: &str) -> String {
 /// assert_eq!(morphophonological_pipeline("p\u{00F6}yt\u{00E4}llA", Grade::Weak), "p\u{00F6}yd\u{00E4}ll\u{00E4}");
 /// ```
 pub fn morphophonological_pipeline(word: &str, grade: Grade) -> String {
+    crate::writer::morphophonological_pipeline_pure(word, grade)
+}
+
+/// Legacy morphophonological pipeline using `'\0'` sentinels for deletions.
+///
+/// This is the original implementation that filters null characters between
+/// steps. Kept as a fallback for validation. The Writer Comonad version
+/// ([`morphophonological_pipeline`]) is now the default.
+pub fn morphophonological_pipeline_legacy(word: &str, grade: Grade) -> String {
     if word.is_empty() {
         return String::new();
     }
@@ -1409,5 +1440,81 @@ mod tests {
             "p\u{00F6}yt\u{00E4}ss\u{00E4}"
         );
         assert_eq!(harmonize("tiessA"), "tiess\u{00E4}");
+    }
+
+    // =====================================================================
+    // Writer pipeline vs legacy pipeline equivalence
+    // =====================================================================
+
+    #[test]
+    fn writer_vs_legacy_gradation_equivalence() {
+        let test_words = &[
+            "kaappi", "matto", "kukka", "tapa", "katu", "puku", "luku", "kampa", "ranta", "kenka",
+            "kulta", "parta", "kisa", "massa", "aie", "spa", "ka", "a", "k", "p", "", "ap", "at",
+            "ak", "kauppa", "silta",
+        ];
+        for &word in test_words {
+            for grade in &[Grade::Weak, Grade::Strong] {
+                let writer = gradate(word, *grade);
+                let legacy = gradate_legacy(word, *grade);
+                assert_eq!(
+                    writer, legacy,
+                    "gradate mismatch for '{}' ({:?}): writer='{}', legacy='{}'",
+                    word, grade, writer, legacy
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn writer_vs_legacy_pipeline_equivalence() {
+        let test_cases = &[
+            ("rantAssA", Grade::Weak),
+            ("rantAssA", Grade::Strong),
+            ("kenk\u{00E4}ssA", Grade::Weak),
+            ("pukussA", Grade::Weak),
+            ("kampAstAVn", Grade::Weak),
+            ("kenk\u{00E4}stAVn", Grade::Weak),
+            ("massAssA", Grade::Strong),
+            ("talossa", Grade::Weak),
+            ("p\u{00F6}yt\u{00E4}llA", Grade::Weak),
+            ("taloVn", Grade::Weak),
+            ("kaapissA", Grade::Weak),
+            ("kaappi", Grade::Weak),
+            ("tytt\u{00F6}", Grade::Weak),
+            ("", Grade::Weak),
+            ("talossA", Grade::Weak),
+        ];
+        for &(word, grade) in test_cases {
+            let writer = morphophonological_pipeline(word, grade);
+            let legacy = morphophonological_pipeline_legacy(word, grade);
+            assert_eq!(
+                writer, legacy,
+                "pipeline mismatch for '{}' ({:?}): writer='{}', legacy='{}'",
+                word, grade, writer, legacy
+            );
+        }
+    }
+
+    #[test]
+    fn writer_vs_legacy_gradation_pipeline_vec_equivalence() {
+        let test_words: Vec<Vec<char>> = vec![
+            "kaappi".chars().collect(),
+            "puku".chars().collect(),
+            "kampa".chars().collect(),
+            "ranta".chars().collect(),
+            vec![],
+        ];
+        for chars in &test_words {
+            for grade in &[Grade::Weak, Grade::Strong] {
+                let writer = gradation_pipeline(chars, *grade);
+                let legacy = gradation_pipeline_legacy(chars, *grade);
+                assert_eq!(
+                    writer, legacy,
+                    "gradation_pipeline mismatch for {:?} ({:?})",
+                    chars, grade
+                );
+            }
+        }
     }
 }

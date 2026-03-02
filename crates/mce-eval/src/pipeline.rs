@@ -17,6 +17,7 @@ use mce_core::token::TokenType;
 use mce_disambig::bigram::EmissionScorer;
 use mce_disambig::corpus::{build_model_from_conllu, extract_emission_priors};
 use mce_disambig::cs::SparseDisambiguator;
+use mce_disambig::suffix_tagger::SuffixTagger;
 use mce_disambig::ViterbiDisambiguator;
 use mce_fi::morphology::{Analyzer, FinnishAnalyzer};
 use mce_tokenizer::next_token;
@@ -96,6 +97,14 @@ impl EvalPipeline {
             disambiguator,
             cg_rules,
         })
+    }
+
+    /// Set the suffix tagger for emission scoring.
+    ///
+    /// When present, the suffix tagger's per-UPOS log-probabilities are
+    /// added to each reading's emission score in the Viterbi lattice.
+    pub fn set_suffix_tagger(&mut self, tagger: SuffixTagger) {
+        self.disambiguator.set_suffix_tagger(tagger);
     }
 
     /// Enable the Compressed Sensing (FISTA) scorer on this pipeline.
@@ -183,6 +192,72 @@ impl EvalPipeline {
                 has_analysis.push(true);
                 word_analyses.push(analyses);
             }
+        }
+
+        // Apply CG rules to prune candidate readings before disambiguation.
+        // CG rules remove unlikely readings based on local context, which
+        // reduces ambiguity for the Viterbi disambiguator.
+        if !self.cg_rules.is_empty() {
+            word_analyses = apply_cg_rules(&word_analyses, &self.cg_rules);
+        }
+
+        // When a suffix tagger is available, use it as the primary UPOS predictor.
+        // The FST analysis is used for lemma extraction, and the suffix tagger
+        // provides the UPOS tag. This hybrid approach combines the suffix tagger's
+        // superior UPOS accuracy with the FST's morphological analysis.
+        if let Some(tagger) = self.disambiguator.suffix_tagger() {
+            let n = words.len();
+            for (i, token) in eval_tokens.iter().enumerate() {
+                let prev = if i > 0 {
+                    Some(words[i - 1].as_str())
+                } else {
+                    None
+                };
+                let next = if i + 1 < n {
+                    Some(words[i + 1].as_str())
+                } else {
+                    None
+                };
+                let log_probs = tagger.emission_scores(&words[i], prev, next, i, n);
+
+                // Find the best UPOS tag from the suffix tagger.
+                let classes = tagger.classes();
+                let best_idx = log_probs
+                    .iter()
+                    .enumerate()
+                    .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+                    .map(|(idx, _)| idx)
+                    .unwrap_or(0);
+                let pred_upos = classes[best_idx].clone();
+
+                // Find the best FST analysis whose UPOS matches the suffix tagger
+                // prediction. Use its lemma.
+                let pred_lemma = word_analyses[i]
+                    .iter()
+                    .find(|a| {
+                        let mapped = mce_to_upos(a, &token.form);
+                        mapped == pred_upos
+                    })
+                    .and_then(|a| a.get(ATTR_BASEFORM))
+                    .unwrap_or_else(|| {
+                        // No FST analysis matches: use the first analysis's lemma
+                        // or fallback to lowercased surface.
+                        word_analyses[i]
+                            .first()
+                            .and_then(|a| a.get(ATTR_BASEFORM))
+                            .unwrap_or(&token.form)
+                    })
+                    .to_string();
+
+                results.add(&TokenResult {
+                    form: token.form.clone(),
+                    gold_upos: token.upos.clone(),
+                    pred_upos,
+                    gold_lemma: token.lemma.clone(),
+                    pred_lemma,
+                });
+            }
+            return;
         }
 
         // Apply CG rules to prune candidate readings before disambiguation.

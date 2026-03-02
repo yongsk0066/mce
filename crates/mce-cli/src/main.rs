@@ -670,6 +670,7 @@ fn cmd_info() {
 fn cmd_eval(args: &[String]) {
     let mut conllu_path: Option<PathBuf> = None;
     let mut train_path: Option<PathBuf> = None;
+    let mut model_path: Option<PathBuf> = None;
     let mut format = "table".to_string();
 
     let mut i = 0;
@@ -691,6 +692,14 @@ fn cmd_eval(args: &[String]) {
                 }
                 train_path = Some(PathBuf::from(&args[i]));
             }
+            "--model" => {
+                i += 1;
+                if i >= args.len() {
+                    eprintln!("error: --model requires a path to suffix_tagger.bin.");
+                    process::exit(1);
+                }
+                model_path = Some(PathBuf::from(&args[i]));
+            }
             "--format" => {
                 i += 1;
                 if i >= args.len() {
@@ -708,7 +717,7 @@ fn cmd_eval(args: &[String]) {
             other => {
                 eprintln!("error: unknown eval option '{other}'.");
                 eprintln!(
-                    "usage: mce-cli eval --conllu <FILE> [--train <FILE>] [--format table|json]"
+                    "usage: mce-cli eval --conllu <FILE> [--train <FILE>] [--model <FILE>] [--format table|json]"
                 );
                 process::exit(1);
             }
@@ -718,14 +727,16 @@ fn cmd_eval(args: &[String]) {
 
     let conllu_path = conllu_path.unwrap_or_else(|| {
         eprintln!("error: --conllu is required.");
-        eprintln!("usage: mce-cli eval --conllu <FILE> [--train <FILE>] [--format table|json]");
+        eprintln!(
+            "usage: mce-cli eval --conllu <FILE> [--train <FILE>] [--model <FILE>] [--format table|json]"
+        );
         process::exit(1);
     });
 
     let data = load_dictionary();
 
     // Build pipeline.
-    let pipeline = if let Some(ref tp) = train_path {
+    let mut pipeline = if let Some(ref tp) = train_path {
         eprintln!("Loading training data from {} ...", tp.display());
         let train_data = match fs::read_to_string(tp) {
             Ok(d) => d,
@@ -751,6 +762,32 @@ fn cmd_eval(args: &[String]) {
             }
         }
     };
+
+    // Load suffix tagger model if provided.
+    if let Some(ref mp) = model_path {
+        eprintln!("Loading suffix tagger model from {} ...", mp.display());
+        let model_data = match fs::read(mp) {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!("error: cannot read {}: {}", mp.display(), e);
+                process::exit(1);
+            }
+        };
+        match mce_disambig::suffix_tagger::SuffixTagger::from_bytes(&model_data) {
+            Ok(tagger) => {
+                eprintln!(
+                    "Suffix tagger loaded: {} features, {} classes.",
+                    tagger.n_features(),
+                    tagger.n_classes(),
+                );
+                pipeline.set_suffix_tagger(tagger);
+            }
+            Err(e) => {
+                eprintln!("error: failed to load suffix tagger model: {e}");
+                process::exit(1);
+            }
+        }
+    }
 
     // Parse CoNLL-U file.
     eprintln!("Parsing CoNLL-U file: {} ...", conllu_path.display());
@@ -837,6 +874,11 @@ fn cmd_eval(args: &[String]) {
                 println!("Training data:    yes (corpus bigrams + emission priors)");
             } else {
                 println!("Training data:    none (default bigrams)");
+            }
+            if model_path.is_some() {
+                println!("Suffix tagger:    yes");
+            } else {
+                println!("Suffix tagger:    no");
             }
         }
     }

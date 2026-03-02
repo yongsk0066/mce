@@ -431,6 +431,36 @@ pub fn morphophonological_pipeline_pure(word: &str, grade: Grade) -> String {
 }
 
 // ===========================================================================
+// Standalone writer-based convenience wrappers
+// ===========================================================================
+
+/// Apply consonant gradation to an entire word using the Writer Comonad.
+///
+/// This is the writer-based replacement for [`crate::finnish::gradation_pipeline`].
+/// Instead of returning `'\0'` for deletions and filtering afterward, it
+/// accumulates deletions in a [`DeletionSet`] and materializes once at the end.
+///
+/// The output is identical to the old `gradation_pipeline` for all inputs.
+pub fn gradation_pipeline_pure(word: &[char], grade: Grade) -> Vec<char> {
+    let zipper = match Zipper::new(word.to_vec()) {
+        Some(z) => z,
+        None => return Vec::new(),
+    };
+
+    let writer = WriterZipper::<DeletionSet, char>::new(zipper);
+    let result = writer.extend(|wz| gradation_writer(wz, grade));
+    result.materialize()
+}
+
+/// Convenience wrapper: apply gradation to a `&str` using the Writer Comonad.
+///
+/// This is the writer-based replacement for [`crate::finnish::gradate`].
+pub fn gradate_pure(word: &str, grade: Grade) -> String {
+    let chars: Vec<char> = word.chars().collect();
+    gradation_pipeline_pure(&chars, grade).into_iter().collect()
+}
+
+// ===========================================================================
 // Tests
 // ===========================================================================
 
