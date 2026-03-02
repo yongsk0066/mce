@@ -41,6 +41,7 @@ use wasm_bindgen::prelude::*;
 use mce_core::analysis::{Analysis, ATTR_BASEFORM, ATTR_CLASS};
 use mce_core::compound::{CompoundAnalyzer, CompoundSplit};
 use mce_core::token::TokenType;
+use mce_disambig::suffix_tagger::SuffixTagger;
 use mce_disambig::{Disambiguator, ViterbiDisambiguator};
 use mce_fi::hyphenation::FinnishHyphenator;
 use mce_fi::morphology::{Analyzer, FinnishAnalyzer};
@@ -82,6 +83,27 @@ impl MceEngine {
             grammar_checker,
             hyphenator,
         })
+    }
+
+    /// Load a suffix tagger model for improved POS disambiguation.
+    ///
+    /// The model is a binary MCET file (~5MB) trained offline. When loaded,
+    /// `analyze_sentence()` and `disambiguate_sentence()` use it for
+    /// emission scoring, boosting UPOS accuracy from ~83% to ~95%.
+    ///
+    /// # Errors
+    ///
+    /// Returns a `JsValue` error if the model data is malformed.
+    pub fn load_model(&mut self, data: &[u8]) -> Result<(), JsValue> {
+        let tagger =
+            SuffixTagger::from_bytes(data).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        self.disambiguator.set_suffix_tagger(tagger);
+        Ok(())
+    }
+
+    /// Check whether a suffix tagger model has been loaded.
+    pub fn has_model(&self) -> bool {
+        self.disambiguator.suffix_tagger().is_some()
     }
 
     /// Analyze a word and return JSON with all analyses.
@@ -147,7 +169,11 @@ impl MceEngine {
             .collect();
 
         // Disambiguate: pick the best reading for each position.
-        let disambiguated = self.disambiguator.disambiguate(&word_analyses);
+        // Pass surface words so the suffix tagger (if loaded) can contribute.
+        let word_refs: Vec<&str> = tokens.iter().map(|s| s.as_str()).collect();
+        let disambiguated = self
+            .disambiguator
+            .disambiguate_with_words(&word_refs, &word_analyses);
 
         // Build JSON output.
         let mut buf = String::from('[');
