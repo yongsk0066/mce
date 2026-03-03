@@ -5,7 +5,7 @@
 //!
 //! Example:
 //!   cargo run -p mce-core --example build_freq_list -- \
-//!     ~/oss/finnishNLP/ud-finnish-tdt/fi_tdt-ud-train.conllu
+//!     vendor/ud-finnish-tdt/fi_tdt-ud-train.conllu
 
 use mce_core::frequency::FrequencyList;
 use std::env;
@@ -16,7 +16,7 @@ fn main() {
     if args.len() < 2 {
         eprintln!("Usage: {} <path-to-conllu-file>", args[0]);
         eprintln!(
-            "Example: {} ~/oss/finnishNLP/ud-finnish-tdt/fi_tdt-ud-train.conllu",
+            "Example: {} vendor/ud-finnish-tdt/fi_tdt-ud-train.conllu",
             args[0]
         );
         std::process::exit(1);

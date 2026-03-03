@@ -16,7 +16,7 @@ The pipeline uses gold tokenization (tokens from CoNLL-U) to isolate POS tagging
 ## Usage (CLI)
 
 ```bash
-export MCE_DICT_PATH=~/oss/corevoikko/voikko-fi/vvfst
+export MCE_DICT_PATH=data
 
 # Basic evaluation
 mce-cli eval --conllu fi_tdt-ud-dev.conllu

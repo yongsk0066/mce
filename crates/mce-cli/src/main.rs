@@ -10,7 +10,7 @@
 //! Set `MCE_DICT_PATH` to the directory containing `mor.vfst`:
 //!
 //! ```bash
-//! export MCE_DICT_PATH=~/oss/corevoikko/voikko-fi/vvfst
+//! export MCE_DICT_PATH=data
 //! mce-cli analyze koira
 //! mce-cli spell koirra
 //! mce-cli compound rautatieasema
@@ -63,7 +63,7 @@ fn load_dictionary() -> Vec<u8> {
             eprintln!("error: MCE_DICT_PATH environment variable is not set.");
             eprintln!();
             eprintln!("Set it to the directory containing mor.vfst:");
-            eprintln!("  export MCE_DICT_PATH=~/oss/corevoikko/voikko-fi/vvfst");
+            eprintln!("  export MCE_DICT_PATH=data");
             process::exit(1);
         }
     };
@@ -1417,7 +1417,7 @@ fn print_usage() {
     eprintln!("                         info, eval, benchmark)");
     eprintln!();
     eprintln!("EXAMPLES:");
-    eprintln!("    export MCE_DICT_PATH=~/oss/corevoikko/voikko-fi/vvfst");
+    eprintln!("    export MCE_DICT_PATH=data");
     eprintln!("    mce-cli analyze koira");
     eprintln!("    mce-cli spell koirra");
     eprintln!("    mce-cli compound rautatieasema");

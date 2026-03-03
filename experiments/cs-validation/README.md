@@ -107,25 +107,25 @@ A more promising direction would be to learn the measurement matrix from supervi
 
 ```bash
 # Baseline
-MCE_DICT_PATH=~/oss/corevoikko/voikko-fi/vvfst cargo run -p mce-eval --release -- \
-  --conllu ~/oss/finnishNLP/ud-finnish-tdt/fi_tdt-ud-dev.conllu \
-  --train ~/oss/finnishNLP/ud-finnish-tdt/fi_tdt-ud-train.conllu
+MCE_DICT_PATH=data cargo run -p mce-eval --release -- \
+  --conllu vendor/ud-finnish-tdt/fi_tdt-ud-dev.conllu \
+  --train vendor/ud-finnish-tdt/fi_tdt-ud-train.conllu
 
 # +CS
-MCE_DICT_PATH=~/oss/corevoikko/voikko-fi/vvfst cargo run -p mce-eval --release -- \
-  --conllu ~/oss/finnishNLP/ud-finnish-tdt/fi_tdt-ud-dev.conllu \
-  --train ~/oss/finnishNLP/ud-finnish-tdt/fi_tdt-ud-train.conllu \
+MCE_DICT_PATH=data cargo run -p mce-eval --release -- \
+  --conllu vendor/ud-finnish-tdt/fi_tdt-ud-dev.conllu \
+  --train vendor/ud-finnish-tdt/fi_tdt-ud-train.conllu \
   --enable-cs
 
 # CS-only (no emission priors)
-MCE_DICT_PATH=~/oss/corevoikko/voikko-fi/vvfst cargo run -p mce-eval --release -- \
-  --conllu ~/oss/finnishNLP/ud-finnish-tdt/fi_tdt-ud-dev.conllu \
-  --train ~/oss/finnishNLP/ud-finnish-tdt/fi_tdt-ud-train.conllu \
+MCE_DICT_PATH=data cargo run -p mce-eval --release -- \
+  --conllu vendor/ud-finnish-tdt/fi_tdt-ud-dev.conllu \
+  --train vendor/ud-finnish-tdt/fi_tdt-ud-train.conllu \
   --cs-only
 
 # Custom CS parameters
-MCE_DICT_PATH=~/oss/corevoikko/voikko-fi/vvfst cargo run -p mce-eval --release -- \
-  --conllu ~/oss/finnishNLP/ud-finnish-tdt/fi_tdt-ud-dev.conllu \
-  --train ~/oss/finnishNLP/ud-finnish-tdt/fi_tdt-ud-train.conllu \
+MCE_DICT_PATH=data cargo run -p mce-eval --release -- \
+  --conllu vendor/ud-finnish-tdt/fi_tdt-ud-dev.conllu \
+  --train vendor/ud-finnish-tdt/fi_tdt-ud-train.conllu \
   --enable-cs --cs-measurements 30 --cs-lambda 0.01
 ```

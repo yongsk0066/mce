@@ -4,7 +4,7 @@
 //! Set MCE_DICT_PATH to the directory containing mor.vfst:
 //!
 //! ```sh
-//! MCE_DICT_PATH=~/oss/corevoikko/voikko-fi/vvfst cargo test -p mce-wasm -- --ignored
+//! MCE_DICT_PATH=data cargo test -p mce-wasm -- --ignored
 //! ```
 
 use std::path::PathBuf;

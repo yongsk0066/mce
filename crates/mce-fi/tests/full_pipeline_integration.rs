@@ -5,10 +5,10 @@
 // full pipeline combining all stages.
 //
 // These tests require the MCE_DICT_PATH environment variable pointing to the
-// directory containing mor.vfst (e.g., ~/oss/corevoikko/voikko-fi/vvfst/).
+// directory containing mor.vfst (e.g., data/).
 //
 // Run with:
-//   MCE_DICT_PATH=~/oss/corevoikko/voikko-fi/vvfst cargo test -p mce-fi -- --ignored
+//   MCE_DICT_PATH=data cargo test -p mce-fi -- --ignored
 
 use mce_core::analysis::{ATTR_BASEFORM, ATTR_CLASS, ATTR_SIJAMUOTO, Analysis};
 use mce_disambig::{Disambiguator, ViterbiDisambiguator};

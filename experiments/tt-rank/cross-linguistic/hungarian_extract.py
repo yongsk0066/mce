@@ -272,9 +272,10 @@ def build_char_vocabulary(all_forms):
 
 def main():
     # Use both train and dev for maximum paradigm coverage
-    base_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(
-        "/Users/yongseok/oss/finnishNLP/ud-hungarian-szeged"
-    )
+    if len(sys.argv) < 2:
+        print(f"Usage: {sys.argv[0]} <path-to-ud-hungarian-szeged-dir>", file=sys.stderr)
+        sys.exit(1)
+    base_dir = Path(sys.argv[1])
     conllu_files = [
         base_dir / "hu_szeged-ud-train.conllu",
         base_dir / "hu_szeged-ud-dev.conllu",

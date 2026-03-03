@@ -210,9 +210,10 @@ def build_char_vocabulary(all_forms):
 
 
 def main():
-    conllu_path = sys.argv[1] if len(sys.argv) > 1 else (
-        "/Users/yongseok/oss/finnishNLP/ud-turkish-imst/tr_imst-ud-train.conllu"
-    )
+    if len(sys.argv) < 2:
+        print(f"Usage: {sys.argv[0]} <path-to-tr_imst-ud-train.conllu>", file=sys.stderr)
+        sys.exit(1)
+    conllu_path = sys.argv[1]
     output_path = Path(__file__).parent / "cross-linguistic" / "turkish_paradigms.json"
 
     print(f"Parsing {conllu_path}...")

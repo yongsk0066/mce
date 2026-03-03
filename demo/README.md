@@ -5,7 +5,7 @@ Browser-based Finnish NLP demo using the MCE WASM module.
 ## Prerequisites
 
 - [wasm-pack](https://rustwasm.github.io/wasm-pack/installer/) installed
-- `mor.vfst` dictionary file (from `corevoikko/voikko-fi/vvfst/`)
+- `mor.vfst` dictionary file (included in `data/mor.vfst`)
 
 ## Build
 
@@ -21,7 +21,7 @@ wasm-pack build --target web --out-dir demo/pkg crates/mce-wasm
 
 ```bash
 # Copy the dictionary into the demo directory
-cp ~/oss/corevoikko/voikko-fi/vvfst/mor.vfst demo/
+cp data/mor.vfst demo/
 
 # Start a local server
 cd demo

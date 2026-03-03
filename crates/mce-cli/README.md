@@ -5,7 +5,7 @@ Command-line interface for the MCE Finnish NLP engine. Provides 11 subcommands f
 ## Setup
 
 ```bash
-export MCE_DICT_PATH=~/oss/corevoikko/voikko-fi/vvfst
+export MCE_DICT_PATH=data
 ```
 
 The dictionary directory must contain `mor.vfst`.

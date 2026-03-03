@@ -4,6 +4,7 @@
 *.bak
 .DS_Store
 __pycache__/
+.venv/
 
 # WASM demo build artifacts
 demo/pkg/

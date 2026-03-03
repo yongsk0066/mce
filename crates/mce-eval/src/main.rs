@@ -3,7 +3,7 @@
 //! # Usage
 //!
 //! ```bash
-//! export MCE_DICT_PATH=~/oss/corevoikko/voikko-fi/vvfst
+//! export MCE_DICT_PATH=data
 //! mce-eval --conllu path/to/fi_tdt-ud-dev.conllu
 //! mce-eval --conllu path/to/fi_tdt-ud-dev.conllu --end-to-end
 //! mce-eval --conllu path/to/fi_tdt-ud-dev.conllu --max-sentences 100
@@ -203,7 +203,7 @@ fn print_usage() {
     eprintln!("    --help, -h               Show this help message");
     eprintln!();
     eprintln!("EXAMPLES:");
-    eprintln!("    export MCE_DICT_PATH=~/oss/corevoikko/voikko-fi/vvfst");
+    eprintln!("    export MCE_DICT_PATH=data");
     eprintln!("    mce-eval --conllu fi_tdt-ud-dev.conllu");
     eprintln!("    mce-eval --conllu fi_tdt-ud-test.conllu --max-sentences 50");
     eprintln!("    mce-eval --conllu fi_tdt-ud-dev.conllu --end-to-end");

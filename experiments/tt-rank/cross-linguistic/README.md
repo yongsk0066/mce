@@ -275,14 +275,12 @@ Suggested paper narrative:
 cd experiments/tt-rank
 source .venv/bin/activate  # or create: python3 -m venv .venv && pip install numpy
 
-# UD data (must be pre-cloned)
-# git clone https://github.com/UniversalDependencies/UD_Turkish-IMST.git \
-#   ~/oss/finnishNLP/ud-turkish-imst
-# git clone https://github.com/UniversalDependencies/UD_Hungarian-Szeged.git \
-#   ~/oss/finnishNLP/ud-hungarian-szeged
+# UD data (must be pre-cloned somewhere locally)
+# git clone https://github.com/UniversalDependencies/UD_Turkish-IMST.git ud-turkish-imst
+# git clone https://github.com/UniversalDependencies/UD_Hungarian-Szeged.git ud-hungarian-szeged
 
-# Extract paradigms
-python3 turkish_extract.py
+# Extract paradigms (pass the CoNLL-U path as argument)
+python3 turkish_extract.py ud-turkish-imst/tr_imst-ud-train.conllu
 python3 cross-linguistic/hungarian_extract.py
 
 # Run TT decomposition

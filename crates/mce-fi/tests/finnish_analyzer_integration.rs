@@ -1,10 +1,10 @@
 // Integration tests for FinnishAnalyzer with real VFST dictionary.
 //
 // These tests require the MCE_DICT_PATH environment variable pointing to the
-// directory containing mor.vfst (e.g., ~/oss/corevoikko/voikko-fi/vvfst/).
+// directory containing mor.vfst (e.g., data/).
 //
 // Run with:
-//   MCE_DICT_PATH=~/oss/corevoikko/voikko-fi/vvfst cargo test -p mce-fi -- --ignored
+//   MCE_DICT_PATH=data cargo test -p mce-fi -- --ignored
 
 use mce_core::analysis::{
     ATTR_BASEFORM, ATTR_CLASS, ATTR_FSTOUTPUT, ATTR_NUMBER, ATTR_SIJAMUOTO, ATTR_STRUCTURE,

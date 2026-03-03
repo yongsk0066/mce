@@ -252,7 +252,7 @@ python3 statistical_tests.py
 # Output: results.json (TT-rank results), statistical_results.json (significance tests)
 ```
 
-Requires: UD Finnish-TDT at `~/oss/finnishNLP/ud-finnish-tdt/fi_tdt-ud-train.conllu`.
+Requires: UD Finnish-TDT at `vendor/ud-finnish-tdt/fi_tdt-ud-train.conllu`.
 
 ## Files
 

@@ -4,7 +4,7 @@
 //!
 //! To run:
 //! ```sh
-//! MCE_DICT_PATH=/path/to/corevoikko/voikko-fi/vvfst cargo test -p mce-fst -- --ignored
+//! MCE_DICT_PATH=data cargo test -p mce-fst -- --ignored
 //! ```
 
 use std::path::PathBuf;
