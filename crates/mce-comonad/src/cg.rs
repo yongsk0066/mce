@@ -3335,7 +3335,7 @@ mod tests {
         // R65 re-enabled: REMOVE sukunimi IF BOS (safe rule)
         // + R82 (REMOVE etunimi IF BOS) + R83 (SELECT suhdesana by baseform)
         // + R84 (SELECT nimisana_laatusana IF +1 nimisana)
-        // + R85 (REMOVE nimisana IF -1 asemosana, 0 HAS teonsana) = 62 active
+        // + R85 (SELECT nimisana_laatusana IF sandwiched(asemosana, nimisana)) = 62 active
         let rules = finnish_disambiguation_rules();
         assert_eq!(rules.len(), 62);
     }

@@ -42,14 +42,14 @@ grammar checking all depend on correctly decomposing words into morphemes.
 
 ### How to learn
 
-```
+```plaintext
 Explain Finnish noun inflection. Finnish has 15 grammatical cases -- list them with
 their Finnish names (nimento, omanto, osanto, etc.), their linguistic names (nominative,
 genitive, partitive, etc.), and what each one expresses. Use "talo" (house) as the
 example and show each inflected form in singular.
 ```
 
-```
+```plaintext
 What is an agglutinative language? How does it differ from isolating languages (like
 English or Chinese) and fusional languages (like Russian or Latin)? Why do agglutinative
 languages make dictionary-based spell checking impractical?
@@ -77,7 +77,7 @@ edge alongside the input label. When you traverse the graph, you collect output 
 So an FST does not just say "yes, this string is valid" -- it also produces a result
 describing *how* it is valid:
 
-```
+```plaintext
 Input:  k-i-s-s-o-j-a
 Output: [Ln][Xp]kissa[X]kissoja[Spar][Nm]
 ```
@@ -96,13 +96,13 @@ CASE=NOM was set earlier," preventing impossible suffix combinations.
 
 ### How to learn
 
-```
+```plaintext
 Explain finite state automata and finite state transducers in simple terms. How does
 an FST map input strings to output strings? Give a small example showing state
 transitions step by step.
 ```
 
-```
+```plaintext
 What are flag diacritics in finite state transducers? Explain the five operations:
 P (positive set), C (clear), U (unification), R (require), D (disallow).
 ```
@@ -159,12 +159,12 @@ new rule means modifying hundreds of combinations. MCE uses comonads to reduce t
 
 ### How to learn
 
-```
+```plaintext
 Explain Finnish consonant gradation (astevaihtelu). What triggers the alternation
 between strong and weak grades? Give the 11 gradation patterns with examples.
 ```
 
-```
+```plaintext
 What is vowel harmony in Finnish? How do back vowels (a, o, u), front vowels
 (a, o, y), and neutral vowels (e, i) interact? How are archiphonemes resolved?
 ```
@@ -194,7 +194,7 @@ and returns the transformed character.
 
 **coKleisli composition** (`>=>`) chains arrows sequentially:
 
-```
+```plaintext
 pipe = consonant_gradation >=> vowel_harmony >=> possessive_copying
 ```
 
@@ -204,7 +204,7 @@ identity. These are the three comonad laws that guarantee correctness.
 **The Zipper** (list zipper) is MCE's primary comonad. It represents a sequence with a
 focused element and bidirectional context:
 
-```
+```plaintext
 left context   focus   right context
 [k, a, a]       p      [p, i]
 ```
@@ -221,18 +221,18 @@ composition -- no intermediate string reconstruction needed.
 
 ### How to learn
 
-```
+```plaintext
 What is a comonad? Compare it to a monad. While a monad wraps a value with effects
 (Maybe, IO, List), a comonad wraps a value with context. Explain extract and extend
 with examples. What are the comonad laws?
 ```
 
-```
+```plaintext
 What is a list zipper? How does it provide O(1) access to a focused element and its
 neighbors? How does extend apply a local function at every position?
 ```
 
-```
+```plaintext
 What is the Writer comonad? How does pairing a comonad with a monoid accumulator
 allow side-information (like deletion markers) without breaking coKleisli composition?
 ```
@@ -284,7 +284,7 @@ implementations enforce this.
 
 ### How to learn
 
-```
+```plaintext
 What is Constraint Grammar (CG)? How does it differ from statistical disambiguation?
 Explain the basic operations REMOVE and SELECT with examples. What is the safety
 invariant that prevents removing all readings?
@@ -317,7 +317,7 @@ tags from surface form features. It operates in two phases:
 The tagger does **not** replace FST analysis. Instead it provides emission
 log-probabilities that re-rank FST-generated candidates. The full pipeline is:
 
-```
+```plaintext
 FST analysis -> CG-lite rules -> Suffix tagger scoring -> Viterbi decoding
 ```
 
@@ -334,13 +334,13 @@ systems in a browser-deployable package.
 
 ### How to learn
 
-```
+```plaintext
 What is logistic regression for text classification? How do suffix features help
 predict part-of-speech tags? Why are suffix features particularly effective for
 morphologically rich languages?
 ```
 
-```
+```plaintext
 What is the Viterbi algorithm? How does it find the globally optimal tag sequence
 given per-word emission probabilities and bigram transition probabilities?
 ```
@@ -366,7 +366,7 @@ number) and character positions.
 **Tensor Train (TT) decomposition** factorizes this large tensor into a chain of small
 "core" tensors:
 
-```
+```plaintext
 [large tensor]  =  [core1] --r1-- [core2] --r2-- [core3]
   case x num x pos    case          number         position
 ```
@@ -394,12 +394,12 @@ that bond rank captures genuine linguistic structure, not statistical artifacts.
 
 ### How to learn
 
-```
+```plaintext
 What is Tensor Train decomposition? Explain it as factorizing a large multi-dimensional
 array into a chain of smaller matrices. What does "bond rank" measure?
 ```
 
-```
+```plaintext
 What is syncretism in morphology? How does it relate to the distinction between
 agglutinative and fusional languages? Give examples from Finnish and Russian.
 ```
@@ -440,13 +440,13 @@ CDN-served package. No server, no installation, no Python dependencies.
 
 ### How to learn
 
-```
+```plaintext
 Explain how wasm-bindgen works in Rust. How does the #[wasm_bindgen] attribute
 transform Rust functions for JavaScript consumption? What happens to Rust types
 like String and Vec when they cross the WASM boundary?
 ```
 
-```
+```plaintext
 What is serde-wasm-bindgen and when would you use it instead of plain wasm-bindgen?
 Compare the two approaches for returning a Vec<MyStruct> from Rust to JavaScript.
 ```
@@ -483,7 +483,7 @@ Uses Viterbi decoding to find the globally optimal tag sequence. Crate: `mce-dis
 
 ### The data flow
 
-```
+```plaintext
 Input text
     |
     v
@@ -516,12 +516,12 @@ Output: disambiguated analyses (lemma, UPOS, features) per token
 
 ### How to learn
 
-```
+```plaintext
 What is a pushdown transducer and why is it more powerful than a finite state
 transducer? How does the extra stack help with recursive structures like compound words?
 ```
 
-```
+```plaintext
 How does Viterbi decoding combine local emission scores with global sequence
 constraints? Walk through a small example with 3 words and 4 possible tags each.
 ```

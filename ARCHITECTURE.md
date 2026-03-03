@@ -268,7 +268,7 @@ With `WriterZipper<DeletionSet, char>`:
 - Deletions are applied once at the end -- positions stay stable throughout the pipeline.
 - The comonad laws (identity and associativity) hold without qualification.
 
-```
+```plaintext
 gradation : &WriterZipper<DeletionSet, char> -> (DeletionSet, char)
 harmony   : &WriterZipper<DeletionSet, char> -> (DeletionSet, char)
 possessive: &WriterZipper<DeletionSet, char> -> (DeletionSet, char)
@@ -311,7 +311,7 @@ For terminal environments where mermaid rendering is unavailable, here are ASCII
 
 ### Crate Dependency Graph
 
-```
+```plaintext
                            ┌─────────┐
                            │mce-core │
                            └────┬────┘
@@ -345,7 +345,7 @@ For terminal environments where mermaid rendering is unavailable, here are ASCII
 
 ### MCE v3 Pipeline
 
-```
+```plaintext
  ┌─────────────────┐   ┌──────────────────────┐   ┌──────────┐   ┌─────────────────┐
  │  M1: Succinct    │   │  M2': Comonadic       │   │  M3: PDT  │   │ M4': Weighted    │
  │      Trie        │──▶│       Engine           │──▶│ Compound  │──▶│     Lattice      │
@@ -358,7 +358,7 @@ For terminal environments where mermaid rendering is unavailable, here are ASCII
 
 ### Analysis Data Flow
 
-```
+```plaintext
  "Koira juoksee nopeasti."
          │
          ▼

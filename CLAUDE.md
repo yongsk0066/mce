@@ -56,7 +56,7 @@ Statistical POS tagger using logistic regression on suffix features. Trained on 
 
 ## Crate Structure
 
-```
+```plaintext
 crates/
 ├── mce-core/       # Shared types, character classification, M1 Succinct Trie (LOUDS)
 ├── mce-fst/        # FST engine (format abstraction, VFST traversal, flag diacritics)
@@ -106,7 +106,7 @@ cargo audit
 
 ## WASM API (20 methods)
 
-```
+```plaintext
 MceEngine.load(dict)              # Load dictionary, create engine
 MceEngine.load_model(data)        # Load suffix tagger model
 MceEngine.has_model()             # Check if model is loaded

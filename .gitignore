@@ -7,3 +7,4 @@ Cargo.lock
 # WASM demo build artifacts
 demo/pkg/
 demo/mor.vfst
+.env

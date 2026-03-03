@@ -44,7 +44,7 @@ Keyboard shortcut: **Ctrl+Enter** runs Analyze.
 
 ## File Structure
 
-```
+```plaintext
 demo/
 ├── index.html    # UI
 ├── app.js        # WASM glue + event handlers

@@ -254,17 +254,17 @@
       <cds-side-nav-link href="#/doc/LEARNING.md">Learning Guide</cds-side-nav-link>
       <cds-side-nav-divider></cds-side-nav-divider>
       <cds-side-nav-menu title="Crates">
-        <cds-side-nav-menu-item href="#/doc/crates/mce-core/CLAUDE.md">mce-core</cds-side-nav-menu-item>
-        <cds-side-nav-menu-item href="#/doc/crates/mce-fst/CLAUDE.md">mce-fst</cds-side-nav-menu-item>
-        <cds-side-nav-menu-item href="#/doc/crates/mce-tokenizer/CLAUDE.md">mce-tokenizer</cds-side-nav-menu-item>
-        <cds-side-nav-menu-item href="#/doc/crates/mce-speller/CLAUDE.md">mce-speller</cds-side-nav-menu-item>
-        <cds-side-nav-menu-item href="#/doc/crates/mce-disambig/CLAUDE.md">mce-disambig</cds-side-nav-menu-item>
-        <cds-side-nav-menu-item href="#/doc/crates/mce-comonad/CLAUDE.md">mce-comonad</cds-side-nav-menu-item>
-        <cds-side-nav-menu-item href="#/doc/crates/mce-fi/CLAUDE.md">mce-fi</cds-side-nav-menu-item>
-        <cds-side-nav-menu-item href="#/doc/crates/mce-grammar/CLAUDE.md">mce-grammar</cds-side-nav-menu-item>
-        <cds-side-nav-menu-item href="#/doc/crates/mce-wasm/CLAUDE.md">mce-wasm</cds-side-nav-menu-item>
-        <cds-side-nav-menu-item href="#/doc/crates/mce-cli/CLAUDE.md">mce-cli</cds-side-nav-menu-item>
-        <cds-side-nav-menu-item href="#/doc/crates/mce-eval/CLAUDE.md">mce-eval</cds-side-nav-menu-item>
+        <cds-side-nav-menu-item href="#/doc/crates/mce-core/README.md">mce-core</cds-side-nav-menu-item>
+        <cds-side-nav-menu-item href="#/doc/crates/mce-fst/README.md">mce-fst</cds-side-nav-menu-item>
+        <cds-side-nav-menu-item href="#/doc/crates/mce-tokenizer/README.md">mce-tokenizer</cds-side-nav-menu-item>
+        <cds-side-nav-menu-item href="#/doc/crates/mce-speller/README.md">mce-speller</cds-side-nav-menu-item>
+        <cds-side-nav-menu-item href="#/doc/crates/mce-disambig/README.md">mce-disambig</cds-side-nav-menu-item>
+        <cds-side-nav-menu-item href="#/doc/crates/mce-comonad/README.md">mce-comonad</cds-side-nav-menu-item>
+        <cds-side-nav-menu-item href="#/doc/crates/mce-fi/README.md">mce-fi</cds-side-nav-menu-item>
+        <cds-side-nav-menu-item href="#/doc/crates/mce-grammar/README.md">mce-grammar</cds-side-nav-menu-item>
+        <cds-side-nav-menu-item href="#/doc/crates/mce-wasm/README.md">mce-wasm</cds-side-nav-menu-item>
+        <cds-side-nav-menu-item href="#/doc/crates/mce-cli/README.md">mce-cli</cds-side-nav-menu-item>
+        <cds-side-nav-menu-item href="#/doc/crates/mce-eval/README.md">mce-eval</cds-side-nav-menu-item>
       </cds-side-nav-menu>
     </cds-side-nav-items>
   </cds-side-nav>
@@ -293,6 +293,7 @@
                 <cds-tag type="magenta">1,365 tests</cds-tag>
                 <cds-tag type="warm-gray">11 crates</cds-tag>
                 <cds-tag type="high-contrast">~9.1MB deploy</cds-tag>
+                <a href="https://www.npmjs.com/package/@yongsk0066/mce" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;text-decoration:none;"><img src="https://img.shields.io/npm/v/@yongsk0066/mce?logo=npm&label=npm" alt="npm package" height="20"></a>
               </div>
 
               <div class="markdown">
@@ -385,36 +386,36 @@
                 <p class="cds--type-body-01">Text flows through four machines in sequence: tokenization, FST lookup, comonadic rule application, and Viterbi disambiguation.</p>
                 <div class="mermaid" id="pipeline-diagram">
 flowchart LR
-  Input["Raw Text"] --> T["mce-tokenizer\nSentence + Word"]
-  T --> M1["M1: Succinct Trie\nmce-core\nLOUDS lookup"]
-  M1 --> M3["M3: PDT\nmce-fst\nCompound split"]
-  M3 --> M2["M2': Comonad\nmce-comonad\nRule application"]
-  M2 --> M4["M4': Lattice\nmce-disambig\nViterbi + CG"]
+  Input["Raw Text"] --> T["mce-tokenizer<br/>Sentence + Word"]
+  T --> M1["M1: Succinct Trie<br/>mce-core<br/>LOUDS lookup"]
+  M1 --> M3["M3: PDT<br/>mce-fst<br/>Compound split"]
+  M3 --> M2["M2': Comonad<br/>mce-comonad<br/>Rule application"]
+  M2 --> M4["M4': Lattice<br/>mce-disambig<br/>Viterbi + CG"]
   M4 --> Out["CoNLL-U / JSON"]
 
   style Input fill:#0f62fe,color:#fff
   style Out fill:#198038,color:#fff
-  style M1 fill:#e0e0e0
-  style M2 fill:#e0e0e0
-  style M3 fill:#e0e0e0
-  style M4 fill:#e0e0e0
-  style T fill:#e0e0e0
+  style M1 fill:#f4f4f4,color:#161616
+  style M2 fill:#f4f4f4,color:#161616
+  style M3 fill:#f4f4f4,color:#161616
+  style M4 fill:#f4f4f4,color:#161616
+  style T fill:#f4f4f4,color:#161616
                 </div>
 
                 <h2 class="cds--type-heading-03">Crate Dependency Graph</h2>
                 <div class="mermaid" id="crate-diagram">
 flowchart TD
-  wasm["mce-wasm\n(WASM bindings)"]
-  cli["mce-cli\n(CLI tool)"]
-  eval["mce-eval\n(Benchmarks)"]
-  fi["mce-fi\n(Finnish module)"]
-  grammar["mce-grammar\n(Grammar checker)"]
-  disambig["mce-disambig\n(Viterbi + CG)"]
-  comonad["mce-comonad\n(Writer comonad)"]
-  speller["mce-speller\n(Spell + Suggest)"]
-  tok["mce-tokenizer\n(Tokenizer)"]
-  fst["mce-fst\n(FST engine)"]
-  core["mce-core\n(Shared types)"]
+  wasm["mce-wasm<br/>WASM bindings"]
+  cli["mce-cli<br/>CLI tool"]
+  eval["mce-eval<br/>Benchmarks"]
+  fi["mce-fi<br/>Finnish module"]
+  grammar["mce-grammar<br/>Grammar checker"]
+  disambig["mce-disambig<br/>Viterbi + CG"]
+  comonad["mce-comonad<br/>Writer comonad"]
+  speller["mce-speller<br/>Spell + Suggest"]
+  tok["mce-tokenizer<br/>Tokenizer"]
+  fst["mce-fst<br/>FST engine"]
+  core["mce-core<br/>Shared types"]
 
   wasm --> fi
   wasm --> disambig
@@ -440,6 +441,14 @@ flowchart TD
   style wasm fill:#0f62fe,color:#fff
   style cli fill:#0f62fe,color:#fff
   style core fill:#393939,color:#fff
+  style fi fill:#f4f4f4,color:#161616
+  style grammar fill:#f4f4f4,color:#161616
+  style disambig fill:#f4f4f4,color:#161616
+  style comonad fill:#f4f4f4,color:#161616
+  style speller fill:#f4f4f4,color:#161616
+  style tok fill:#f4f4f4,color:#161616
+  style fst fill:#f4f4f4,color:#161616
+  style eval fill:#f4f4f4,color:#161616
                 </div>
 
                 <h2 class="cds--type-heading-03">Data Flow Detail</h2>
