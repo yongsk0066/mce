@@ -8,7 +8,7 @@
 // Run with:
 //   MCE_DICT_PATH=~/oss/corevoikko/voikko-fi/vvfst cargo test -p mce-fi -- --ignored
 
-use mce_core::analysis::{Analysis, ATTR_BASEFORM, ATTR_CLASS};
+use mce_core::analysis::{ATTR_BASEFORM, ATTR_CLASS, Analysis};
 use mce_disambig::{Disambiguator, ViterbiDisambiguator};
 use mce_fi::morphology::{Analyzer, FinnishAnalyzer};
 

@@ -75,7 +75,7 @@ pub mod viterbi;
 
 use mce_core::analysis::Analysis;
 
-use crate::bigram::{class_to_upos_category, BigramModel, EmissionScorer};
+use crate::bigram::{BigramModel, EmissionScorer, class_to_upos_category};
 use crate::cs::SparseDisambiguator;
 use crate::lattice::{Lattice, LatticeNode, Reading};
 use crate::suffix_tagger::SuffixTagger;

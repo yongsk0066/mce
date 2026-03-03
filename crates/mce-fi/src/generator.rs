@@ -38,7 +38,7 @@
 //! pipeline's integration into the production path and handles the most
 //! common regular patterns.
 
-use mce_comonad::finnish::{apply_possessive_to_word, gradate, harmonize, Grade};
+use mce_comonad::finnish::{Grade, apply_possessive_to_word, gradate, harmonize};
 
 // ---------------------------------------------------------------------------
 // Finnish verb feature enums
@@ -223,14 +223,14 @@ const SINGULAR_CASES: &[CaseInfo] = &[
 /// ```
 /// use mce_fi::generator::MorphGenerator;
 ///
-/// let gen = MorphGenerator::new();
+/// let generator = MorphGenerator::new();
 ///
 /// // Generate genitive singular of "kaappi"
-/// let form = gen.generate("kaappi", &[("SIJAMUOTO", "omanto")]);
+/// let form = generator.generate("kaappi", &[("SIJAMUOTO", "omanto")]);
 /// assert_eq!(form, Some("kaapin".to_string()));
 ///
 /// // Generate full paradigm
-/// let paradigm = gen.generate_paradigm("talo");
+/// let paradigm = generator.generate_paradigm("talo");
 /// assert!(paradigm.iter().any(|(case, form)| case == "genitive" && form == "talon"));
 /// ```
 pub struct MorphGenerator;
@@ -257,9 +257,9 @@ impl MorphGenerator {
     /// ```
     /// use mce_fi::generator::MorphGenerator;
     ///
-    /// let gen = MorphGenerator::new();
+    /// let generator = MorphGenerator::new();
     /// assert_eq!(
-    ///     gen.generate("kaappi", &[("SIJAMUOTO", "omanto")]),
+    ///     generator.generate("kaappi", &[("SIJAMUOTO", "omanto")]),
     ///     Some("kaapin".to_string()),
     /// );
     /// ```
@@ -283,8 +283,8 @@ impl MorphGenerator {
     /// ```
     /// use mce_fi::generator::MorphGenerator;
     ///
-    /// let gen = MorphGenerator::new();
-    /// let paradigm = gen.generate_paradigm("talo");
+    /// let generator = MorphGenerator::new();
+    /// let paradigm = generator.generate_paradigm("talo");
     /// assert_eq!(paradigm[0], ("nominative".to_string(), "talo".to_string()));
     /// assert_eq!(paradigm[1], ("genitive".to_string(), "talon".to_string()));
     /// ```
@@ -310,8 +310,8 @@ impl MorphGenerator {
     /// ```
     /// use mce_fi::generator::{MorphGenerator, VerbTense, VerbPerson, VerbNumber, VerbPolarity};
     ///
-    /// let gen = MorphGenerator::new();
-    /// let form = gen.generate_verb(
+    /// let generator = MorphGenerator::new();
+    /// let form = generator.generate_verb(
     ///     "puhua",
     ///     VerbTense::Present,
     ///     VerbPerson::First,
@@ -344,8 +344,8 @@ impl MorphGenerator {
     /// ```
     /// use mce_fi::generator::MorphGenerator;
     ///
-    /// let gen = MorphGenerator::new();
-    /// let paradigm = gen.generate_verb_paradigm("puhua");
+    /// let generator = MorphGenerator::new();
+    /// let paradigm = generator.generate_verb_paradigm("puhua");
     /// assert!(paradigm.is_some());
     /// let paradigm = paradigm.unwrap();
     /// assert!(paradigm.iter().any(|(label, form)| label == "present 1sg" && form == "puhun"));
@@ -899,7 +899,7 @@ pub fn parse_polarity(s: &str) -> Option<VerbPolarity> {
 mod tests {
     use super::*;
 
-    fn gen() -> MorphGenerator {
+    fn make_gen() -> MorphGenerator {
         MorphGenerator::new()
     }
 
@@ -938,56 +938,56 @@ mod tests {
 
     #[test]
     fn kaappi_nominative() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate("kaappi", &[("SIJAMUOTO", "nimento")]);
         assert_eq!(form, Some("kaappi".to_string()));
     }
 
     #[test]
     fn kaappi_genitive() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate("kaappi", &[("SIJAMUOTO", "omanto")]);
         assert_eq!(form, Some("kaapin".to_string()));
     }
 
     #[test]
     fn kaappi_partitive() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate("kaappi", &[("SIJAMUOTO", "osanto")]);
         assert_eq!(form, Some("kaappia".to_string()));
     }
 
     #[test]
     fn kaappi_inessive() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate("kaappi", &[("SIJAMUOTO", "sisaolento")]);
         assert_eq!(form, Some("kaapissa".to_string()));
     }
 
     #[test]
     fn kaappi_elative() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate("kaappi", &[("SIJAMUOTO", "sisaeronto")]);
         assert_eq!(form, Some("kaapista".to_string()));
     }
 
     #[test]
     fn kaappi_illative() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate("kaappi", &[("SIJAMUOTO", "sisatulento")]);
         assert_eq!(form, Some("kaappiin".to_string()));
     }
 
     #[test]
     fn kaappi_essive() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate("kaappi", &[("SIJAMUOTO", "olento")]);
         assert_eq!(form, Some("kaappina".to_string()));
     }
 
     #[test]
     fn kaappi_translative() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate("kaappi", &[("SIJAMUOTO", "tulento")]);
         assert_eq!(form, Some("kaapiksi".to_string()));
     }
@@ -998,70 +998,70 @@ mod tests {
 
     #[test]
     fn talo_nominative() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate("talo", &[("SIJAMUOTO", "nominative")]);
         assert_eq!(form, Some("talo".to_string()));
     }
 
     #[test]
     fn talo_genitive() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate("talo", &[("SIJAMUOTO", "genitive")]);
         assert_eq!(form, Some("talon".to_string()));
     }
 
     #[test]
     fn talo_partitive() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate("talo", &[("SIJAMUOTO", "partitive")]);
         assert_eq!(form, Some("taloa".to_string()));
     }
 
     #[test]
     fn talo_inessive() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate("talo", &[("SIJAMUOTO", "inessive")]);
         assert_eq!(form, Some("talossa".to_string()));
     }
 
     #[test]
     fn talo_illative() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate("talo", &[("SIJAMUOTO", "illative")]);
         assert_eq!(form, Some("taloon".to_string()));
     }
 
     #[test]
     fn talo_adessive() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate("talo", &[("SIJAMUOTO", "adessive")]);
         assert_eq!(form, Some("talolla".to_string()));
     }
 
     #[test]
     fn talo_ablative() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate("talo", &[("SIJAMUOTO", "ablative")]);
         assert_eq!(form, Some("talolta".to_string()));
     }
 
     #[test]
     fn talo_allative() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate("talo", &[("SIJAMUOTO", "allative")]);
         assert_eq!(form, Some("talolle".to_string()));
     }
 
     #[test]
     fn talo_essive() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate("talo", &[("SIJAMUOTO", "essive")]);
         assert_eq!(form, Some("talona".to_string()));
     }
 
     #[test]
     fn talo_translative() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate("talo", &[("SIJAMUOTO", "translative")]);
         assert_eq!(form, Some("taloksi".to_string()));
     }
@@ -1072,42 +1072,42 @@ mod tests {
 
     #[test]
     fn poyta_genitive() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate("p\u{00F6}yt\u{00E4}", &[("SIJAMUOTO", "genitive")]);
         assert_eq!(form, Some("p\u{00F6}yd\u{00E4}n".to_string()));
     }
 
     #[test]
     fn poyta_inessive() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate("p\u{00F6}yt\u{00E4}", &[("SIJAMUOTO", "inessive")]);
         assert_eq!(form, Some("p\u{00F6}yd\u{00E4}ss\u{00E4}".to_string()));
     }
 
     #[test]
     fn poyta_elative() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate("p\u{00F6}yt\u{00E4}", &[("SIJAMUOTO", "elative")]);
         assert_eq!(form, Some("p\u{00F6}yd\u{00E4}st\u{00E4}".to_string()));
     }
 
     #[test]
     fn poyta_partitive() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate("p\u{00F6}yt\u{00E4}", &[("SIJAMUOTO", "partitive")]);
         assert_eq!(form, Some("p\u{00F6}yt\u{00E4}\u{00E4}".to_string()));
     }
 
     #[test]
     fn poyta_essive() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate("p\u{00F6}yt\u{00E4}", &[("SIJAMUOTO", "essive")]);
         assert_eq!(form, Some("p\u{00F6}yt\u{00E4}n\u{00E4}".to_string()));
     }
 
     #[test]
     fn poyta_illative() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate("p\u{00F6}yt\u{00E4}", &[("SIJAMUOTO", "illative")]);
         assert_eq!(form, Some("p\u{00F6}yt\u{00E4}\u{00E4}n".to_string()));
     }
@@ -1118,28 +1118,28 @@ mod tests {
 
     #[test]
     fn kukka_genitive() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate("kukka", &[("SIJAMUOTO", "genitive")]);
         assert_eq!(form, Some("kukan".to_string()));
     }
 
     #[test]
     fn kukka_partitive() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate("kukka", &[("SIJAMUOTO", "partitive")]);
         assert_eq!(form, Some("kukkaa".to_string()));
     }
 
     #[test]
     fn kukka_inessive() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate("kukka", &[("SIJAMUOTO", "inessive")]);
         assert_eq!(form, Some("kukassa".to_string()));
     }
 
     #[test]
     fn kukka_illative() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate("kukka", &[("SIJAMUOTO", "illative")]);
         assert_eq!(form, Some("kukkaan".to_string()));
     }
@@ -1150,7 +1150,7 @@ mod tests {
 
     #[test]
     fn harmony_back_partitive() {
-        let g = gen();
+        let g = make_gen();
         // "koulu" has back vowels -> partitive suffix A -> a
         let form = g.generate("koulu", &[("SIJAMUOTO", "partitive")]);
         assert_eq!(form, Some("koulua".to_string()));
@@ -1158,7 +1158,7 @@ mod tests {
 
     #[test]
     fn harmony_front_partitive() {
-        let g = gen();
+        let g = make_gen();
         // "työ" has front vowels -> partitive suffix A -> ä
         let form = g.generate("ty\u{00F6}", &[("SIJAMUOTO", "partitive")]);
         assert_eq!(form, Some("ty\u{00F6}\u{00E4}".to_string()));
@@ -1166,7 +1166,7 @@ mod tests {
 
     #[test]
     fn harmony_back_adessive() {
-        let g = gen();
+        let g = make_gen();
         // "talo" back -> adessive "talolla"
         let form = g.generate("talo", &[("SIJAMUOTO", "adessive")]);
         assert_eq!(form, Some("talolla".to_string()));
@@ -1174,7 +1174,7 @@ mod tests {
 
     #[test]
     fn harmony_front_adessive() {
-        let g = gen();
+        let g = make_gen();
         // "pöytä" front -> adessive "pöydällä"
         let form = g.generate("p\u{00F6}yt\u{00E4}", &[("SIJAMUOTO", "adessive")]);
         assert_eq!(form, Some("p\u{00F6}yd\u{00E4}ll\u{00E4}".to_string()));
@@ -1186,7 +1186,7 @@ mod tests {
 
     #[test]
     fn ranta_genitive() {
-        let g = gen();
+        let g = make_gen();
         // ranta: nt -> nn in weak grade
         let form = g.generate("ranta", &[("SIJAMUOTO", "genitive")]);
         assert_eq!(form, Some("rannan".to_string()));
@@ -1194,14 +1194,14 @@ mod tests {
 
     #[test]
     fn ranta_inessive() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate("ranta", &[("SIJAMUOTO", "inessive")]);
         assert_eq!(form, Some("rannassa".to_string()));
     }
 
     #[test]
     fn ranta_partitive() {
-        let g = gen();
+        let g = make_gen();
         // Strong grade for partitive, nt stays nt
         let form = g.generate("ranta", &[("SIJAMUOTO", "partitive")]);
         assert_eq!(form, Some("rantaa".to_string()));
@@ -1209,7 +1209,7 @@ mod tests {
 
     #[test]
     fn kampa_genitive() {
-        let g = gen();
+        let g = make_gen();
         // kampa: mp -> mm in weak grade
         let form = g.generate("kampa", &[("SIJAMUOTO", "genitive")]);
         assert_eq!(form, Some("kamman".to_string()));
@@ -1221,7 +1221,7 @@ mod tests {
 
     #[test]
     fn paradigm_talo() {
-        let g = gen();
+        let g = make_gen();
         let paradigm = g.generate_paradigm("talo");
 
         assert_eq!(paradigm.len(), SINGULAR_CASES.len());
@@ -1243,7 +1243,7 @@ mod tests {
 
     #[test]
     fn paradigm_poyta() {
-        let g = gen();
+        let g = make_gen();
         let paradigm = g.generate_paradigm("p\u{00F6}yt\u{00E4}");
 
         // Check a few key forms with front harmony + gradation
@@ -1270,13 +1270,13 @@ mod tests {
 
     #[test]
     fn generate_unknown_case_returns_none() {
-        let g = gen();
+        let g = make_gen();
         assert_eq!(g.generate("talo", &[("SIJAMUOTO", "bogus")]), None);
     }
 
     #[test]
     fn generate_missing_sijamuoto_returns_none() {
-        let g = gen();
+        let g = make_gen();
         assert_eq!(g.generate("talo", &[("CLASS", "nimisana")]), None);
     }
 
@@ -1286,7 +1286,7 @@ mod tests {
 
     #[test]
     fn generate_with_english_names() {
-        let g = gen();
+        let g = make_gen();
         assert_eq!(
             g.generate("talo", &[("SIJAMUOTO", "genitive")]),
             Some("talon".to_string()),
@@ -1303,7 +1303,7 @@ mod tests {
 
     #[test]
     fn puku_genitive() {
-        let g = gen();
+        let g = make_gen();
         // puku: k deleted in weak grade -> puun
         let form = g.generate("puku", &[("SIJAMUOTO", "genitive")]);
         assert_eq!(form, Some("puun".to_string()));
@@ -1311,14 +1311,14 @@ mod tests {
 
     #[test]
     fn puku_inessive() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate("puku", &[("SIJAMUOTO", "inessive")]);
         assert_eq!(form, Some("puussa".to_string()));
     }
 
     #[test]
     fn puku_partitive() {
-        let g = gen();
+        let g = make_gen();
         // Strong grade for partitive, k stays
         let form = g.generate("puku", &[("SIJAMUOTO", "partitive")]);
         assert_eq!(form, Some("pukua".to_string()));
@@ -1364,7 +1364,7 @@ mod tests {
 
     #[test]
     fn puhua_present_1sg() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "puhua",
             VerbTense::Present,
@@ -1377,7 +1377,7 @@ mod tests {
 
     #[test]
     fn puhua_present_2sg() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "puhua",
             VerbTense::Present,
@@ -1390,7 +1390,7 @@ mod tests {
 
     #[test]
     fn puhua_present_3sg() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "puhua",
             VerbTense::Present,
@@ -1403,7 +1403,7 @@ mod tests {
 
     #[test]
     fn puhua_present_1pl() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "puhua",
             VerbTense::Present,
@@ -1416,7 +1416,7 @@ mod tests {
 
     #[test]
     fn puhua_present_2pl() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "puhua",
             VerbTense::Present,
@@ -1429,7 +1429,7 @@ mod tests {
 
     #[test]
     fn puhua_present_3pl() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "puhua",
             VerbTense::Present,
@@ -1446,7 +1446,7 @@ mod tests {
 
     #[test]
     fn puhua_past_1sg() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "puhua",
             VerbTense::Past,
@@ -1459,7 +1459,7 @@ mod tests {
 
     #[test]
     fn puhua_past_2sg() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "puhua",
             VerbTense::Past,
@@ -1472,7 +1472,7 @@ mod tests {
 
     #[test]
     fn puhua_past_3sg() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "puhua",
             VerbTense::Past,
@@ -1485,7 +1485,7 @@ mod tests {
 
     #[test]
     fn puhua_past_1pl() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "puhua",
             VerbTense::Past,
@@ -1498,7 +1498,7 @@ mod tests {
 
     #[test]
     fn puhua_past_2pl() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "puhua",
             VerbTense::Past,
@@ -1511,7 +1511,7 @@ mod tests {
 
     #[test]
     fn puhua_past_3pl() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "puhua",
             VerbTense::Past,
@@ -1528,7 +1528,7 @@ mod tests {
 
     #[test]
     fn puhua_neg_present_1sg() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "puhua",
             VerbTense::Present,
@@ -1541,7 +1541,7 @@ mod tests {
 
     #[test]
     fn puhua_neg_present_2sg() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "puhua",
             VerbTense::Present,
@@ -1554,7 +1554,7 @@ mod tests {
 
     #[test]
     fn puhua_neg_present_3sg() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "puhua",
             VerbTense::Present,
@@ -1567,7 +1567,7 @@ mod tests {
 
     #[test]
     fn puhua_neg_present_1pl() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "puhua",
             VerbTense::Present,
@@ -1580,7 +1580,7 @@ mod tests {
 
     #[test]
     fn puhua_neg_present_2pl() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "puhua",
             VerbTense::Present,
@@ -1593,7 +1593,7 @@ mod tests {
 
     #[test]
     fn puhua_neg_present_3pl() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "puhua",
             VerbTense::Present,
@@ -1610,7 +1610,7 @@ mod tests {
 
     #[test]
     fn puhua_conditional_1sg() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "puhua",
             VerbTense::Conditional,
@@ -1623,7 +1623,7 @@ mod tests {
 
     #[test]
     fn puhua_conditional_3sg() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "puhua",
             VerbTense::Conditional,
@@ -1640,7 +1640,7 @@ mod tests {
 
     #[test]
     fn syoda_present_1sg() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "sy\u{00F6}d\u{00E4}",
             VerbTense::Present,
@@ -1653,7 +1653,7 @@ mod tests {
 
     #[test]
     fn syoda_present_3sg() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "sy\u{00F6}d\u{00E4}",
             VerbTense::Present,
@@ -1666,7 +1666,7 @@ mod tests {
 
     #[test]
     fn syoda_present_3pl() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "sy\u{00F6}d\u{00E4}",
             VerbTense::Present,
@@ -1680,7 +1680,7 @@ mod tests {
 
     #[test]
     fn syoda_past_1sg() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "sy\u{00F6}d\u{00E4}",
             VerbTense::Past,
@@ -1693,7 +1693,7 @@ mod tests {
 
     #[test]
     fn syoda_neg_present_3sg() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "sy\u{00F6}d\u{00E4}",
             VerbTense::Present,
@@ -1706,7 +1706,7 @@ mod tests {
 
     #[test]
     fn syoda_neg_present_3pl() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "sy\u{00F6}d\u{00E4}",
             VerbTense::Present,
@@ -1723,7 +1723,7 @@ mod tests {
 
     #[test]
     fn lukea_present_1sg() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "lukea",
             VerbTense::Present,
@@ -1737,7 +1737,7 @@ mod tests {
 
     #[test]
     fn lukea_present_3sg() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "lukea",
             VerbTense::Present,
@@ -1751,7 +1751,7 @@ mod tests {
 
     #[test]
     fn lukea_present_3pl() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "lukea",
             VerbTense::Present,
@@ -1765,7 +1765,7 @@ mod tests {
 
     #[test]
     fn lukea_past_1sg() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "lukea",
             VerbTense::Past,
@@ -1779,7 +1779,7 @@ mod tests {
 
     #[test]
     fn lukea_past_3sg() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "lukea",
             VerbTense::Past,
@@ -1793,7 +1793,7 @@ mod tests {
 
     #[test]
     fn lukea_neg_present_1sg() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "lukea",
             VerbTense::Present,
@@ -1811,7 +1811,7 @@ mod tests {
 
     #[test]
     fn tulla_present_1sg() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "tulla",
             VerbTense::Present,
@@ -1825,7 +1825,7 @@ mod tests {
 
     #[test]
     fn tulla_present_3sg() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "tulla",
             VerbTense::Present,
@@ -1839,7 +1839,7 @@ mod tests {
 
     #[test]
     fn tulla_present_3pl() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "tulla",
             VerbTense::Present,
@@ -1852,7 +1852,7 @@ mod tests {
 
     #[test]
     fn tulla_past_1sg() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "tulla",
             VerbTense::Past,
@@ -1866,7 +1866,7 @@ mod tests {
 
     #[test]
     fn tulla_past_3sg() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "tulla",
             VerbTense::Past,
@@ -1879,7 +1879,7 @@ mod tests {
 
     #[test]
     fn tulla_neg_present_3sg() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "tulla",
             VerbTense::Present,
@@ -1897,7 +1897,7 @@ mod tests {
 
     #[test]
     fn haluta_present_1sg() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "haluta",
             VerbTense::Present,
@@ -1912,7 +1912,7 @@ mod tests {
 
     #[test]
     fn haluta_present_3sg() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "haluta",
             VerbTense::Present,
@@ -1925,7 +1925,7 @@ mod tests {
 
     #[test]
     fn haluta_present_3pl() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "haluta",
             VerbTense::Present,
@@ -1938,7 +1938,7 @@ mod tests {
 
     #[test]
     fn haluta_past_1sg() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "haluta",
             VerbTense::Past,
@@ -1952,7 +1952,7 @@ mod tests {
 
     #[test]
     fn haluta_past_3sg() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "haluta",
             VerbTense::Past,
@@ -1965,7 +1965,7 @@ mod tests {
 
     #[test]
     fn haluta_neg_present_1sg() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "haluta",
             VerbTense::Present,
@@ -1978,7 +1978,7 @@ mod tests {
 
     #[test]
     fn haluta_conditional_1sg() {
-        let g = gen();
+        let g = make_gen();
         let form = g.generate_verb(
             "haluta",
             VerbTense::Conditional,
@@ -1996,7 +1996,7 @@ mod tests {
 
     #[test]
     fn verb_paradigm_puhua() {
-        let g = gen();
+        let g = make_gen();
         let paradigm = g.generate_verb_paradigm("puhua");
         assert!(paradigm.is_some());
         let paradigm = paradigm.unwrap();
@@ -2004,20 +2004,26 @@ mod tests {
         assert_eq!(paradigm.len(), 24);
 
         // Spot-check a few
-        assert!(paradigm
-            .iter()
-            .any(|(label, form)| label == "present 1sg" && form == "puhun"));
-        assert!(paradigm
-            .iter()
-            .any(|(label, form)| label == "past 3sg" && form == "puhui"));
-        assert!(paradigm
-            .iter()
-            .any(|(label, form)| label == "neg present 3pl" && form == "eiv\u{00E4}t puhu"));
+        assert!(
+            paradigm
+                .iter()
+                .any(|(label, form)| label == "present 1sg" && form == "puhun")
+        );
+        assert!(
+            paradigm
+                .iter()
+                .any(|(label, form)| label == "past 3sg" && form == "puhui")
+        );
+        assert!(
+            paradigm
+                .iter()
+                .any(|(label, form)| label == "neg present 3pl" && form == "eiv\u{00E4}t puhu")
+        );
     }
 
     #[test]
     fn verb_paradigm_unknown_returns_none() {
-        let g = gen();
+        let g = make_gen();
         assert!(g.generate_verb_paradigm("xyz").is_none());
     }
 
@@ -2027,7 +2033,7 @@ mod tests {
 
     #[test]
     fn generate_verb_unknown_returns_none() {
-        let g = gen();
+        let g = make_gen();
         assert_eq!(
             g.generate_verb(
                 "xyz",

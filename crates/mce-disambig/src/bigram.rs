@@ -26,7 +26,7 @@
 
 use std::collections::HashMap;
 
-use mce_core::analysis::{Analysis, ATTR_BASEFORM, ATTR_CLASS, ATTR_STRUCTURE};
+use mce_core::analysis::{ATTR_BASEFORM, ATTR_CLASS, ATTR_STRUCTURE, Analysis};
 
 /// A bigram transition model that scores POS tag pairs.
 ///

@@ -11,19 +11,19 @@
 //! rather than MCE's tokenizer. This isolates POS tagging errors from
 //! tokenization errors.
 
-use mce_comonad::cg::{apply_cg_rules, finnish_disambiguation_rules, CgRule};
-use mce_core::analysis::{Analysis, ATTR_BASEFORM, ATTR_CLASS};
+use mce_comonad::cg::{CgRule, apply_cg_rules, finnish_disambiguation_rules};
+use mce_core::analysis::{ATTR_BASEFORM, ATTR_CLASS, Analysis};
 use mce_core::token::TokenType;
+use mce_disambig::ViterbiDisambiguator;
 use mce_disambig::bigram::EmissionScorer;
 use mce_disambig::corpus::{build_model_from_conllu, extract_emission_priors};
 use mce_disambig::cs::SparseDisambiguator;
 use mce_disambig::suffix_tagger::SuffixTagger;
-use mce_disambig::ViterbiDisambiguator;
 use mce_fi::morphology::{Analyzer, FinnishAnalyzer};
 use mce_tokenizer::next_token;
 
 use crate::conllu::ConlluSentence;
-use crate::lemma_dict::{strip_suffix, LemmaDict};
+use crate::lemma_dict::{LemmaDict, strip_suffix};
 use crate::metrics::{EvalResults, TokenResult};
 use crate::pos_map::mce_to_upos;
 

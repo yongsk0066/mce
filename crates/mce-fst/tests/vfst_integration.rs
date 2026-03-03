@@ -9,8 +9,8 @@
 
 use std::path::PathBuf;
 
-use mce_fst::unweighted::UnweightedTransducer;
 use mce_fst::Transducer;
+use mce_fst::unweighted::UnweightedTransducer;
 
 /// Returns the dictionary path from the `MCE_DICT_PATH` environment variable.
 fn dict_path() -> Option<PathBuf> {

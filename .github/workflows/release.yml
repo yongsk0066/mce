@@ -12,7 +12,9 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
@@ -35,7 +37,12 @@ jobs:
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
           cd crates/mce-wasm/pkg
-          node -e "const p=require('./package.json');p.version='$VERSION';require('fs').writeFileSync('package.json',JSON.stringify(p,null,2))"
+          node -e "
+            import { readFileSync, writeFileSync } from 'fs';
+            const p = JSON.parse(readFileSync('./package.json', 'utf8'));
+            p.version = '$VERSION';
+            writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
+          " --input-type=module
 
       - name: Publish to npm
         run: |
@@ -64,8 +71,8 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/checkout@v6
+      - uses: actions/upload-pages-artifact@v4
         with:
           path: docs/
       - id: deployment

@@ -31,8 +31,9 @@ use std::time::Instant;
 
 use mce_comonad::bench::{bench_cg_rules, bench_cokleisli_arrows};
 use mce_core::analysis::{
-    Analysis, ATTR_BASEFORM, ATTR_CLASS, ATTR_COMPARISON, ATTR_MOOD, ATTR_NEGATIVE, ATTR_NUMBER,
+    ATTR_BASEFORM, ATTR_CLASS, ATTR_COMPARISON, ATTR_MOOD, ATTR_NEGATIVE, ATTR_NUMBER,
     ATTR_PARTICIPLE, ATTR_PERSON, ATTR_SIJAMUOTO, ATTR_STRUCTURE, ATTR_TENSE, ATTR_WORDBASES,
+    Analysis,
 };
 use mce_core::token::TokenType;
 use mce_disambig::{Disambiguator, ViterbiDisambiguator};
@@ -45,8 +46,8 @@ use mce_fi::hyphenation::FinnishHyphenator;
 use mce_fi::morphology::{Analyzer, FinnishAnalyzer};
 use mce_fi::spellcheck::FinnishSpellChecker;
 use mce_fst::unweighted::UnweightedTransducer;
-use mce_grammar::finnish::FinnishGrammarChecker;
 use mce_grammar::GrammarChecker;
+use mce_grammar::finnish::FinnishGrammarChecker;
 use mce_speller::SpellResult;
 use mce_tokenizer::next_token;
 
@@ -432,8 +433,8 @@ fn cmd_generate(args: &[String]) {
 /// `mce-cli generate --verb <infinitive> [--tense <t>] [--person <pn>] [--polarity <p>] [--all]`
 fn cmd_generate_verb(args: &[String]) {
     use mce_fi::generator::{
-        parse_person_number, parse_polarity, parse_tense, VerbNumber, VerbPerson, VerbPolarity,
-        VerbTense,
+        VerbNumber, VerbPerson, VerbPolarity, VerbTense, parse_person_number, parse_polarity,
+        parse_tense,
     };
 
     if args.is_empty() {
@@ -482,7 +483,9 @@ fn cmd_generate_verb(args: &[String]) {
             }
             other => {
                 eprintln!("error: unknown verb generate option '{other}'.");
-                eprintln!("usage: mce-cli generate --verb <inf> [--tense <t>] [--person <pn>] [--polarity <p>] [--all]");
+                eprintln!(
+                    "usage: mce-cli generate --verb <inf> [--tense <t>] [--person <pn>] [--polarity <p>] [--all]"
+                );
                 process::exit(1);
             }
         }
@@ -517,7 +520,7 @@ fn cmd_generate_verb(args: &[String]) {
                 process::exit(1);
             }
         }
-    } else if let (Some(ref ts), Some(ref ps)) = (&tense_str, &person_str) {
+    } else if let (Some(ts), Some(ps)) = (&tense_str, &person_str) {
         let tense = match parse_tense(ts) {
             Some(t) => t,
             None => {

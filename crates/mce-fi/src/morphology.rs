@@ -5,19 +5,19 @@
 use std::cell::RefCell;
 
 use mce_core::analysis::{
-    Analysis, ATTR_BASEFORM, ATTR_CLASS, ATTR_COMPARISON, ATTR_FOCUS, ATTR_FSTOUTPUT,
-    ATTR_KYSYMYSLIITE, ATTR_MALAGA_VAPAA_JALKIOSA, ATTR_MOOD, ATTR_NEGATIVE, ATTR_NUMBER,
-    ATTR_PARTICIPLE, ATTR_PERSON, ATTR_POSSESSIVE, ATTR_POSSIBLE_GEOGRAPHICAL_NAME,
-    ATTR_REQUIRE_FOLLOWING_VERB, ATTR_SIJAMUOTO, ATTR_STRUCTURE, ATTR_TENSE, ATTR_WORDBASES,
-    ATTR_WORDIDS, MAX_WORD_CHARS,
+    ATTR_BASEFORM, ATTR_CLASS, ATTR_COMPARISON, ATTR_FOCUS, ATTR_FSTOUTPUT, ATTR_KYSYMYSLIITE,
+    ATTR_MALAGA_VAPAA_JALKIOSA, ATTR_MOOD, ATTR_NEGATIVE, ATTR_NUMBER, ATTR_PARTICIPLE,
+    ATTR_PERSON, ATTR_POSSESSIVE, ATTR_POSSIBLE_GEOGRAPHICAL_NAME, ATTR_REQUIRE_FOLLOWING_VERB,
+    ATTR_SIJAMUOTO, ATTR_STRUCTURE, ATTR_TENSE, ATTR_WORDBASES, ATTR_WORDIDS, Analysis,
+    MAX_WORD_CHARS,
 };
 use mce_core::case::CaseType;
 use mce_fst::unweighted::UnweightedTransducer;
 use mce_fst::{Transducer, VfstError};
 
 use crate::tag_parser::{
-    fix_structure, is_valid_analysis, parse_baseform, parse_basic_attributes,
-    parse_debug_attributes, starts_with, BasicAttributes, BUFFER_SIZE, MAX_ANALYSIS_COUNT,
+    BUFFER_SIZE, BasicAttributes, MAX_ANALYSIS_COUNT, fix_structure, is_valid_analysis,
+    parse_baseform, parse_basic_attributes, parse_debug_attributes, starts_with,
 };
 
 /// Trait for morphological analyzers.

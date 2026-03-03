@@ -10,11 +10,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - CI/CD pipeline (GitHub Actions)
 - CHANGELOG.md
+- Performance CI: accuracy regression guard with PR comments (UPOS/Lemma thresholds)
+- Composite actions: `bench-accuracy`, `bench-trie`, `check-wasm-size`
+- `cargo audit` in CI via `rustsec/audit-check`
+- Dependabot for cargo and GitHub Actions dependencies
+- GitHub issue templates (bug report, feature request)
+- LICENSE file (Apache-2.0)
+- UD Finnish-TDT v2.17 as git submodule (`vendor/ud-finnish-tdt`)
+- `mor.vfst` dictionary included in `data/` for project self-containedness
+- `mce-cli eval --lemma-dict` flag for complete evaluation pipeline
 - M1 Trie integration: `load_wordlist()` and `has_wordlist()` WASM API methods (20 -> 22 methods)
 - Trie-based fuzzy spelling suggestions via `suggest()` when wordlist is loaded
 - Demo site now loads wordlist.txt for better spelling suggestions
 
+### Changed
+- Differentiate `spell_check()` (compound-aware) from `is_valid_word()` (pure morphological analysis)
+- Remove `mce-speller` dependency from `mce-wasm` (spell checking now handled by `mce-fi`; `mce-speller` still used by `mce-fi` and `mce-cli`)
+- Commit `Cargo.lock` for reproducible builds
+- Upgrade `actions/upload-pages-artifact` v3 → v4 (v3 deprecated)
+
 ### Fixed
+- `release.yml` ESM compatibility: replace `require()` with ESM imports for `package.json` version injection
 - `generate_verb_form()` API docs: corrected signature from `(baseform, tense, person, number)` to `(baseform, tense, person, polarity)`
 - `is_valid_word()` API docs: corrected description to reflect actual behavior (VFST dictionary check)
 - `suggest()` API docs: corrected description to mention trie-based fuzzy search and wordlist dependency

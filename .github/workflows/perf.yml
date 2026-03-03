@@ -19,7 +19,7 @@ jobs:
       total-tokens: ${{ steps.eval.outputs.total-tokens }}
       passed: ${{ steps.eval.outputs.passed }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: true
       - uses: dtolnay/rust-toolchain@stable
@@ -39,7 +39,7 @@ jobs:
     outputs:
       results: ${{ steps.bench.outputs.results }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - uses: ./.github/actions/bench-trie
@@ -52,7 +52,7 @@ jobs:
       size-kb: ${{ steps.wasm.outputs.size-kb }}
       passed: ${{ steps.wasm.outputs.passed }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown

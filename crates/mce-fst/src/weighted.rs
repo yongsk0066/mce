@@ -4,8 +4,8 @@ use crate::config::WeightedConfig;
 use crate::flags::{self, FlagCheckResult};
 use crate::format::{self, HEADER_SIZE};
 use crate::symbols::{self, SymbolTable};
-use crate::transition::{weighted_max_tc, WeightedTransition, WEIGHTED_FINAL_SYM};
-use crate::{Transducer, VfstError, MAX_LOOP_COUNT};
+use crate::transition::{WEIGHTED_FINAL_SYM, WeightedTransition, weighted_max_tc};
+use crate::{MAX_LOOP_COUNT, Transducer, VfstError};
 
 /// Weighted VFST transducer.
 pub struct WeightedTransducer {

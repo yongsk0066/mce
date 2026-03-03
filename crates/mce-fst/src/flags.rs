@@ -135,7 +135,7 @@ impl FlagDiacriticParser {
                 return Err(VfstError::InvalidFlagDiacritic(format!(
                     "unknown operation '{}' in {symbol:?}",
                     bytes[1] as char,
-                )))
+                )));
             }
         };
 

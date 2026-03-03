@@ -10,14 +10,14 @@
 // Run with:
 //   MCE_DICT_PATH=~/oss/corevoikko/voikko-fi/vvfst cargo test -p mce-fi -- --ignored
 
-use mce_core::analysis::{Analysis, ATTR_BASEFORM, ATTR_CLASS, ATTR_SIJAMUOTO};
+use mce_core::analysis::{ATTR_BASEFORM, ATTR_CLASS, ATTR_SIJAMUOTO, Analysis};
 use mce_disambig::{Disambiguator, ViterbiDisambiguator};
 use mce_fi::compound::FinnishCompoundAnalyzer;
 use mce_fi::hyphenation::FinnishHyphenator;
 use mce_fi::morphology::{Analyzer, FinnishAnalyzer};
 use mce_fi::spellcheck::FinnishSpellChecker;
-use mce_grammar::finnish::FinnishGrammarChecker;
 use mce_grammar::GrammarChecker;
+use mce_grammar::finnish::FinnishGrammarChecker;
 use mce_speller::SpellResult;
 
 // ===========================================================================

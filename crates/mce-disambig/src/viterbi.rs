@@ -285,11 +285,7 @@ mod tests {
         let transition: Box<TransitionFn> = Box::new(|prev, curr| {
             let p = prev.get("CLASS").unwrap_or("");
             let c = curr.get("CLASS").unwrap_or("");
-            if p == "A" && c == "C" {
-                5.0
-            } else {
-                0.0
-            }
+            if p == "A" && c == "C" { 5.0 } else { 0.0 }
         });
 
         let path = viterbi(&lattice, &transition);

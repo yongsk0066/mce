@@ -1,8 +1,9 @@
 /target
-Cargo.lock
 *.swp
 *.swo
+*.bak
 .DS_Store
+__pycache__/
 
 # WASM demo build artifacts
 demo/pkg/

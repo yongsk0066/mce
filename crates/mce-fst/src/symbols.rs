@@ -1,7 +1,7 @@
 // Adapted from corevoikko (voikko-fst/symbols.rs)
 
-use crate::flags::{FlagDiacriticParser, OpFeatureValue};
 use crate::VfstError;
+use crate::flags::{FlagDiacriticParser, OpFeatureValue};
 use hashbrown::HashMap;
 
 /// Parsed symbol table from a VFST binary file.
