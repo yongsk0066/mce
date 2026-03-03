@@ -7,6 +7,9 @@ edition = "2024"
 rust-version = "1.86"
 license = "Apache-2.0"
 repository = "https://github.com/yongsk0066/mce"
+homepage = "https://yongsk0066.github.io/mce/"
+keywords = ["nlp", "finnish", "morphology", "wasm", "spell-check"]
+categories = ["text-processing", "wasm"]
 
 [workspace.dependencies]
 criterion = { version = "0.8", features = ["html_reports"] }

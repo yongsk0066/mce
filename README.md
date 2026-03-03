@@ -1,5 +1,10 @@
 # MCE — Morphological Computation Engine
 
+[![CI](https://github.com/yongsk0066/mce/actions/workflows/ci.yml/badge.svg)](https://github.com/yongsk0066/mce/actions/workflows/ci.yml)
+[![Performance](https://github.com/yongsk0066/mce/actions/workflows/perf.yml/badge.svg)](https://github.com/yongsk0066/mce/actions/workflows/perf.yml)
+[![npm](https://img.shields.io/npm/v/@yongsk0066/mce)](https://www.npmjs.com/package/@yongsk0066/mce)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
 Browser-first Finnish NLP engine -- morphological analysis, POS tagging, spell checking, grammar checking, hyphenation, compound analysis, and morphological generation, all running offline in WebAssembly.
 
 MCE uses a mathematically grounded architecture: a Writer Comonad for morphophonological rules, Constraint Grammar for disambiguation, and a suffix-based statistical tagger -- achieving 95.56% UPOS accuracy in 225KB of WASM with no server required.
@@ -238,6 +243,10 @@ The Writer Comonad (M2') expresses all Finnish morphophonological rules -- conso
 
 Apache-2.0
 
+## Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
+
 ## Credits
 
 MCE is built by Yongseok Jang as the analytical core for [corevoikko](https://github.com/yongsk0066/corevoikko), a Rust+WASM rewrite of [Voikko](https://voikko.puimula.org/). The Finnish dictionary data originates from the Voikko project contributors.
@@ -250,5 +259,5 @@ MCE is built by Yongseok Jang as the analytical core for [corevoikko](https://gi
 ## Links
 
 - [corevoikko](https://github.com/yongsk0066/corevoikko) -- parent project (Voikko in Rust+WASM)
-- [Live Demo](https://yongsk0066.github.io/corevoikko/) -- try Finnish NLP in the browser
+- [Live Demo](https://yongsk0066.github.io/mce/) -- try Finnish NLP in the browser
 - [Original Voikko](https://voikko.puimula.org/)
