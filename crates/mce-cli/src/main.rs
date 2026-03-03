@@ -37,6 +37,7 @@ use mce_core::analysis::{
 use mce_core::token::TokenType;
 use mce_disambig::{Disambiguator, ViterbiDisambiguator};
 use mce_eval::conllu::parse_conllu_file;
+use mce_eval::lemma_dict::LemmaDict;
 use mce_eval::pipeline::EvalPipeline;
 use mce_fi::compound::FinnishCompoundAnalyzer;
 use mce_fi::generator::MorphGenerator;
@@ -671,6 +672,7 @@ fn cmd_eval(args: &[String]) {
     let mut conllu_path: Option<PathBuf> = None;
     let mut train_path: Option<PathBuf> = None;
     let mut model_path: Option<PathBuf> = None;
+    let mut lemma_dict_path: Option<PathBuf> = None;
     let mut format = "table".to_string();
 
     let mut i = 0;
@@ -700,6 +702,14 @@ fn cmd_eval(args: &[String]) {
                 }
                 model_path = Some(PathBuf::from(&args[i]));
             }
+            "--lemma-dict" => {
+                i += 1;
+                if i >= args.len() {
+                    eprintln!("error: --lemma-dict requires a path to lemma_dict.tsv.");
+                    process::exit(1);
+                }
+                lemma_dict_path = Some(PathBuf::from(&args[i]));
+            }
             "--format" => {
                 i += 1;
                 if i >= args.len() {
@@ -717,7 +727,7 @@ fn cmd_eval(args: &[String]) {
             other => {
                 eprintln!("error: unknown eval option '{other}'.");
                 eprintln!(
-                    "usage: mce-cli eval --conllu <FILE> [--train <FILE>] [--model <FILE>] [--format table|json]"
+                    "usage: mce-cli eval --conllu <FILE> [--train <FILE>] [--model <FILE>] [--lemma-dict <FILE>] [--format table|json]"
                 );
                 process::exit(1);
             }
@@ -728,7 +738,7 @@ fn cmd_eval(args: &[String]) {
     let conllu_path = conllu_path.unwrap_or_else(|| {
         eprintln!("error: --conllu is required.");
         eprintln!(
-            "usage: mce-cli eval --conllu <FILE> [--train <FILE>] [--model <FILE>] [--format table|json]"
+            "usage: mce-cli eval --conllu <FILE> [--train <FILE>] [--model <FILE>] [--lemma-dict <FILE>] [--format table|json]"
         );
         process::exit(1);
     });
@@ -784,6 +794,21 @@ fn cmd_eval(args: &[String]) {
             }
             Err(e) => {
                 eprintln!("error: failed to load suffix tagger model: {e}");
+                process::exit(1);
+            }
+        }
+    }
+
+    // Load lemma dictionary if provided.
+    if let Some(ref ldp) = lemma_dict_path {
+        eprintln!("Loading lemma dictionary from {} ...", ldp.display());
+        match LemmaDict::from_file(ldp) {
+            Ok(dict) => {
+                eprintln!("Lemma dictionary loaded: {} entries.", dict.len());
+                pipeline.set_lemma_dict(dict);
+            }
+            Err(e) => {
+                eprintln!("error: cannot read {}: {}", ldp.display(), e);
                 process::exit(1);
             }
         }
@@ -1374,6 +1399,8 @@ fn print_usage() {
     eprintln!("EVAL OPTIONS:");
     eprintln!("    --conllu <FILE>           Path to CoNLL-U file (required)");
     eprintln!("    --train <FILE>            CoNLL-U training file for corpus bigrams");
+    eprintln!("    --model <FILE>            Path to suffix_tagger.bin");
+    eprintln!("    --lemma-dict <FILE>       Path to lemma_dict.tsv");
     eprintln!("    --format <table|json>     Output format (default: table)");
     eprintln!();
     eprintln!("BENCHMARK OPTIONS:");

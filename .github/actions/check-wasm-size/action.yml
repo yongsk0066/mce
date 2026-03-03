@@ -1,0 +1,51 @@
+name: 'MCE WASM Size Check'
+description: 'Build WASM and check binary size against threshold'
+
+inputs:
+  max-size:
+    description: 'Maximum WASM binary size in bytes'
+    required: false
+    default: '400000'
+
+outputs:
+  size:
+    description: 'WASM binary size in bytes'
+    value: ${{ steps.check.outputs.size }}
+  size-kb:
+    description: 'WASM binary size in KB'
+    value: ${{ steps.check.outputs.size_kb }}
+  passed:
+    description: 'Whether size is within threshold'
+    value: ${{ steps.check.outputs.passed }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install wasm-pack
+      shell: bash
+      run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+    - name: Build WASM
+      shell: bash
+      run: wasm-pack build --target web --out-dir pkg crates/mce-wasm
+
+    - name: Check WASM size
+      id: check
+      shell: bash
+      run: |
+        SIZE=$(wc -c < crates/mce-wasm/pkg/mce_wasm_bg.wasm | tr -d ' ')
+        SIZE_KB=$(echo "scale=1; $SIZE / 1024" | bc)
+        MAX=${{ inputs.max-size }}
+        MAX_KB=$(echo "scale=1; $MAX / 1024" | bc)
+
+        echo "size=$SIZE" >> "$GITHUB_OUTPUT"
+        echo "size_kb=$SIZE_KB" >> "$GITHUB_OUTPUT"
+
+        if [ "$SIZE" -gt "$MAX" ]; then
+          echo "::error::WASM binary ${SIZE_KB}KB exceeds threshold ${MAX_KB}KB"
+          echo "passed=false" >> "$GITHUB_OUTPUT"
+          exit 1
+        fi
+
+        echo "passed=true" >> "$GITHUB_OUTPUT"
+        echo "WASM binary size: ${SIZE_KB}KB (limit: ${MAX_KB}KB)"

@@ -211,9 +211,9 @@ def build_char_vocabulary(all_forms):
 
 
 def main():
-    conllu_path = sys.argv[1] if len(sys.argv) > 1 else (
-        "/Users/yongseok/oss/finnishNLP/ud-finnish-tdt/fi_tdt-ud-train.conllu"
-    )
+    project_root = Path(__file__).resolve().parent.parent.parent
+    default_conllu = str(project_root / "vendor" / "ud-finnish-tdt" / "fi_tdt-ud-train.conllu")
+    conllu_path = sys.argv[1] if len(sys.argv) > 1 else default_conllu
     output_path = Path(__file__).parent / "paradigms.json"
 
     print(f"Parsing {conllu_path}...")

@@ -1,0 +1,4 @@
+[submodule "vendor/ud-finnish-tdt"]
+	path = vendor/ud-finnish-tdt
+	url = https://github.com/UniversalDependencies/UD_Finnish-TDT.git
+	shallow = true

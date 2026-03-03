@@ -1,0 +1,114 @@
+name: 'MCE Accuracy Benchmark'
+description: 'Evaluate UPOS/Lemma accuracy against UD treebank and check thresholds'
+
+inputs:
+  dict-path:
+    description: 'Directory containing mor.vfst'
+    required: true
+    default: 'data'
+  conllu-path:
+    description: 'Path to CoNLL-U evaluation file'
+    required: true
+    default: 'vendor/ud-finnish-tdt/fi_tdt-ud-dev.conllu'
+  model-path:
+    description: 'Path to suffix_tagger.bin'
+    required: true
+    default: 'data/suffix_tagger.bin'
+  lemma-dict-path:
+    description: 'Path to lemma_dict.tsv'
+    required: true
+    default: 'data/lemma_dict.tsv'
+  upos-threshold:
+    description: 'Minimum UPOS accuracy (0-100)'
+    required: false
+    default: '94.0'
+  lemma-threshold:
+    description: 'Minimum Lemma accuracy (0-100)'
+    required: false
+    default: '85.0'
+
+outputs:
+  upos:
+    description: 'UPOS accuracy percentage'
+    value: ${{ steps.eval.outputs.upos }}
+  lemma:
+    description: 'Lemma accuracy percentage'
+    value: ${{ steps.eval.outputs.lemma }}
+  coverage:
+    description: 'Coverage percentage'
+    value: ${{ steps.eval.outputs.coverage }}
+  speed:
+    description: 'Tokens per second'
+    value: ${{ steps.eval.outputs.speed }}
+  total-tokens:
+    description: 'Total tokens evaluated'
+    value: ${{ steps.eval.outputs.total_tokens }}
+  json:
+    description: 'Full JSON evaluation results'
+    value: ${{ steps.eval.outputs.json }}
+  passed:
+    description: 'Whether all thresholds passed'
+    value: ${{ steps.check.outputs.passed }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Build mce-cli (release)
+      shell: bash
+      run: cargo build -p mce-cli --release
+
+    - name: Run accuracy evaluation
+      id: eval
+      shell: bash
+      run: |
+        JSON=$(MCE_DICT_PATH=${{ inputs.dict-path }} \
+          ./target/release/mce-cli eval \
+          --conllu ${{ inputs.conllu-path }} \
+          --model ${{ inputs.model-path }} \
+          --lemma-dict ${{ inputs.lemma-dict-path }} \
+          --format json 2>/dev/null)
+
+        UPOS=$(echo "$JSON" | jq -r '.upos_accuracy * 100 | . * 100 | round / 100')
+        LEMMA=$(echo "$JSON" | jq -r '.lemma_accuracy * 100 | . * 100 | round / 100')
+        COVERAGE=$(echo "$JSON" | jq -r '.coverage * 100 | . * 100 | round / 100')
+        SPEED=$(echo "$JSON" | jq -r '.tokens_per_sec | round')
+        TOTAL=$(echo "$JSON" | jq -r '.total_tokens')
+
+        echo "upos=$UPOS" >> "$GITHUB_OUTPUT"
+        echo "lemma=$LEMMA" >> "$GITHUB_OUTPUT"
+        echo "coverage=$COVERAGE" >> "$GITHUB_OUTPUT"
+        echo "speed=$SPEED" >> "$GITHUB_OUTPUT"
+        echo "total_tokens=$TOTAL" >> "$GITHUB_OUTPUT"
+
+        # Store full JSON as a single line for output
+        echo "json<<EVAL_EOF" >> "$GITHUB_OUTPUT"
+        echo "$JSON" >> "$GITHUB_OUTPUT"
+        echo "EVAL_EOF" >> "$GITHUB_OUTPUT"
+
+    - name: Check thresholds
+      id: check
+      shell: bash
+      run: |
+        UPOS=${{ steps.eval.outputs.upos }}
+        LEMMA=${{ steps.eval.outputs.lemma }}
+        UPOS_MIN=${{ inputs.upos-threshold }}
+        LEMMA_MIN=${{ inputs.lemma-threshold }}
+        PASSED=true
+
+        if (( $(echo "$UPOS < $UPOS_MIN" | bc -l) )); then
+          echo "::error::UPOS accuracy ${UPOS}% is below threshold ${UPOS_MIN}%"
+          PASSED=false
+        fi
+
+        if (( $(echo "$LEMMA < $LEMMA_MIN" | bc -l) )); then
+          echo "::error::Lemma accuracy ${LEMMA}% is below threshold ${LEMMA_MIN}%"
+          PASSED=false
+        fi
+
+        echo "passed=$PASSED" >> "$GITHUB_OUTPUT"
+
+        if [ "$PASSED" = "false" ]; then
+          exit 1
+        fi
+
+        echo "All accuracy thresholds passed: UPOS ${UPOS}% >= ${UPOS_MIN}%, Lemma ${LEMMA}% >= ${LEMMA_MIN}%"
