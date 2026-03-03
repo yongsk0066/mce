@@ -22,11 +22,11 @@ MCE uses a mathematically grounded architecture: a Writer Comonad for morphophon
 ### npm (Browser / Node.js)
 
 ```bash
-npm install @anthropic/mce
+npm install @yongsk0066/mce
 ```
 
 ```typescript
-import init, { MceEngine } from '@anthropic/mce';
+import init, { MceEngine } from '@yongsk0066/mce';
 
 await init();
 const dictBytes = await fetch('mor.vfst').then(r => r.arrayBuffer());

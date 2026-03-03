@@ -1,6 +1,6 @@
 # Architecture
 
-MCE (Morphological Computation Engine) is a Rust workspace of 11 crates that implements Finnish morphological analysis, spell checking, grammar checking, hyphenation, and disambiguation. It compiles to a ~225KB WASM module that runs entirely in the browser with no server, targeting <5ms per sentence at 94.65% UPOS accuracy.
+MCE (Morphological Computation Engine) is a Rust workspace of 11 crates that implements Finnish morphological analysis, spell checking, grammar checking, hyphenation, and disambiguation. It compiles to a ~225KB WASM module that runs entirely in the browser with no server, targeting <5ms per sentence at 95.56% UPOS accuracy.
 
 ## Crate Map
 
@@ -79,7 +79,7 @@ graph TD
 | `mce-fst` | FST engine: VFST format parser, flag diacritics, transducer traversal | ~1,700 | `mce-core` |
 | `mce-tokenizer` | Text tokenizer: word, URL, email, sentence boundary detection | ~1,400 | `mce-core` |
 | `mce-comonad` | Writer Comonad engine: `Zipper`, `WriterZipper`, `DeletionSet`, coKleisli arrows, CG rules, Finnish morphophonology (vowel harmony, consonant gradation, allomorph selection) | ~8,400 | `mce-core` |
-| `mce-disambig` | Disambiguation: Viterbi decoder, emission priors, suffix tagger (94.65% UPOS), CG-lite (57 active rules) | ~5,800 | `mce-core` |
+| `mce-disambig` | Disambiguation: Viterbi decoder, emission priors, suffix tagger (95.56% UPOS), CG-lite (62 active rules) | ~5,800 | `mce-core` |
 | `mce-speller` | Spell checking and suggestion generation with edit-distance ranking | ~1,900 | `mce-core`, `mce-fst` |
 | `mce-fi` | Finnish language module: morphological analyzer, hyphenator, compound analysis | ~7,100 | `mce-core`, `mce-fst`, `mce-speller`, `mce-disambig`, `mce-comonad` |
 | `mce-grammar` | Grammar checker: 21 Finnish grammar rules with context-sensitive paragraph analysis | ~6,400 | `mce-core`, `mce-fst`, `mce-fi`, `mce-tokenizer`, `mce-disambig` |
@@ -87,7 +87,7 @@ graph TD
 | `mce-wasm` | WASM bindings: 20 JavaScript API methods via `wasm-bindgen` | ~2,000 | `mce-core`, `mce-fst`, `mce-fi`, `mce-speller`, `mce-disambig`, `mce-comonad`, `mce-tokenizer`, `mce-grammar` |
 | `mce-cli` | CLI tools for interactive analysis, evaluation, and debugging | ~1,500 | all crates |
 
-Total: ~41,200 lines of Rust, 805 tests.
+Total: ~41,800 lines of Rust, 1,365 tests.
 
 ## Pipeline Architecture (MCE v3)
 
@@ -133,7 +133,7 @@ flowchart LR
 | **M1: Succinct Trie** | `mce-core` (trie module) | LOUDS encoding | Dictionary lookup, spell checking. O(n) lookup, O(k) fuzzy match. |
 | **M2': Comonadic Engine** | `mce-comonad` | Writer Comonad (`extend`/`extract`) | Morphophonological rules as composable coKleisli arrows. Consonant gradation (11 patterns), vowel harmony, allomorph selection, CG-lite rules. |
 | **M3: PDT** | `mce-fst` | Pushdown Transducer | Compound word structure analysis. Context-free decomposition of Finnish compounds (e.g., `rautatieasema` -> `rauta+tie+asema`). |
-| **M4': Weighted Lattice** | `mce-disambig` | Viterbi + Emission Priors | 1-best disambiguation. POS bigram model + suffix tagger emissions. Rule-only: 82.71% UPOS; with suffix tagger: 94.65% UPOS. |
+| **M4': Weighted Lattice** | `mce-disambig` | Viterbi + Emission Priors | 1-best disambiguation. POS bigram model + suffix tagger emissions. Rule-only: 82.71% UPOS; with suffix tagger: 95.56% UPOS. |
 
 ## Data Flow
 
@@ -174,7 +174,7 @@ flowchart TD
 2. **FST Traverse** -- `mce-fst` runs the VFST transducer over each word token, producing all valid morphological decompositions.
 3. **Analyze** -- `mce-fi` wraps FST output into structured `Analysis` objects with attributes (CLASS, BASEFORM, STRUCTURE, etc.).
 4. **Comonadic Rules** -- `mce-comonad` applies morphophonological transformations as coKleisli arrows: consonant gradation, vowel harmony, allomorph selection. The Writer Comonad accumulates deletion marks algebraically.
-5. **Disambiguate** -- `mce-disambig` selects the best analysis per token using Viterbi decoding with POS bigram transitions, emission priors, CG-lite constraint rules (57 active), and optionally the suffix tagger.
+5. **Disambiguate** -- `mce-disambig` selects the best analysis per token using Viterbi decoding with POS bigram transitions, emission priors, CG-lite constraint rules (62 active), and optionally the suffix tagger.
 6. **Grammar Check** -- `mce-grammar` scans the disambiguated sentence for grammar errors (21 rules).
 
 ## WASM Deployment
@@ -221,7 +221,7 @@ flowchart LR
 2. Dictionary and model are fetched once, cached in IndexedDB.
 3. On subsequent visits, dictionary and model load from cache (zero network).
 4. `MceEngine.load(dictBytes)` initializes the engine.
-5. `engine.load_model(modelBytes)` optionally enables the suffix tagger (82.71% -> 94.65% UPOS).
+5. `engine.load_model(modelBytes)` optionally enables the suffix tagger (82.71% -> 95.56% UPOS).
 6. All 20 API methods (`analyze`, `spell_check`, `suggest`, `hyphenate`, `grammar_check`, `analyze_sentence`, etc.) run synchronously in the main thread or a Web Worker.
 
 ## Mathematical Foundation: Writer Comonad
@@ -284,13 +284,13 @@ pipeline = extend(gradation)
 | Metric | Value | Notes |
 |--------|------:|-------|
 | UPOS accuracy (rule-only) | 82.71% | CG-lite rules + Viterbi |
-| UPOS accuracy (+ suffix tagger) | 94.65% | CG + Viterbi + emission model |
-| Lemmatization accuracy | 82.65% | FST-based |
+| UPOS accuracy (+ suffix tagger) | 95.56% | CG + Viterbi + emission model |
+| Lemmatization accuracy | 86.24% | FST-based |
 | Dictionary coverage | 99.64% | Finnish-TDT test set |
 | Throughput | 42,000 tok/s | Native, single-threaded |
 | Latency target | <5ms/sentence | ~20 tokens average sentence |
 | WASM binary | ~225KB | `opt-level = "z"`, LTO, `panic = "abort"` |
-| CG rules | 57 active / 81 total | coKleisli arrows in `mce-comonad` |
+| CG rules | 62 active / 85 total | coKleisli arrows in `mce-comonad` |
 | Grammar rules | 21 | Context-sensitive paragraph rules |
 | Morphological generation | 11 noun cases + 4 verb types | coKleisli composition |
 | Test count | 805 | `cargo test --all-features` |
@@ -380,7 +380,7 @@ For terminal environments where mermaid rendering is unavailable, here are ASCII
          ▼
  ┌───────────────┐
  │  Disambig     │  Viterbi 1-best: NOUN VERB ADV PUNCT
- │  (M4')        │  82.71% rule-only → 94.65% with suffix tagger
+ │  (M4')        │  82.71% rule-only → 95.56% with suffix tagger
  └───────┬───────┘
          │
          ▼

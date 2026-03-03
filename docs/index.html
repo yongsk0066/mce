@@ -285,12 +285,12 @@
               </div>
 
               <div class="badge-row">
-                <cds-tag type="green">UPOS 94.65%</cds-tag>
-                <cds-tag type="blue">Lemma 82.65%</cds-tag>
+                <cds-tag type="green">UPOS 95.56%</cds-tag>
+                <cds-tag type="blue">Lemma 86.24%</cds-tag>
                 <cds-tag type="teal">Coverage 99.64%</cds-tag>
                 <cds-tag type="purple">42K tok/s</cds-tag>
                 <cds-tag type="cyan">225KB WASM</cds-tag>
-                <cds-tag type="magenta">805 tests</cds-tag>
+                <cds-tag type="magenta">1,365 tests</cds-tag>
                 <cds-tag type="warm-gray">11 crates</cds-tag>
                 <cds-tag type="high-contrast">~9.1MB deploy</cds-tag>
               </div>
@@ -304,8 +304,8 @@
                   <li><strong>Complete offline operation</strong> &mdash; WASM + dictionary loaded once, works without network</li>
                   <li><strong>VFST dictionary format</strong> &mdash; Succinct trie with LOUDS encoding for compact storage</li>
                   <li><strong>Comonadic architecture</strong> &mdash; Writer comonad for composable morphophonological rules</li>
-                  <li><strong>Viterbi disambiguation</strong> &mdash; Weighted lattice + suffix tagger for 94.65% UPOS accuracy</li>
-                  <li><strong>CG rules</strong> &mdash; 57 active constraint grammar rules for context-sensitive disambiguation</li>
+                  <li><strong>Viterbi disambiguation</strong> &mdash; Weighted lattice + suffix tagger for 95.56% UPOS accuracy</li>
+                  <li><strong>CG rules</strong> &mdash; 62 active constraint grammar rules for context-sensitive disambiguation</li>
                   <li><strong>Morphological generation</strong> &mdash; Noun declension (11 cases) + verb conjugation (4 types)</li>
                   <li><strong>Grammar checking</strong> &mdash; 21 rules for common Finnish writing errors</li>
                   <li><strong>20 WASM API methods</strong> &mdash; Complete JS/TS API with full TypeScript types</li>
@@ -636,7 +636,7 @@ flowchart TD
 
                 <div class="api-method">
                   <h3>engine.load_model(data: Uint8Array): void</h3>
-                  <p>Load a suffix tagger model for POS disambiguation. Improves UPOS from 82.71% to 94.65%.</p>
+                  <p>Load a suffix tagger model for POS disambiguation. Improves UPOS from 82.71% to 95.56%.</p>
                 </div>
 
                 <div class="api-method">
@@ -768,15 +768,15 @@ flowchart TD
                   <cds-table-body>
                     <cds-table-row>
                       <cds-table-cell><strong>MCE (CG + Suffix)</strong></cds-table-cell>
-                      <cds-table-cell><strong>94.65%</strong></cds-table-cell>
-                      <cds-table-cell>82.65%</cds-table-cell>
+                      <cds-table-cell><strong>95.56%</strong></cds-table-cell>
+                      <cds-table-cell>86.24%</cds-table-cell>
                       <cds-table-cell>99.64%</cds-table-cell>
                       <cds-table-cell>Browser (WASM)</cds-table-cell>
                     </cds-table-row>
                     <cds-table-row>
                       <cds-table-cell>MCE (rule-only)</cds-table-cell>
                       <cds-table-cell>82.71%</cds-table-cell>
-                      <cds-table-cell>82.65%</cds-table-cell>
+                      <cds-table-cell>86.24%</cds-table-cell>
                       <cds-table-cell>99.64%</cds-table-cell>
                       <cds-table-cell>Browser (WASM)</cds-table-cell>
                     </cds-table-row>
@@ -922,7 +922,7 @@ flowchart TD
                     </cds-table-row>
                     <cds-table-row>
                       <cds-table-cell>POS tagging</cds-table-cell>
-                      <cds-table-cell>Yes (94.65%)</cds-table-cell>
+                      <cds-table-cell>Yes (95.56%)</cds-table-cell>
                       <cds-table-cell>Yes (83.88%)</cds-table-cell>
                       <cds-table-cell>Yes (97.80%)</cds-table-cell>
                       <cds-table-cell>Yes (~96%)</cds-table-cell>
