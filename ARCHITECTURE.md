@@ -22,9 +22,15 @@ flowchart LR
   style M4 fill:#ffffff,color:#161616,stroke:#8d8d8d
 ```
 
-Text enters as a raw string. The tokenizer splits it into words and sentences. Each word passes through M1 (dictionary lookup via a LOUDS-encoded succinct trie), M2 (morphophonological rule application via the Writer Comonad), and M3 (compound word decomposition via a pushdown transducer). Finally, M4 disambiguates: Constraint Grammar rules prune impossible readings, a suffix-based statistical tagger scores the remaining candidates, and Viterbi decoding selects the best POS tag per token.
+### Why four machines?
 
-The key insight is that M2 (algebraic, deterministic) and M4 (probabilistic, statistical) are fundamentally different kinds of computation. Keeping them separate is what makes the architecture clean.
+Existing Finnish NLP systems fall into two camps. Rule-based systems (Omorfi, Voikko) use a single monolithic FST that handles everything — lookup, morphophonology, compounding — in one transducer. Neural systems (TurkuNLP, Trankit) use a single monolithic transformer. Both work, but neither fits the browser: FSTs are too large to ship as-is (Omorfi's HFST binary is ~100MB), and transformers require GPU servers.
+
+MCE takes a different approach: **decompose the problem into four heterogeneous computation models, each optimal for its subproblem.** A succinct trie (M1) is optimal for dictionary lookup in constrained memory. A comonad (M2) is optimal for composing character-level rules that involve deletion. A pushdown transducer (M3) is optimal for context-free compound decomposition. A weighted lattice (M4) is optimal for sequence disambiguation under uncertainty.
+
+This decomposition is the core architectural idea. No single formalism handles all four subproblems well — FSTs struggle with disambiguation, neural models are overkill for dictionary lookup, and neither provides a principled composition algebra for deletion rules. By matching each subproblem to its natural mathematical model, MCE achieves near-neural accuracy (95.56% UPOS) in 225KB of WASM — a size reduction of three to four orders of magnitude compared to transformer-based systems.
+
+The most unusual choice is M2: using a **Writer Comonad** from category theory for morphophonological rules. This is, as far as we know, the first use of comonads in a production NLP system. The motivation was specific: Finnish consonant gradation deletes characters, and deletion breaks the standard FST composition pipeline. The Writer Comonad solves this by accumulating deletions as a monoid side-channel, keeping positions stable so that rules compose purely. The details are in [The Writer Comonad](#the-writer-comonad) below.
 
 ## How a Sentence Flows Through
 
@@ -94,7 +100,7 @@ The workspace has 11 crates organized in four layers:
 
 ## Why This Structure
 
-The crate boundaries follow from a few simple rules:
+The four-machine decomposition dictates the crate boundaries naturally. Each machine maps to one or two engine crates, and the separation serves both mathematical clarity and practical engineering:
 
 **WASM must stay small.** Only `mce-wasm` and its transitive dependencies compile to WebAssembly. Evaluation, CLI, and test infrastructure are excluded at the type level — not by convention, but because they live in separate crates that `mce-wasm` simply doesn't depend on.
 
