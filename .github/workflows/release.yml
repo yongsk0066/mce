@@ -5,8 +5,6 @@ on:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 jobs:
   release:
@@ -64,35 +62,5 @@ jobs:
             crates/mce-wasm/pkg/mce_wasm.js
             crates/mce-wasm/pkg/mce_wasm.d.ts
 
-  deploy-docs:
-    needs: release
-    runs-on: ubuntu-latest
-    concurrency:
-      group: pages
-      cancel-in-progress: true
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
-      - uses: Swatinem/rust-cache@v2
-      - name: Install wasm-pack
-        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
-      - name: Build fresh WASM for docs
-        run: wasm-pack build --target web --out-dir pkg crates/mce-wasm
-      - name: Copy latest assets to docs
-        run: |
-          cp crates/mce-wasm/pkg/mce_wasm_bg.wasm docs/
-          cp crates/mce-wasm/pkg/mce_wasm.js docs/
-          cp data/wordlist.txt docs/
-      - uses: actions/upload-pages-artifact@v4
-        with:
-          path: docs/
-      - id: deployment
-        uses: actions/deploy-pages@v4
+  # Docs are deployed by docs.yml on main push (GitHub Pages Actions mode).
+  # No separate deploy-docs job needed here.
