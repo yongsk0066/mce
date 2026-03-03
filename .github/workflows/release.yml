@@ -33,14 +33,17 @@ jobs:
       - name: Build WASM
         run: wasm-pack build --target web --out-dir pkg crates/mce-wasm
 
-      - name: Set version from tag
+      - name: Patch package.json (name + version from tag)
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
           cd crates/mce-wasm/pkg
           node -e "
             import { readFileSync, writeFileSync } from 'fs';
             const p = JSON.parse(readFileSync('./package.json', 'utf8'));
+            p.name = '@yongsk0066/mce';
             p.version = '$VERSION';
+            p.repository = { type: 'git', url: 'https://github.com/yongsk0066/mce.git' };
+            p.homepage = 'https://github.com/yongsk0066/mce#readme';
             writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
           " --input-type=module
 
