@@ -893,7 +893,7 @@ mod tests {
         let nonzero_recovered: Vec<usize> = recovered
             .iter()
             .enumerate()
-            .filter(|(_, &v)| v.abs() > 0.3)
+            .filter(|&(_, &v)| v.abs() > 0.3)
             .map(|(i, _)| i)
             .collect();
 

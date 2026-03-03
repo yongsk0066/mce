@@ -517,7 +517,7 @@ fn cmd_generate_verb(args: &[String]) {
                 process::exit(1);
             }
         }
-    } else if let (Some(ref ts), Some(ref ps)) = (&tense_str, &person_str) {
+    } else if let (Some(ts), Some(ps)) = (&tense_str, &person_str) {
         let tense = match parse_tense(ts) {
             Some(t) => t,
             None => {
