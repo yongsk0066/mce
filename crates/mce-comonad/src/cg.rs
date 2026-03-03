@@ -22,7 +22,7 @@
 //!     [`SelectIfAttr`], [`RemoveIfAttr`].
 //!   - Multi-context: [`RemoveIfSandwiched`], [`SelectIfSandwiched`].
 //!   - Positional: [`RemoveAtSentenceStart`].
-//! - [`finnish_disambiguation_rules`]: Pre-built Finnish CG rule set (57 rules)
+//! - [`finnish_disambiguation_rules`]: Pre-built Finnish CG rule set (58 rules)
 //!   targeting the top UPOS confusions (ADJ/NOUN, ADV/NOUN, NOUN/PROPN,
 //!   NOUN/VERB, PRON/NOUN, ADP/ADV, VERB/AUX, and more).
 //! - [`apply_cg_rules`]: Applies a sequence of CG rules over a sentence,
@@ -1786,13 +1786,14 @@ pub fn finnish_disambiguation_rules() -> Vec<Box<dyn CgRule>> {
         // -----------------------------------------------------------------
         // R65: At sentence start, remove sukunimi reading.
         // Sentence-initial surnames are unlikely without a preceding
-        // first name.
-        // DISABLED: Testing impact -- might be neutral or slightly helpful.
+        // first name. Re-enabled: safe rule — safe_filter protects
+        // against removing the last reading, and sentence-initial
+        // surnames are extremely rare in Finnish text.
         // REMOVE sukunimi IF (-1 BOS)
         // -----------------------------------------------------------------
-        // Box::new(RemoveAtSentenceStart {
-        //     remove_class: "sukunimi".into(),
-        // }),
+        Box::new(RemoveAtSentenceStart {
+            remove_class: "sukunimi".into(),
+        }),
         // =================================================================
         // PHASE 18: SCONJ patterns
         // Targets: improve SCONJ recall (currently 77.5% recall).
@@ -3274,10 +3275,11 @@ mod tests {
     #[test]
     fn finnish_rules_total() {
         // Verify the rule count.
-        // 81 original - 24 disabled (R3,R5,R8,R9,R10,R13,R14,R15,R16,R17,
-        // R28,R29,R31,R33,R36,R37,R43,R44,R45,R53,R58,R64,R65,R75) = 57 active
+        // 81 original - 23 disabled (R3,R5,R8,R9,R10,R13,R14,R15,R16,R17,
+        // R28,R29,R31,R33,R36,R37,R43,R44,R45,R53,R58,R64,R75) = 58 active
+        // R65 re-enabled: REMOVE sukunimi IF BOS (safe rule)
         let rules = finnish_disambiguation_rules();
-        assert_eq!(rules.len(), 57);
+        assert_eq!(rules.len(), 58);
     }
 
     // -- RemoveIfNotFollowed -----------------------------------------------
@@ -4197,8 +4199,9 @@ mod tests {
     #[test]
     fn finnish_rules_sentence_initial_sukunimi_removed() {
         // Sentence-initial sukunimi.
-        // R65 (RemoveAtSentenceStart sukunimi) is DISABLED.
-        // Both readings survive.
+        // R65 (RemoveAtSentenceStart sukunimi) is ENABLED.
+        // sukunimi reading should be removed at sentence start when
+        // an alternative reading (nimisana) exists.
         let sentence = vec![
             vec![make("sukunimi"), make("nimisana")],
             vec![make("teonsana")],
@@ -4206,8 +4209,8 @@ mod tests {
         let rules = finnish_disambiguation_rules();
         let result = apply_cg_rules(&sentence, &rules);
 
-        // R65 disabled: both readings survive at sentence start.
-        assert_eq!(classes(&result[0]), vec!["nimisana", "sukunimi"]);
+        // R65 enabled: sukunimi removed at sentence start, nimisana survives.
+        assert_eq!(classes(&result[0]), vec!["nimisana"]);
     }
 
     #[test]
