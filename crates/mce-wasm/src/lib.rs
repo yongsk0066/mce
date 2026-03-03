@@ -38,7 +38,7 @@
 
 use wasm_bindgen::prelude::*;
 
-use mce_core::analysis::{Analysis, ATTR_BASEFORM, ATTR_CLASS};
+use mce_core::analysis::{ATTR_BASEFORM, ATTR_CLASS, Analysis};
 use mce_core::compound::{CompoundAnalyzer, CompoundSplit};
 use mce_core::token::TokenType;
 use mce_core::trie::{SuccinctTrie, TrieBuilder};
@@ -46,8 +46,8 @@ use mce_disambig::suffix_tagger::SuffixTagger;
 use mce_disambig::{Disambiguator, ViterbiDisambiguator};
 use mce_fi::hyphenation::FinnishHyphenator;
 use mce_fi::morphology::{Analyzer, FinnishAnalyzer};
-use mce_grammar::finnish::FinnishGrammarChecker;
 use mce_grammar::GrammarChecker;
+use mce_grammar::finnish::FinnishGrammarChecker;
 use mce_tokenizer::next_token;
 
 /// MCE engine instance for browser use.

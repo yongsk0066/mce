@@ -17,8 +17,8 @@
 //! - Candes & Tao (2005), "Decoding by Linear Programming"
 
 use mce_core::analysis::{
-    Analysis, ATTR_BASEFORM, ATTR_CLASS, ATTR_MOOD, ATTR_NUMBER, ATTR_PARTICIPLE, ATTR_PERSON,
-    ATTR_POSSESSIVE, ATTR_SIJAMUOTO, ATTR_STRUCTURE, ATTR_TENSE,
+    ATTR_BASEFORM, ATTR_CLASS, ATTR_MOOD, ATTR_NUMBER, ATTR_PARTICIPLE, ATTR_PERSON,
+    ATTR_POSSESSIVE, ATTR_SIJAMUOTO, ATTR_STRUCTURE, ATTR_TENSE, Analysis,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

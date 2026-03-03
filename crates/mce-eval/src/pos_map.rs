@@ -5,8 +5,8 @@
 //! Dependencies UPOS tags for evaluation.
 
 use mce_core::analysis::{
-    Analysis, ATTR_BASEFORM, ATTR_CLASS, ATTR_PARTICIPLE, ATTR_POSSIBLE_GEOGRAPHICAL_NAME,
-    ATTR_SIJAMUOTO,
+    ATTR_BASEFORM, ATTR_CLASS, ATTR_PARTICIPLE, ATTR_POSSIBLE_GEOGRAPHICAL_NAME, ATTR_SIJAMUOTO,
+    Analysis,
 };
 
 /// Map an MCE Analysis to a UD UPOS tag.

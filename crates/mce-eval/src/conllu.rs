@@ -178,10 +178,12 @@ mod tests {
         // The first "1\tettei" is a bit unusual but we parse it.
         // Real CoNLL-U: the range line comes first, then the sub-tokens.
         // We skip lines containing '-' in ID.
-        assert!(sentences[0]
-            .tokens
-            .iter()
-            .all(|t| !t.form.is_empty() || t.id > 0));
+        assert!(
+            sentences[0]
+                .tokens
+                .iter()
+                .all(|t| !t.form.is_empty() || t.id > 0)
+        );
     }
 
     #[test]

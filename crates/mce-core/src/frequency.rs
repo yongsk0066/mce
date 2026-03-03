@@ -255,7 +255,7 @@ mod tests {
         // "koira" appears 3 times (Koira + Koira + koira, all lowercased)
         assert_eq!(fl.frequency("koira"), 3);
         assert_eq!(fl.frequency("Koira"), 3); // case-insensitive lookup
-                                              // "juoksee" appears 2 times
+        // "juoksee" appears 2 times
         assert_eq!(fl.frequency("juoksee"), 2);
         // "on" appears 1 time
         assert_eq!(fl.frequency("on"), 1);

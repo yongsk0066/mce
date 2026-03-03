@@ -21,12 +21,12 @@
 
 use std::time::Instant;
 
-use mce_core::analysis::{Analysis, ATTR_BASEFORM, ATTR_CLASS, ATTR_SIJAMUOTO};
+use mce_core::analysis::{ATTR_BASEFORM, ATTR_CLASS, ATTR_SIJAMUOTO, Analysis};
 
-use crate::cg::{apply_cg_rules, finnish_disambiguation_rules, CgRule, ReadingSet};
+use crate::cg::{CgRule, ReadingSet, apply_cg_rules, finnish_disambiguation_rules};
 use crate::finnish::{
-    apply_gradation, apply_possessive, apply_vowel_harmony, gradate, harmonize,
-    morphophonological_pipeline, Grade,
+    Grade, apply_gradation, apply_possessive, apply_vowel_harmony, gradate, harmonize,
+    morphophonological_pipeline,
 };
 use crate::zipper::Zipper;
 

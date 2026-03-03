@@ -339,7 +339,7 @@ fn zipper_at<T: Clone>(items: Vec<T>, focus_pos: usize) -> Zipper<T> {
 // Finnish morphophonological arrows for WriterZipper
 // ===========================================================================
 
-use crate::finnish::{apply_gradation, apply_possessive, apply_vowel_harmony, Grade};
+use crate::finnish::{Grade, apply_gradation, apply_possessive, apply_vowel_harmony};
 
 /// Apply consonant gradation as a Writer coKleisli arrow.
 ///

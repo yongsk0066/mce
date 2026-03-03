@@ -544,7 +544,7 @@ mod tests {
         //   "xyz"  -> 3 (3 edits)
         // Sorted by distance, then lexicographic:
         assert_eq!(results[0], b"abc".to_vec()); // distance 0
-                                                 // distance 1 group: "ab" < "abcd" lexicographically
+        // distance 1 group: "ab" < "abcd" lexicographically
         assert_eq!(results[1], b"ab".to_vec());
         assert_eq!(results[2], b"abcd".to_vec());
         // distance 3 group: "axyz" < "xyz" lexicographically

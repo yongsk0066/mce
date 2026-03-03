@@ -38,7 +38,7 @@
 //! pipeline's integration into the production path and handles the most
 //! common regular patterns.
 
-use mce_comonad::finnish::{apply_possessive_to_word, gradate, harmonize, Grade};
+use mce_comonad::finnish::{Grade, apply_possessive_to_word, gradate, harmonize};
 
 // ---------------------------------------------------------------------------
 // Finnish verb feature enums
@@ -2004,15 +2004,21 @@ mod tests {
         assert_eq!(paradigm.len(), 24);
 
         // Spot-check a few
-        assert!(paradigm
-            .iter()
-            .any(|(label, form)| label == "present 1sg" && form == "puhun"));
-        assert!(paradigm
-            .iter()
-            .any(|(label, form)| label == "past 3sg" && form == "puhui"));
-        assert!(paradigm
-            .iter()
-            .any(|(label, form)| label == "neg present 3pl" && form == "eiv\u{00E4}t puhu"));
+        assert!(
+            paradigm
+                .iter()
+                .any(|(label, form)| label == "present 1sg" && form == "puhun")
+        );
+        assert!(
+            paradigm
+                .iter()
+                .any(|(label, form)| label == "past 3sg" && form == "puhui")
+        );
+        assert!(
+            paradigm
+                .iter()
+                .any(|(label, form)| label == "neg present 3pl" && form == "eiv\u{00E4}t puhu")
+        );
     }
 
     #[test]

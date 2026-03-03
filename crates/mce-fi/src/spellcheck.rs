@@ -26,11 +26,11 @@ use mce_core::compound::CompoundAnalyzer;
 use mce_core::frequency::FrequencyList;
 use mce_core::trie::{SuccinctTrie, TrieBuilder};
 use mce_disambig::bigram::BigramModel;
-use mce_fst::unweighted::UnweightedTransducer;
 use mce_fst::VfstError;
+use mce_fst::unweighted::UnweightedTransducer;
+use mce_speller::SpellResult;
 use mce_speller::pipeline::{MorphValidator, SpellChecker, SpellCheckerBuilder};
 use mce_speller::user_dict::UserDictionary;
-use mce_speller::SpellResult;
 
 use crate::morphology::{Analyzer, FinnishAnalyzer};
 
