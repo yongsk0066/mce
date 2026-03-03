@@ -5,8 +5,10 @@
 //!
 //! Run with: cargo bench -p mce-core --bench trie_bench
 
+use std::hint::black_box;
+
 use criterion::{
-    BatchSize, BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main,
+    BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main,
 };
 use mce_core::trie::{SuccinctTrie, TrieBuilder};
 
