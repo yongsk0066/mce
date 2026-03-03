@@ -4,7 +4,7 @@
 //! grammar checking, hyphenation, sentence-level analysis with disambiguation,
 //! suggestion generation, and compound word splitting using the VFST dictionary format.
 //!
-//! 225KB WASM binary, ~9.1MB total deploy (WASM + dictionary + model), <5ms/sentence.
+//! 365KB WASM binary, ~9.2MB total deploy (WASM + dictionary + model), <5ms/sentence.
 //!
 //! # Usage (JavaScript)
 //!
@@ -94,7 +94,7 @@ impl MceEngine {
     ///
     /// The model is a binary MCET file (~5MB) trained offline. When loaded,
     /// `analyze_sentence()` and `disambiguate_sentence()` use it for
-    /// emission scoring, boosting UPOS accuracy from ~83% to ~95%.
+    /// emission scoring, boosting UPOS accuracy from 82.71% to 95.56%.
     ///
     /// # Errors
     ///

@@ -7,19 +7,19 @@
 
 Browser-first Finnish NLP engine -- morphological analysis, POS tagging, spell checking, grammar checking, hyphenation, compound analysis, and morphological generation, all running offline in WebAssembly.
 
-MCE uses a mathematically grounded architecture: a Writer Comonad for morphophonological rules, Constraint Grammar for disambiguation, and a suffix-based statistical tagger -- achieving 95.56% UPOS accuracy in 225KB of WASM with no server required.
+MCE uses a mathematically grounded architecture: a Writer Comonad for morphophonological rules, Constraint Grammar for disambiguation, and a suffix-based statistical tagger -- achieving 95.56% UPOS accuracy in 365KB of WASM with no server required.
 
 ## Why MCE?
 
 MCE occupies an unusual position in the Finnish NLP landscape. To our knowledge, no other system combines all five of these properties:
 
-**Browser-first, no server.** MCE compiles to a 225KB WASM module. The dictionary and model are fetched once from a CDN (~9.1MB, gzip ~2-3MB) and cached in IndexedDB. After first load, everything runs offline with zero network dependency. To our knowledge, no other Finnish NLP tool runs in the browser.
+**Browser-first, no server.** MCE compiles to a 365KB WASM module. The dictionary and model are fetched once from a CDN (~9.2MB, gzip ~2-3MB) and cached in IndexedDB. After first load, everything runs offline with zero network dependency. To our knowledge, no other Finnish NLP tool runs in the browser.
 
 **Mathematical foundation.** Morphophonological rules (consonant gradation, vowel harmony, boundary effects) are expressed as coKleisli arrows over a Writer Comonad with a DeletionSet monoid. To our knowledge, this is the first production NLP system to use comonadic composition for morphophonology, ensuring that rules compose purely without mutation or sentinel characters.
 
-**95.56% UPOS in 9.1MB.** MCE achieves near-neural accuracy through a hybrid pipeline: 62 Constraint Grammar rules prune impossible readings, a suffix-based statistical tagger provides emission scores, and Viterbi decoding selects the optimal POS sequence. Neural systems (TurkuNLP, Trankit) score 2-3pp higher but require 100-1000x more storage and a GPU server.
+**95.56% UPOS in 9.2MB.** MCE achieves near-neural accuracy through a hybrid pipeline: 62 Constraint Grammar rules prune impossible readings, a suffix-based statistical tagger provides emission scores, and Viterbi decoding selects the optimal POS sequence. Neural systems (TurkuNLP, Trankit) score 2-3pp higher but require 100-1000x more storage and a GPU server.
 
-**Complete writer-tools stack.** MCE is not just a POS tagger. A single 9.1MB deployment provides spell checking, spelling suggestions, grammar checking (21 rules), hyphenation, compound word analysis, and morphological generation (11 noun cases, 4 verb conjugation types). To our knowledge, no other tool offers all of these in one package that runs client-side.
+**Complete writer-tools stack.** MCE is not just a POS tagger. A single 9.2MB deployment provides spell checking, spelling suggestions, grammar checking (21 rules), hyphenation, compound word analysis, and morphological generation (11 noun cases, 4 verb conjugation types). To our knowledge, no other tool offers all of these in one package that runs client-side.
 
 **Offline-first, privacy-preserving.** No text ever leaves the user's device. All computation happens locally in the browser or native runtime. This makes MCE suitable for sensitive documents, air-gapped environments, and privacy-conscious applications.
 
@@ -54,7 +54,7 @@ MCE occupies an unusual position in the Finnish NLP landscape. To our knowledge,
 - Fully offline NLP for air-gapped environments (military, healthcare, legal)
 - GDPR-compliant by design -- no cloud dependency, text never leaves the browser
 - TTS preprocessing: correct morphological analysis improves text-to-speech output
-- 9.1MB total footprint fits on IoT, edge, and mobile devices
+- 9.2MB total footprint fits on IoT, edge, and mobile devices
 
 ### Research & NLP Pipelines
 - Morphological annotation of Finnish corpora at 95.56% UPOS accuracy
@@ -73,7 +73,7 @@ MCE occupies an unusual position in the Finnish NLP landscape. To our knowledge,
 - Apply category theory (comonads) to morphophonological rule composition
 - Generate full noun paradigms (11 singular cases) and verb conjugations client-side
 - Analyze Finnish compounds of arbitrary depth (*lentokonesuihkuturbiinimoottori*)
-- Deliver spell check + grammar check + hyphenation + POS tagging in under 9.1MB
+- Deliver spell check + grammar check + hyphenation + POS tagging in under 9.2MB
 
 ## Quick Start
 
@@ -202,8 +202,8 @@ The Rust workspace contains 11 crates:
 | Lemma accuracy | 86.24% |
 | Coverage | 99.64% |
 | Speed | 42,090 tokens/sec (~1.35ms per sentence) |
-| WASM binary | 225KB |
-| Total deploy size | ~9.1MB (WASM + dictionary + model) |
+| WASM binary | 365KB |
+| Total deploy size | ~9.2MB (WASM + dictionary + model) |
 | Deploy size (gzip) | ~2-3MB |
 | CG rules | 62 active (85 total) |
 | Grammar rules | 21 |
@@ -217,7 +217,7 @@ The Rust workspace contains 11 crates:
 | **UPOS** | 95.56% | 83.88% | 97.80% | 98.48% |
 | **Environment** | Browser (WASM) | CLI / HFST | GPU server | GPU server |
 | **Offline** | Yes (fully) | Yes | No | No |
-| **Deploy size** | 9.1MB | ~50MB+ | ~1GB+ | ~1GB+ |
+| **Deploy size** | 9.2MB | ~50MB+ | ~1GB+ | ~1GB+ |
 | **Latency** | 1.35ms/sent | ~10ms | ~100ms+ | ~100ms+ |
 | **Writer tools** | Yes | No | No | No |
 | **Maintained** | Yes | Yes | Deprecated | Yes |

@@ -4,7 +4,7 @@ Browser-first Finnish NLP engine. Runs entirely offline in WebAssembly with no s
 
 ## Target Specs
 
-- Deploy size: ~9.1MB (WASM 225KB + dictionary 3.8MB + model 5.0MB)
+- Deploy size: ~9.2MB (WASM 365KB + dictionary 3.8MB + model 5.0MB)
 - Latency: <5ms per sentence (actual: ~1.35ms)
 - Accuracy: UPOS 95%+ (actual: 95.56%)
 - Environment: WASM browser (fully offline)
@@ -18,8 +18,8 @@ Browser-first Finnish NLP engine. Runs entirely offline in WebAssembly with no s
 | Lemma | 86.24% |
 | Coverage | 99.64% |
 | Speed | 42,090 tokens/sec (~1.35ms/sentence) |
-| WASM binary | 225KB |
-| Deploy (total) | ~9.1MB (gzip: ~2-3MB) |
+| WASM binary | 365KB |
+| Deploy (total) | ~9.2MB (gzip: ~2-3MB) |
 | CG rules | 62 active (85 total), 24 rule types, 23 phases |
 | Grammar rules | 21 (258 tests) |
 | Generation | Nouns: 11 cases, Verbs: 4 conjugation types |

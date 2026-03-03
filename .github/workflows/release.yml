@@ -40,7 +40,7 @@ jobs:
             const p = JSON.parse(readFileSync('./package.json', 'utf8'));
             p.name = '@yongsk0066/mce';
             p.version = '$VERSION';
-            p.description = 'Finnish NLP engine — morphological analysis, spell checking, POS tagging, hyphenation, grammar checking. Browser-first, offline-capable, 225KB WASM.';
+            p.description = 'Finnish NLP engine — morphological analysis, spell checking, POS tagging, hyphenation, grammar checking. Browser-first, offline-capable, 365KB WASM.';
             p.repository = { type: 'git', url: 'https://github.com/yongsk0066/mce.git' };
             p.homepage = 'https://github.com/yongsk0066/mce#readme';
             p.keywords = ['finnish', 'nlp', 'morphology', 'spell-check', 'wasm', 'pos-tagging', 'hyphenation', 'grammar-check', 'webassembly', 'offline'];

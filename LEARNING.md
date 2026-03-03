@@ -426,9 +426,9 @@ Rust and JavaScript. The `#[wasm_bindgen]` attribute marks functions and types f
 export. For complex return types, MCE uses **serde-wasm-bindgen** to serialize Rust
 structs to JS objects.
 
-MCE's WASM binary is **225KB** after optimization. Combined with the FST dictionary
+MCE's WASM binary is **365KB** after optimization. Combined with the FST dictionary
 (3.8MB) and suffix tagger model (5.0MB), the total deployment size is approximately
-**9.1MB** (~2-3MB gzip). The WASM module exposes 22 API methods including
+**9.2MB** (~2-3MB gzip). The WASM module exposes 22 API methods including
 `load_model`, `has_model`, and `analyze_sentence`.
 
 ### Why it matters
@@ -511,8 +511,8 @@ Output: disambiguated analyses (lemma, UPOS, features) per token
 - **UPOS accuracy:** 95.56% (CG + suffix tagger), 82.71% (rule-only)
 - **Lemma accuracy:** 86.24%
 - **Coverage:** 99.64% of tokens receive at least one analysis
-- **WASM binary:** 225KB
-- **Total deployment:** ~9.1MB (WASM 225KB + dictionary 3.8MB + model 5.0MB, gzip ~2-3MB)
+- **WASM binary:** 365KB
+- **Total deployment:** ~9.2MB (WASM 365KB + dictionary 3.8MB + model 5.0MB, gzip ~2-3MB)
 
 ### How to learn
 

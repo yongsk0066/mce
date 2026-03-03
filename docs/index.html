@@ -292,10 +292,10 @@
                 <cds-tag type="blue">Lemma 86.24%</cds-tag>
                 <cds-tag type="teal">Coverage 99.64%</cds-tag>
                 <cds-tag type="purple">42K tok/s</cds-tag>
-                <cds-tag type="cyan">225KB WASM</cds-tag>
+                <cds-tag type="cyan">365KB WASM</cds-tag>
                 <cds-tag type="magenta">1,365 tests</cds-tag>
                 <cds-tag type="warm-gray">11 crates</cds-tag>
-                <cds-tag type="high-contrast">~9.1MB deploy</cds-tag>
+                <cds-tag type="high-contrast">~9.2MB deploy</cds-tag>
                 <a href="https://www.npmjs.com/package/@yongsk0066/mce" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;text-decoration:none;"><img src="https://img.shields.io/npm/v/@yongsk0066/mce?logo=npm&label=npm" alt="npm package" height="20"></a>
               </div>
 
@@ -375,7 +375,7 @@
                   <li><strong>Privacy-first NLP</strong> &mdash; GDPR-compliant by design: text never leaves the browser; works in air-gapped environments</li>
                   <li><strong>Research</strong> &mdash; corpus annotation at 95.56% UPOS, compound decomposition, Writer Comonad for morphophonological theory</li>
                   <li><strong>Developer integration</strong> &mdash; npm package, Rust crate, CLI (11 commands), and WASM API (22 methods)</li>
-                  <li><strong>Only MCE</strong> &mdash; full Finnish NLP in a browser tab with no internet, complete paradigm generation client-side, all in under 9.1MB</li>
+                  <li><strong>Only MCE</strong> &mdash; full Finnish NLP in a browser tab with no internet, complete paradigm generation client-side, all in under 9.2MB</li>
                 </ul>
               </div>
 
@@ -689,7 +689,7 @@ flowchart TD
               </cds-stack>
 
               <footer>
-                Powered by MCE &mdash; Rust compiled to WebAssembly (225KB).
+                Powered by MCE &mdash; Rust compiled to WebAssembly (365KB).
                 UI: <cds-link href="https://carbondesignsystem.com/">Carbon Design System</cds-link>.
               </footer>
             </div>
@@ -714,7 +714,7 @@ flowchart TD
 
                 <div class="api-method">
                   <h3>engine.load_model(data: Uint8Array): void</h3>
-                  <p>Load a suffix tagger model for POS disambiguation. Improves UPOS from 82.71% to 95.56%.</p>
+                  <p>Load a suffix tagger model for POS disambiguation. Improves UPOS from 82.71% to 95.56%. Throws if <code>data</code> is not a valid MCET model.</p>
                 </div>
 
                 <div class="api-method">
@@ -724,7 +724,7 @@ flowchart TD
 
                 <div class="api-method">
                   <h3>engine.load_wordlist(data: Uint8Array): void</h3>
-                  <p>Load a wordlist for trie-based spelling suggestions. Accepts plain text (one word per line) or TSV format (lemma_dict.tsv). When loaded, <code>suggest()</code> uses fast fuzzy trie search instead of edit-distance fallback.</p>
+                  <p>Load a wordlist for trie-based spelling suggestions. Accepts plain text (one word per line) or TSV format (lemma_dict.tsv). When loaded, <code>suggest()</code> uses fast fuzzy trie search instead of edit-distance fallback. Throws if <code>data</code> cannot be parsed as a valid wordlist.</p>
                 </div>
 
                 <div class="api-method">
@@ -761,7 +761,7 @@ flowchart TD
 
                 <div class="api-method">
                   <h3>engine.suggest(word: string, max_edits: number): string</h3>
-                  <p>Generate spelling suggestions using trie-based fuzzy search against a 44K-word dictionary. All candidates are known dictionary forms, ranked by edit distance. Auto-escalates distance if no results (up to 3). Falls back to <code>suggest_with_context()</code> without wordlist. Returns JSON array of up to 10 suggestions.</p>
+                  <p>Generate spelling suggestions using trie-based fuzzy search against a 44K-word dictionary. All candidates are known dictionary forms, ranked by edit distance. Auto-escalates distance if no results (up to 3). Without a wordlist, falls back to <code>suggest_with_context()</code>, which generates candidates via edit-distance and validates them through morphological analysis (candidates are not guaranteed to be dictionary forms). Returns JSON array of up to 10 suggestions.</p>
                 </div>
 
                 <div class="api-method">
@@ -908,8 +908,8 @@ flowchart TD
                   <cds-table-body>
                     <cds-table-row>
                       <cds-table-cell><strong>MCE</strong></cds-table-cell>
-                      <cds-table-cell><strong>~9.1MB</strong></cds-table-cell>
-                      <cds-table-cell>225KB</cds-table-cell>
+                      <cds-table-cell><strong>~9.2MB</strong></cds-table-cell>
+                      <cds-table-cell>365KB</cds-table-cell>
                       <cds-table-cell>Dict 3.8MB + Model 5.0MB (gzip ~2-3MB total)</cds-table-cell>
                       <cds-table-cell>Yes</cds-table-cell>
                     </cds-table-row>
