@@ -151,6 +151,9 @@
     .tile-body { padding: var(--cds-spacing-05); }
     .tile-body cds-code-snippet { margin-bottom: var(--cds-spacing-04); }
     .tile-body cds-textarea { margin-bottom: var(--cds-spacing-04); }
+    .example-tag { cursor: pointer; transition: opacity 0.15s; }
+    .example-tag:hover { opacity: 0.8; }
+    .example-tag[filter] { outline: 2px solid var(--cds-focus); outline-offset: 1px; }
     .input-row { display: flex; gap: var(--cds-spacing-05); align-items: flex-end; }
     .input-row cds-text-input { flex: 1; }
     .input-row cds-button { flex-shrink: 0; }
@@ -521,11 +524,19 @@ flowchart TD
               <cds-tile data-action="spell" data-input="spellInput">
                 <div class="tile-header"><h2 class="cds--type-heading-compact-01">Spell Check</h2><cds-tag type="green">spell_check()</cds-tag></div>
                 <div class="tile-body">
-                  <cds-code-snippet type="single">engine.spell_check('koira')  // true</cds-code-snippet>
+                  <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">Checks whether a word exists in the Finnish morphological dictionary. Returns <code>true</code> for any valid inflected form, compound, or derivation &mdash; not just dictionary headwords.</p>
+                  <div class="example-presets" style="display:flex;gap:var(--cds-spacing-02);flex-wrap:wrap;margin-bottom:var(--cds-spacing-04)">
+                    <cds-tag type="green" class="example-tag" data-value="koira" data-target="spellInput" data-hint="&check; Basic noun &lsquo;dog&rsquo; &mdash; should return true. The simplest positive case.">koira</cds-tag>
+                    <cds-tag type="green" class="example-tag" data-value="rautatieasema" data-target="spellInput" data-hint="&check; Compound word &lsquo;train station&rsquo; (rauta+tie+asema). Tests compound recognition.">rautatieasema</cds-tag>
+                    <cds-tag type="green" class="example-tag" data-value="juoksemassa" data-target="spellInput" data-hint="&check; MA-infinitive inessive of &lsquo;juosta&rsquo; (to run). Tests deep inflection recognition.">juoksemassa</cds-tag>
+                    <cds-tag type="red" class="example-tag" data-value="koirra" data-target="spellInput" data-hint="&cross; Misspelled &mdash; extra &lsquo;r&rsquo;. Should return false. Common OCR/typing error.">koirra</cds-tag>
+                    <cds-tag type="red" class="example-tag" data-value="asdfgh" data-target="spellInput" data-hint="&cross; Not a Finnish word. Should return false. Tests rejection of nonsense input.">asdfgh</cds-tag>
+                  </div>
                   <div class="input-row">
                     <cds-text-input id="spellInput" value="koira" label="Word" placeholder="Finnish word"></cds-text-input>
                     <cds-button disabled size="md">Check</cds-button>
                   </div>
+                  <div class="example-hint" style="margin-top:var(--cds-spacing-03);color:var(--cds-text-helper);font-size:var(--cds-body-compact-01-font-size)"></div>
                   <div class="result"></div>
                 </div>
               </cds-tile>
@@ -534,11 +545,18 @@ flowchart TD
               <cds-tile data-action="analyze" data-input="analyzeInput">
                 <div class="tile-header"><h2 class="cds--type-heading-compact-01">Morphological Analysis</h2><cds-tag type="purple">analyze()</cds-tag></div>
                 <div class="tile-body">
-                  <cds-code-snippet type="single">engine.analyze('kissalla')  // JSON array of analyses</cds-code-snippet>
+                  <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">Returns all possible morphological readings of a word: base form (lemma), word class, case, number, person, and other features. Multiple readings indicate ambiguity.</p>
+                  <div class="example-presets" style="display:flex;gap:var(--cds-spacing-02);flex-wrap:wrap;margin-bottom:var(--cds-spacing-04)">
+                    <cds-tag type="green" class="example-tag" data-value="kissalla" data-target="analyzeInput" data-hint="Adessive case of &lsquo;kissa&rsquo; (cat): &lsquo;on/with the cat&rsquo;. Expect one clean reading with BASEFORM=kissa, SIJAMUOTO=ulkopaikallissija_ade.">kissalla</cds-tag>
+                    <cds-tag type="purple" class="example-tag" data-value="tuli" data-target="analyzeInput" data-hint="Ambiguous: &lsquo;tuli&rsquo; = &lsquo;fire&rsquo; (noun) OR past tense of &lsquo;tulla&rsquo; (to come). Expect 2+ readings &mdash; this is genuine Finnish ambiguity that disambiguation must resolve.">tuli</cds-tag>
+                    <cds-tag type="green" class="example-tag" data-value="rautatieasemalta" data-target="analyzeInput" data-hint="Compound + ablative: &lsquo;from the train station&rsquo;. Tests compound decomposition + case suffix analysis simultaneously.">rautatieasemalta</cds-tag>
+                    <cds-tag type="red" class="example-tag" data-value="xyzzy" data-target="analyzeInput" data-hint="Not a Finnish word &mdash; expect empty analysis array. Shows how MCE handles OOV (out-of-vocabulary) words.">xyzzy</cds-tag>
+                  </div>
                   <div class="input-row">
                     <cds-text-input id="analyzeInput" value="kissalla" label="Word"></cds-text-input>
                     <cds-button disabled size="md">Analyze</cds-button>
                   </div>
+                  <div class="example-hint" style="margin-top:var(--cds-spacing-03);color:var(--cds-text-helper);font-size:var(--cds-body-compact-01-font-size)"></div>
                   <div class="result"></div>
                 </div>
               </cds-tile>
@@ -547,9 +565,16 @@ flowchart TD
               <cds-tile data-action="pos" data-input="posInput">
                 <div class="tile-header"><h2 class="cds--type-heading-compact-01">POS Tagging</h2><cds-tag type="blue">analyze_sentence()</cds-tag></div>
                 <div class="tile-body">
-                  <cds-code-snippet type="single">engine.analyze_sentence('Koira juoksee nopeasti')  // CoNLL-U JSON</cds-code-snippet>
+                  <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">Full pipeline: tokenize &rarr; FST analysis &rarr; CG disambiguation &rarr; suffix tagger &rarr; Viterbi. Returns UD-style POS tags and lemmas. Accuracy: 95.56% UPOS with suffix tagger model.</p>
+                  <div class="example-presets" style="display:flex;gap:var(--cds-spacing-02);flex-wrap:wrap;margin-bottom:var(--cds-spacing-04)">
+                    <cds-tag type="green" class="example-tag" data-value="Koira juoksee nopeasti." data-target="posInput" data-hint="Simple SVO: NOUN + VERB + ADV. The baseline test &mdash; all three tags should be correct.">Simple SVO</cds-tag>
+                    <cds-tag type="purple" class="example-tag" data-value="Tulen huomenna takaisin." data-target="posInput" data-hint="Ambiguous &lsquo;tulen&rsquo;: could be &lsquo;I come&rsquo; (VERB) or genitive of &lsquo;tuli&rsquo;/fire (NOUN). Context should disambiguate to VERB here. Tests CG + tagger interaction.">Ambiguous verb</cds-tag>
+                    <cds-tag type="blue" class="example-tag" data-value="Hän ei ollut koskaan käynyt Suomessa." data-target="posInput" data-hint="Negation chain: PRON + AUX(neg) + AUX(past) + ADV + VERB(ptcp) + PROPN. Tests AUX vs VERB distinction and proper noun recognition.">Negation chain</cds-tag>
+                    <cds-tag type="red" class="example-tag" data-value="Suomalainen ihminen on erityinen." data-target="posInput" data-hint="ADJ/NOUN boundary: &lsquo;suomalainen&rsquo; and &lsquo;erityinen&rsquo; are -inen words that can be ADJ or NOUN. This is MCE&rsquo;s #1 error pattern (ADJ&harr;NOUN confusion). Check if tags are correct.">ADJ/NOUN boundary</cds-tag>
+                  </div>
                   <cds-textarea id="posInput" value="Koira juoksee nopeasti." label="Finnish text"></cds-textarea>
                   <cds-button disabled size="md">Tag POS</cds-button>
+                  <div class="example-hint" style="margin-top:var(--cds-spacing-03);color:var(--cds-text-helper);font-size:var(--cds-body-compact-01-font-size)"></div>
                   <div class="result"></div>
                 </div>
               </cds-tile>
@@ -558,11 +583,18 @@ flowchart TD
               <cds-tile data-action="hyphenate" data-input="hyphenInput">
                 <div class="tile-header"><h2 class="cds--type-heading-compact-01">Hyphenation</h2><cds-tag type="teal">hyphenate()</cds-tag></div>
                 <div class="tile-body">
-                  <cds-code-snippet type="single">engine.hyphenate('suomalainen')  // 'suo-ma-lai-nen'</cds-code-snippet>
+                  <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">Splits a word at valid hyphenation points using syllable rules and compound boundaries. Essential for Finnish typesetting where long compound words are common.</p>
+                  <div class="example-presets" style="display:flex;gap:var(--cds-spacing-02);flex-wrap:wrap;margin-bottom:var(--cds-spacing-04)">
+                    <cds-tag type="green" class="example-tag" data-value="kissanpentu" data-target="hyphenInput" data-hint="Compound &lsquo;kitten&rsquo; (kissan+pentu). Should hyphenate at compound boundary AND syllable boundaries: kis-san-pen-tu.">kissanpentu</cds-tag>
+                    <cds-tag type="green" class="example-tag" data-value="yliopisto" data-target="hyphenInput" data-hint="&lsquo;University&rsquo;. Syllable-based hyphenation: yli-opis-to. Note the compound boundary (yli+opisto) differs from syllable boundaries.">yliopisto</cds-tag>
+                    <cds-tag type="blue" class="example-tag" data-value="lentokonesuihkuturbiinimoottori" data-target="hyphenInput" data-hint="&lsquo;Jet turbine engine&rsquo; &mdash; a famously long Finnish compound. Tests handling of deeply nested compounds: lento+kone+suihku+turbiini+moottori.">Long compound</cds-tag>
+                    <cds-tag type="purple" class="example-tag" data-value="epäjärjestelmällisyys" data-target="hyphenInput" data-hint="&lsquo;Disorderliness&rsquo; &mdash; derived word with multiple prefixes/suffixes: epä+järjestelmä+llisyys. Tests prefix and derivation handling.">Derived word</cds-tag>
+                  </div>
                   <div class="input-row">
                     <cds-text-input id="hyphenInput" value="kissanpentu" label="Word"></cds-text-input>
                     <cds-button disabled size="md">Hyphenate</cds-button>
                   </div>
+                  <div class="example-hint" style="margin-top:var(--cds-spacing-03);color:var(--cds-text-helper);font-size:var(--cds-body-compact-01-font-size)"></div>
                   <div class="result"></div>
                 </div>
               </cds-tile>
@@ -571,9 +603,15 @@ flowchart TD
               <cds-tile data-action="grammar" data-input="grammarInput">
                 <div class="tile-header"><h2 class="cds--type-heading-compact-01">Grammar Check</h2><cds-tag type="red">grammar_check()</cds-tag></div>
                 <div class="tile-body">
-                  <cds-code-snippet type="single">engine.grammar_check('koira koira juoksee.')  // JSON errors</cds-code-snippet>
+                  <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">Detects 21 types of grammar errors including repeated words, missing capitalization, incorrect spacing, and more. Returns error positions, types, and suggested fixes.</p>
+                  <div class="example-presets" style="display:flex;gap:var(--cds-spacing-02);flex-wrap:wrap;margin-bottom:var(--cds-spacing-04)">
+                    <cds-tag type="red" class="example-tag" data-value="koira koira juoksee." data-target="grammarInput" data-hint="Repeated word error. MCE should flag &lsquo;koira koira&rsquo; as a duplicate word sequence.">Repeated word</cds-tag>
+                    <cds-tag type="green" class="example-tag" data-value="Koira juoksee nopeasti puistossa." data-target="grammarInput" data-hint="Grammatically correct sentence. Expect zero errors &mdash; this verifies no false positives on clean input.">Correct sentence</cds-tag>
+                    <cds-tag type="red" class="example-tag" data-value="koira Juoksee nopeasti." data-target="grammarInput" data-hint="Two possible errors: (1) missing capitalization at sentence start, (2) unexpected capitalization on &lsquo;Juoksee&rsquo; mid-sentence.">Capitalization</cds-tag>
+                  </div>
                   <cds-textarea id="grammarInput" value="koira koira juoksee." label="Text"></cds-textarea>
                   <cds-button disabled size="md">Check Grammar</cds-button>
+                  <div class="example-hint" style="margin-top:var(--cds-spacing-03);color:var(--cds-text-helper);font-size:var(--cds-body-compact-01-font-size)"></div>
                   <div class="result"></div>
                 </div>
               </cds-tile>
@@ -582,11 +620,17 @@ flowchart TD
               <cds-tile data-action="suggest" data-input="suggestInput">
                 <div class="tile-header"><h2 class="cds--type-heading-compact-01">Spelling Suggestions</h2><cds-tag type="magenta">suggest()</cds-tag></div>
                 <div class="tile-body">
-                  <cds-code-snippet type="single">engine.suggest('koirra', 1)  // JSON array of suggestions</cds-code-snippet>
+                  <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">Generates correction suggestions ranked by edit distance and word frequency. Each candidate is verified through morphological analysis &mdash; only real Finnish words are suggested.</p>
+                  <div class="example-presets" style="display:flex;gap:var(--cds-spacing-02);flex-wrap:wrap;margin-bottom:var(--cds-spacing-04)">
+                    <cds-tag type="green" class="example-tag" data-value="koirra" data-target="suggestInput" data-hint="Extra consonant: &lsquo;koirra&rsquo; &rarr; &lsquo;koira&rsquo; (dog). The top suggestion should be the correct form. Tests single-edit correction.">koirra</cds-tag>
+                    <cds-tag type="purple" class="example-tag" data-value="Helsigni" data-target="suggestInput" data-hint="Transposed letters in &lsquo;Helsinki&rsquo;. Tests whether proper noun suggestions are supported and transposition handling.">Helsigni</cds-tag>
+                    <cds-tag type="blue" class="example-tag" data-value="ksia" data-target="suggestInput" data-hint="Severely garbled &lsquo;kissa&rsquo; (cat). Two edits needed. May or may not find the correct form &mdash; tests the boundary of suggestion range.">ksia</cds-tag>
+                  </div>
                   <div class="input-row">
                     <cds-text-input id="suggestInput" value="koirra" label="Misspelled word"></cds-text-input>
                     <cds-button disabled size="md">Suggest</cds-button>
                   </div>
+                  <div class="example-hint" style="margin-top:var(--cds-spacing-03);color:var(--cds-text-helper);font-size:var(--cds-body-compact-01-font-size)"></div>
                   <div class="result"></div>
                 </div>
               </cds-tile>
@@ -595,11 +639,18 @@ flowchart TD
               <cds-tile data-action="compound" data-input="compoundInput">
                 <div class="tile-header"><h2 class="cds--type-heading-compact-01">Compound Word Split</h2><cds-tag type="cyan">compound_split()</cds-tag></div>
                 <div class="tile-body">
-                  <cds-code-snippet type="single">engine.compound_split('rautatieasema')  // JSON splits</cds-code-snippet>
+                  <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">Decomposes Finnish compound words into their constituent parts. Finnish freely creates compounds by concatenation, making this essential for understanding word structure.</p>
+                  <div class="example-presets" style="display:flex;gap:var(--cds-spacing-02);flex-wrap:wrap;margin-bottom:var(--cds-spacing-04)">
+                    <cds-tag type="green" class="example-tag" data-value="rautatieasema" data-target="compoundInput" data-hint="Three-part compound: rauta (iron) + tie (road) + asema (station) = train station. The &lsquo;n&rsquo; linking morpheme between rauta and tie may appear.">rautatieasema</cds-tag>
+                    <cds-tag type="blue" class="example-tag" data-value="lentokonesuihkuturbiinimoottori" data-target="compoundInput" data-hint="Five-part compound: lento+kone+suihku+turbiini+moottori. Tests deeply nested compound decomposition.">Jet engine</cds-tag>
+                    <cds-tag type="green" class="example-tag" data-value="kissanpentu" data-target="compoundInput" data-hint="Two-part with linking -n: kissan (cat&rsquo;s) + pentu (puppy/kitten). Tests genitive linking morpheme.">kissanpentu</cds-tag>
+                    <cds-tag type="red" class="example-tag" data-value="koira" data-target="compoundInput" data-hint="Not a compound &mdash; should return the word unchanged or empty splits. Tests that simple words are not falsely decomposed.">koira (simple)</cds-tag>
+                  </div>
                   <div class="input-row">
                     <cds-text-input id="compoundInput" value="rautatieasema" label="Compound word"></cds-text-input>
                     <cds-button disabled size="md">Split</cds-button>
                   </div>
+                  <div class="example-hint" style="margin-top:var(--cds-spacing-03);color:var(--cds-text-helper);font-size:var(--cds-body-compact-01-font-size)"></div>
                   <div class="result"></div>
                 </div>
               </cds-tile>
@@ -608,11 +659,17 @@ flowchart TD
               <cds-tile data-action="paradigm" data-input="paradigmInput">
                 <div class="tile-header"><h2 class="cds--type-heading-compact-01">Paradigm Generation</h2><cds-tag type="warm-gray">generate_paradigm()</cds-tag></div>
                 <div class="tile-body">
-                  <cds-code-snippet type="single">engine.generate_paradigm('koira')  // JSON noun paradigm</cds-code-snippet>
+                  <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">Generates all 11 singular case forms of a Finnish noun. Tests the morphological generation pipeline including consonant gradation and vowel harmony application.</p>
+                  <div class="example-presets" style="display:flex;gap:var(--cds-spacing-02);flex-wrap:wrap;margin-bottom:var(--cds-spacing-04)">
+                    <cds-tag type="green" class="example-tag" data-value="koira" data-target="paradigmInput" data-hint="Regular noun &lsquo;dog&rsquo;. Expect 11 case forms: koira, koiran, koiraa, koirassa, koirasta, koiraan, koiralla, koiralta, koiralle, koirana, koiraksi.">koira</cds-tag>
+                    <cds-tag type="purple" class="example-tag" data-value="kauppa" data-target="paradigmInput" data-hint="Tests consonant gradation: &lsquo;kauppa&rsquo; (shop) &rarr; &lsquo;kaupan&rsquo; (genitive, pp&rarr;p). The Writer Comonad handles this pp/p alternation.">kauppa (gradation)</cds-tag>
+                    <cds-tag type="blue" class="example-tag" data-value="pöytä" data-target="paradigmInput" data-hint="Tests vowel harmony: front-vowel word (&ouml;, &auml;). All suffixes should use front variants: -ss&auml;, -st&auml;, -ll&auml;, etc.">pöytä (harmony)</cds-tag>
+                  </div>
                   <div class="input-row">
                     <cds-text-input id="paradigmInput" value="koira" label="Base form (noun)"></cds-text-input>
                     <cds-button disabled size="md">Generate</cds-button>
                   </div>
+                  <div class="example-hint" style="margin-top:var(--cds-spacing-03);color:var(--cds-text-helper);font-size:var(--cds-body-compact-01-font-size)"></div>
                   <div class="result"></div>
                 </div>
               </cds-tile>
@@ -1411,6 +1468,25 @@ mce/
       if (!val || !actions[action]) return;
       const result = tile.querySelector('.result');
       result.innerHTML = actions[action](val);
+    });
+
+    // Example preset tag clicks
+    demoView.addEventListener('click', (e) => {
+      const tag = e.target.closest('.example-tag');
+      if (!tag) return;
+      const targetId = tag.dataset.target;
+      const value = tag.dataset.value;
+      const hint = tag.dataset.hint;
+      const inputEl = document.getElementById(targetId);
+      if (inputEl) inputEl.value = value;
+      const tile = tag.closest('cds-tile');
+      if (tile) {
+        const hintEl = tile.querySelector('.example-hint');
+        if (hintEl) hintEl.innerHTML = hint || '';
+        // highlight selected tag
+        tile.querySelectorAll('.example-tag').forEach(t => t.removeAttribute('filter'));
+        tag.setAttribute('filter', '');
+      }
     });
 
     // Enter key triggers button
