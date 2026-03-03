@@ -22,7 +22,7 @@
 //!     [`SelectIfAttr`], [`RemoveIfAttr`].
 //!   - Multi-context: [`RemoveIfSandwiched`], [`SelectIfSandwiched`].
 //!   - Positional: [`RemoveAtSentenceStart`].
-//! - [`finnish_disambiguation_rules`]: Pre-built Finnish CG rule set (58 rules)
+//! - [`finnish_disambiguation_rules`]: Pre-built Finnish CG rule set (62 rules)
 //!   targeting the top UPOS confusions (ADJ/NOUN, ADV/NOUN, NOUN/PROPN,
 //!   NOUN/VERB, PRON/NOUN, ADP/ADV, VERB/AUX, and more).
 //! - [`apply_cg_rules`]: Applies a sequence of CG rules over a sentence,
@@ -1990,6 +1990,61 @@ pub fn finnish_disambiguation_rules() -> Vec<Box<dyn CgRule>> {
             remove_class: "seikkasana".into(),
             has_case: "ulkotulento".into(),
         }),
+        // =================================================================
+        // PHASE 24: Targeted UPOS fixes (error-analysis-94.65.md)
+        // =================================================================
+        //
+        // R82: At sentence start, remove etunimi (first name) reading.
+        // Sentence-initial first names without context are unlikely.
+        // Combined with R65 (remove sukunimi IF BOS), this reduces
+        // NOUN->PROPN false positives at sentence start (~5-10 errors).
+        // REMOVE etunimi IF (-1 BOS)
+        // -----------------------------------------------------------------
+        Box::new(RemoveAtSentenceStart {
+            remove_class: "etunimi".into(),
+        }),
+        // -----------------------------------------------------------------
+        // R83: Known postposition baseforms should select suhdesana (ADP).
+        // These baseforms are predominantly postpositions in UD Finnish-TDT.
+        // SELECT suhdesana IF (0 BASEFORM IN {"lisäksi", "vuoksi",
+        //   "puolesta", "keskellä", "kohdalla", "kautta",
+        //   "perusteella", "sijaan"})
+        // -----------------------------------------------------------------
+        Box::new(SelectByCurrentBaseformList {
+            select_class: "suhdesana".into(),
+            baseforms: vec![
+                "lisäksi".into(),
+                "vuoksi".into(),
+                "puolesta".into(),
+                "keskellä".into(),
+                "kohdalla".into(),
+                "kautta".into(),
+                "perusteella".into(),
+                "sijaan".into(),
+            ],
+        }),
+        // -----------------------------------------------------------------
+        // R84: When followed by a noun, prefer nimisana_laatusana reading.
+        // Complements R30 (SELECT laatusana IF +1 nimisana) by also
+        // handling the combined adjective-noun class. This reduces
+        // ADJ->NOUN confusion for -inen words in attributive position.
+        // "suomalainen mies" -- suomalainen should be ADJ (nimisana_laatusana).
+        // SELECT nimisana_laatusana IF (+1 nimisana)
+        // -----------------------------------------------------------------
+        Box::new(SelectIfFollowed {
+            select_class: "nimisana_laatusana".into(),
+            followed_by_class: "nimisana".into(),
+        }),
+        // -----------------------------------------------------------------
+        // R85: Between pronoun and noun, prefer adjective (nimisana_laatusana).
+        // "se suomalainen mies" -- after pronoun and before noun, prefer ADJ.
+        // SELECT nimisana_laatusana IF (-1 asemosana) (1 nimisana)
+        // -----------------------------------------------------------------
+        Box::new(SelectIfSandwiched {
+            select_class: "nimisana_laatusana".into(),
+            preceded_by_class: "asemosana".into(),
+            followed_by_class: "nimisana".into(),
+        }),
     ]
 }
 
@@ -3278,8 +3333,11 @@ mod tests {
         // 81 original - 23 disabled (R3,R5,R8,R9,R10,R13,R14,R15,R16,R17,
         // R28,R29,R31,R33,R36,R37,R43,R44,R45,R53,R58,R64,R75) = 58 active
         // R65 re-enabled: REMOVE sukunimi IF BOS (safe rule)
+        // + R82 (REMOVE etunimi IF BOS) + R83 (SELECT suhdesana by baseform)
+        // + R84 (SELECT nimisana_laatusana IF +1 nimisana)
+        // + R85 (REMOVE nimisana IF -1 asemosana, 0 HAS teonsana) = 62 active
         let rules = finnish_disambiguation_rules();
-        assert_eq!(rules.len(), 58);
+        assert_eq!(rules.len(), 62);
     }
 
     // -- RemoveIfNotFollowed -----------------------------------------------
@@ -4182,9 +4240,8 @@ mod tests {
     #[test]
     fn finnish_rules_sentence_initial_nimisana_over_etunimi() {
         // "Vuonna" -- sentence-initial common noun, not proper noun.
-        // R64 (SelectAtSentenceStart nimisana) is DISABLED because
-        // some sentences genuinely start with proper nouns.
-        // Both readings survive.
+        // R82 (REMOVE etunimi IF BOS) removes etunimi at sentence start.
+        // nimisana survives as the only reading.
         let sentence = vec![
             vec![make("nimisana"), make("etunimi")],
             vec![make("teonsana")],
@@ -4192,8 +4249,8 @@ mod tests {
         let rules = finnish_disambiguation_rules();
         let result = apply_cg_rules(&sentence, &rules);
 
-        // R64 disabled: both readings survive at sentence start.
-        assert_eq!(classes(&result[0]), vec!["etunimi", "nimisana"]);
+        // R82: etunimi removed at sentence start, nimisana survives.
+        assert_eq!(classes(&result[0]), vec!["nimisana"]);
     }
 
     #[test]
