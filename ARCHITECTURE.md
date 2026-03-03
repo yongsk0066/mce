@@ -161,4 +161,4 @@ flowchart LR
   style idb fill:#e8daff,color:#161616,stroke:#8a3ffc
 ```
 
-The browser loads three assets: the WASM module (~100KB gzip), the Finnish dictionary (~1MB gzip), and optionally the suffix tagger model (~1MB gzip). After the first load, the dictionary and model are cached in IndexedDB — subsequent visits require zero network. All computation runs locally; no text ever leaves the device.
+The browser loads three assets: the WASM module (225KB), the Finnish dictionary (3.8MB), and optionally the suffix tagger model (5.0MB) — totaling ~9.1MB (~2-3MB gzip). After the first load, the dictionary and model are cached in IndexedDB — subsequent visits require zero network. All computation runs locally; no text ever leaves the device.

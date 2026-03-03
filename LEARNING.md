@@ -427,9 +427,9 @@ export. For complex return types, MCE uses **serde-wasm-bindgen** to serialize R
 structs to JS objects.
 
 MCE's WASM binary is **225KB** after optimization. Combined with the FST dictionary
-and suffix tagger model, the total deployment size is approximately **9.1MB** (the
-model compresses to 1.03MB with gzip). The WASM module exposes 22 API methods
-including `load_model`, `has_model`, and `analyze_sentence`.
+(3.8MB) and suffix tagger model (5.0MB), the total deployment size is approximately
+**9.1MB** (~2-3MB gzip). The WASM module exposes 22 API methods including
+`load_model`, `has_model`, and `analyze_sentence`.
 
 ### Why it matters
 
@@ -512,7 +512,7 @@ Output: disambiguated analyses (lemma, UPOS, features) per token
 - **Lemma accuracy:** 86.24%
 - **Coverage:** 99.64% of tokens receive at least one analysis
 - **WASM binary:** 225KB
-- **Total deployment:** ~9.1MB (gzip: model 1.03MB)
+- **Total deployment:** ~9.1MB (WASM 225KB + dictionary 3.8MB + model 5.0MB, gzip ~2-3MB)
 
 ### How to learn
 

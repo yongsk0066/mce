@@ -577,10 +577,10 @@ flowchart TD
               <cds-tile data-action="pos" data-input="posInput">
                 <div class="tile-header"><h2 class="cds--type-heading-compact-01">POS Tagging</h2><cds-tag type="blue">analyze_sentence()</cds-tag></div>
                 <div class="tile-body">
-                  <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">Full pipeline: tokenize &rarr; FST analysis &rarr; CG disambiguation &rarr; suffix tagger &rarr; Viterbi. Returns UD-style POS tags and lemmas. Accuracy: 95.56% UPOS with suffix tagger model.</p>
+                  <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">Full pipeline: tokenize &rarr; FST analysis &rarr; CG disambiguation &rarr; suffix tagger &rarr; Viterbi. Returns tokenized analysis with morphological features including word class and base form. Accuracy: 95.56% UPOS with suffix tagger model.</p>
                   <div class="example-presets" style="display:flex;gap:var(--cds-spacing-02);flex-wrap:wrap;margin-bottom:var(--cds-spacing-04)">
                     <cds-tag type="green" class="example-tag" data-value="Koira juoksee nopeasti." data-target="posInput" data-hint="Simple SVO: NOUN + VERB + ADV. The baseline test &mdash; all three tags should be correct.">Simple SVO</cds-tag>
-                    <cds-tag type="purple" class="example-tag" data-value="Tulen huomenna takaisin." data-target="posInput" data-hint="Ambiguous &lsquo;tulen&rsquo;: could be &lsquo;I come&rsquo; (VERB) or genitive of &lsquo;tuli&rsquo;/fire (NOUN). Context should disambiguate to VERB here. Tests CG + tagger interaction.">Ambiguous verb</cds-tag>
+                    <cds-tag type="purple" class="example-tag" data-value="Tulen kotiin huomenna." data-target="posInput" data-hint="Ambiguous &lsquo;tulen&rsquo;: could be &lsquo;I come&rsquo; (VERB) or genitive of &lsquo;tuli&rsquo;/fire (NOUN). Context should disambiguate to VERB here. Tests CG + tagger interaction.">Ambiguous verb</cds-tag>
                     <cds-tag type="blue" class="example-tag" data-value="Hän ei ollut koskaan käynyt Suomessa." data-target="posInput" data-hint="Negation chain: PRON + AUX(neg) + AUX(past) + ADV + VERB(ptcp) + PROPN. Tests AUX vs VERB distinction and proper noun recognition.">Negation chain</cds-tag>
                     <cds-tag type="red" class="example-tag" data-value="Suomalainen ihminen on erityinen." data-target="posInput" data-hint="ADJ/NOUN boundary: &lsquo;suomalainen&rsquo; and &lsquo;erityinen&rsquo; are -inen words that can be ADJ or NOUN. This is MCE&rsquo;s #1 error pattern (ADJ&harr;NOUN confusion). Check if tags are correct.">ADJ/NOUN boundary</cds-tag>
                   </div>
@@ -632,7 +632,7 @@ flowchart TD
               <cds-tile data-action="suggest" data-input="suggestInput">
                 <div class="tile-header"><h2 class="cds--type-heading-compact-01">Spelling Suggestions</h2><cds-tag type="magenta">suggest()</cds-tag></div>
                 <div class="tile-body">
-                  <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">Generates correction suggestions ranked by edit distance and word frequency. Each candidate is verified through morphological analysis &mdash; only real Finnish words are suggested.</p>
+                  <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">Generates correction suggestions ranked by edit distance using trie-based fuzzy search. Each candidate is verified through morphological analysis &mdash; only real Finnish words are suggested.</p>
                   <div class="example-presets" style="display:flex;gap:var(--cds-spacing-02);flex-wrap:wrap;margin-bottom:var(--cds-spacing-04)">
                     <cds-tag type="green" class="example-tag" data-value="koirra" data-target="suggestInput" data-hint="Extra consonant: &lsquo;koirra&rsquo; &rarr; &lsquo;koira&rsquo; (dog). The top suggestion should be the correct form. Tests single-edit correction.">koirra</cds-tag>
                     <cds-tag type="purple" class="example-tag" data-value="Helsigni" data-target="suggestInput" data-hint="Transposed letters in &lsquo;Helsinki&rsquo;. Tests whether proper noun suggestions are supported and transposition handling.">Helsigni</cds-tag>
@@ -807,22 +807,22 @@ flowchart TD
 
                 <div class="api-method">
                   <h3>engine.generate_form(baseform: string, case: string, number: string): string</h3>
-                  <p>Generate a specific inflected form. Case: "nominative", "genitive", "partitive", etc. Number: "singular", "plural".</p>
+                  <p>Generate a specific inflected form. Case: "nominative", "genitive", "partitive", etc. Number parameter is accepted but currently only singular is supported (plural is not yet implemented).</p>
                 </div>
 
                 <div class="api-method">
                   <h3>engine.generate_paradigm(baseform: string): string</h3>
-                  <p>Generate the full noun paradigm (11 cases x 2 numbers). Returns JSON object keyed by case+number.</p>
+                  <p>Generate all 11 singular case forms of a noun. Returns a JSON array of <code>{"case":"...","form":"..."}</code> objects.</p>
                 </div>
 
                 <div class="api-method">
                   <h3>engine.generate_verb_form(baseform: string, tense: string, person: string, polarity: string): string</h3>
-                  <p>Generate a specific verb form. Tense: "present", "past", "conditional", "imperative". Person includes number (e.g., "1sg", "2sg", "3sg", "1pl", "2pl", "3pl"). Polarity: "affirmative" or "negative".</p>
+                  <p>Generate a specific verb form. Tense: "present", "past", or "conditional". Person includes number (e.g., "1sg", "2sg", "3sg", "1pl", "2pl", "3pl"). Polarity: "affirmative" or "negative".</p>
                 </div>
 
                 <div class="api-method">
                   <h3>engine.generate_verb_paradigm(baseform: string): string</h3>
-                  <p>Generate the full verb conjugation paradigm. Returns JSON object keyed by tense+person+number.</p>
+                  <p>Generate the full verb conjugation paradigm. Returns a JSON array of <code>{"label":"...","form":"..."}</code> objects covering present, past, conditional, and negative present tenses.</p>
                 </div>
               </div>
 
@@ -910,7 +910,7 @@ flowchart TD
                       <cds-table-cell><strong>MCE</strong></cds-table-cell>
                       <cds-table-cell><strong>~9.1MB</strong></cds-table-cell>
                       <cds-table-cell>225KB</cds-table-cell>
-                      <cds-table-cell>~8.9MB (gzip: 1.03MB)</cds-table-cell>
+                      <cds-table-cell>Dict 3.8MB + Model 5.0MB (gzip ~2-3MB total)</cds-table-cell>
                       <cds-table-cell>Yes</cds-table-cell>
                     </cds-table-row>
                     <cds-table-row>

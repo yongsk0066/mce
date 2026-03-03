@@ -11,15 +11,15 @@ MCE uses a mathematically grounded architecture: a Writer Comonad for morphophon
 
 ## Why MCE?
 
-MCE occupies a unique position in the Finnish NLP landscape. No other system combines all five of these properties:
+MCE occupies an unusual position in the Finnish NLP landscape. To our knowledge, no other system combines all five of these properties:
 
-**Browser-first, no server.** MCE compiles to a 225KB WASM module. The dictionary and model are fetched once from a CDN (~3-4MB gzip) and cached in IndexedDB. After first load, everything runs offline with zero network dependency. No other Finnish NLP tool runs in the browser.
+**Browser-first, no server.** MCE compiles to a 225KB WASM module. The dictionary and model are fetched once from a CDN (~9.1MB, gzip ~2-3MB) and cached in IndexedDB. After first load, everything runs offline with zero network dependency. To our knowledge, no other Finnish NLP tool runs in the browser.
 
-**Mathematical foundation.** Morphophonological rules (consonant gradation, vowel harmony, boundary effects) are expressed as coKleisli arrows over a Writer Comonad with a DeletionSet monoid. This is the first production NLP system to use comonadic composition for morphophonology, ensuring that rules compose purely without mutation or sentinel characters.
+**Mathematical foundation.** Morphophonological rules (consonant gradation, vowel harmony, boundary effects) are expressed as coKleisli arrows over a Writer Comonad with a DeletionSet monoid. To our knowledge, this is the first production NLP system to use comonadic composition for morphophonology, ensuring that rules compose purely without mutation or sentinel characters.
 
 **95.56% UPOS in 9.1MB.** MCE achieves near-neural accuracy through a hybrid pipeline: 62 Constraint Grammar rules prune impossible readings, a suffix-based statistical tagger provides emission scores, and Viterbi decoding selects the optimal POS sequence. Neural systems (TurkuNLP, Trankit) score 2-3pp higher but require 100-1000x more storage and a GPU server.
 
-**Complete writer-tools stack.** MCE is not just a POS tagger. A single 9.1MB deployment provides spell checking, spelling suggestions, grammar checking (21 rules), hyphenation, compound word analysis, and morphological generation (11 noun cases, 4 verb conjugation types). No competitor offers all of these in one package that runs client-side.
+**Complete writer-tools stack.** MCE is not just a POS tagger. A single 9.1MB deployment provides spell checking, spelling suggestions, grammar checking (21 rules), hyphenation, compound word analysis, and morphological generation (11 noun cases, 4 verb conjugation types). To our knowledge, no other tool offers all of these in one package that runs client-side.
 
 **Offline-first, privacy-preserving.** No text ever leaves the user's device. All computation happens locally in the browser or native runtime. This makes MCE suitable for sensitive documents, air-gapped environments, and privacy-conscious applications.
 
@@ -71,7 +71,7 @@ MCE occupies a unique position in the Finnish NLP landscape. No other system com
 ### What Only MCE Can Do
 - Run a complete Finnish NLP stack in a browser tab with no internet connection
 - Apply category theory (comonads) to morphophonological rule composition
-- Generate full noun paradigms (11 cases x 2 numbers) and verb conjugations client-side
+- Generate full noun paradigms (11 singular cases) and verb conjugations client-side
 - Analyze Finnish compounds of arbitrary depth (*lentokonesuihkuturbiinimoottori*)
 - Deliver spell check + grammar check + hyphenation + POS tagging in under 9.1MB
 
@@ -110,7 +110,7 @@ engine.hyphenate('suomalainen');   // 'suo-ma-lai-nen'
 engine.compound_split('rautatieasema');
 
 // Morphological generation
-engine.generate_form('koira', 'genetiivi', 'singular');
+engine.generate_form('koira', 'genitive', 'singular');
 engine.generate_verb_form('juosta', 'present', '3sg', 'affirmative');
 
 // Load suffix tagger model for higher accuracy (95.56% UPOS)
@@ -204,7 +204,7 @@ The Rust workspace contains 11 crates:
 | Speed | 42,090 tokens/sec (~1.35ms per sentence) |
 | WASM binary | 225KB |
 | Total deploy size | ~9.1MB (WASM + dictionary + model) |
-| Deploy size (gzip) | ~3-4MB |
+| Deploy size (gzip) | ~2-3MB |
 | CG rules | 62 active (85 total) |
 | Grammar rules | 21 |
 | Tests | 1,365 passed |

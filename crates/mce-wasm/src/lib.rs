@@ -4,7 +4,7 @@
 //! grammar checking, hyphenation, sentence-level analysis with disambiguation,
 //! suggestion generation, and compound word splitting using the VFST dictionary format.
 //!
-//! Targets ~7.5MB WASM, <5ms/sentence.
+//! 225KB WASM binary, ~9.1MB total deploy (WASM + dictionary + model), <5ms/sentence.
 //!
 //! # Usage (JavaScript)
 //!
@@ -334,28 +334,23 @@ impl MceEngine {
         }
 
         // If trie is loaded, use it for fast fuzzy suggestion generation.
+        // Auto-escalation: if no results at requested distance, retry once
+        // at distance+1 (capped at 3 to avoid combinatorial explosion).
         if let Some(ref trie) = self.trie {
-            let raw_candidates = trie.fuzzy_search(word.as_bytes(), max_edits as usize);
-
-            let mut results: Vec<String> = raw_candidates
-                .into_iter()
-                .filter_map(|bytes| {
-                    let candidate = String::from_utf8(bytes).ok()?;
-                    // Validate through morphological analyzer.
-                    let c_chars: Vec<char> = candidate.chars().collect();
-                    let c_len = c_chars.len();
-                    if !self.analyzer.analyze(&c_chars, c_len).is_empty() {
-                        Some(candidate)
-                    } else {
-                        // Accept trie words even without morph analysis —
-                        // they are known dictionary forms.
-                        Some(candidate)
-                    }
-                })
-                .collect();
-
-            results.truncate(10);
-            return suggestions_to_json(&results);
+            let start = max_edits as usize;
+            let limit = (start + 1).min(3);
+            for dist in start..=limit {
+                let raw_candidates = trie.fuzzy_search(word.as_bytes(), dist);
+                let mut results: Vec<String> = raw_candidates
+                    .into_iter()
+                    .filter_map(|bytes| String::from_utf8(bytes).ok())
+                    .collect();
+                if !results.is_empty() {
+                    results.truncate(10);
+                    return suggestions_to_json(&results);
+                }
+            }
+            return "[]".to_string();
         }
 
         // Fallback: delegate to context-aware suggestion with no context.

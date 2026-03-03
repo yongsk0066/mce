@@ -19,7 +19,7 @@ Browser-first Finnish NLP engine. Runs entirely offline in WebAssembly with no s
 | Coverage | 99.64% |
 | Speed | 42,090 tokens/sec (~1.35ms/sentence) |
 | WASM binary | 225KB |
-| Deploy (total) | ~9.1MB (gzip: ~3-4MB) |
+| Deploy (total) | ~9.1MB (gzip: ~2-3MB) |
 | CG rules | 62 active (85 total), 24 rule types, 23 phases |
 | Grammar rules | 21 (258 tests) |
 | Generation | Nouns: 11 cases, Verbs: 4 conjugation types |
