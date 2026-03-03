@@ -1,47 +1,101 @@
-# MCE — Morphological Computation Engine
+# MCE -- Morphological Computation Engine
 
-브라우저에서 서버 없이 동작하는 세계 최강 핀란드어 NLP 엔진.
+Browser-first Finnish NLP engine. Runs entirely offline in WebAssembly with no server dependency.
 
-## 목표 스펙
+## Target Specs
 
-- 배포 크기: ~7.5MB
-- 지연: <5ms/문장
-- 정확도: UPOS 95%+
-- 환경: WASM 브라우저 (오프라인)
+- Deploy size: ~9.1MB (WASM 225KB + dictionary 3.8MB + model 5.0MB)
+- Latency: <5ms per sentence (actual: ~1.35ms)
+- Accuracy: UPOS 95%+ (actual: 95.56%)
+- Environment: WASM browser (fully offline)
 
-## 아키텍처: MCE v3 (4기계)
+## Current Metrics
 
-| 기계 | 역할 | 수학적 기반 | Crate |
-|------|------|-----------|-------|
-| M1: Succinct Trie | 사전 검색/맞춤법 | LOUDS 인코딩 | `mce-core` (trie 모듈) |
-| M2': Comonadic Engine | 형태소 분석 + 규칙 적용 | Comonad (extend/extract) | `mce-comonad` |
-| M3: PDT | 복합어 구조 분석 | Pushdown Transducer | `mce-fst` |
-| M4': Weighted Lattice + CS | Disambiguation | Viterbi + Compressed Sensing | `mce-disambig` |
+| Metric | Value |
+|--------|-------|
+| UPOS (CG + Suffix Tagger) | **95.56%** |
+| UPOS (rule-only) | 82.71% |
+| Lemma | 86.24% |
+| Coverage | 99.64% |
+| Speed | 42,090 tokens/sec (~1.35ms/sentence) |
+| WASM binary | 225KB |
+| Deploy (total) | ~9.1MB (gzip: ~3-4MB) |
+| CG rules | 62 active (85 total), 24 rule types, 23 phases |
+| Grammar rules | 21 (258 tests) |
+| Generation | Nouns: 11 cases, Verbs: 4 conjugation types |
+| Tests | 1,365 passed |
+| LOC | ~41,800 Rust |
 
-## Crate 구조
+## Architecture: MCE v3 (4 Machines)
+
+| Machine | Role | Mathematical Basis | Crate |
+|---------|------|--------------------|-------|
+| M1: Succinct Trie | Dictionary lookup / spell checking | LOUDS encoding | `mce-core` (trie module) |
+| M2': Comonadic Engine | Morphological analysis + morphophonological rules | Writer Comonad (extend/extract, DeletionMonoid) | `mce-comonad` |
+| M3: PDT | Compound word structure analysis | Pushdown Transducer | `mce-fst` |
+| M4': Weighted Lattice | POS disambiguation | Viterbi + CG-lite + Suffix Tagger | `mce-disambig` |
+
+### Writer Comonad (M2')
+
+All Finnish morphophonological rules are expressed as pure coKleisli arrows composing over a `Writer Comonad` with a `DeletionMonoid`. This eliminates mutation and sentinel characters from the pipeline.
+
+- 11 consonant gradation patterns as coKleisli arrows
+- Vowel harmony via coKleisli composition
+- Boundary effects handled by `WriterZipper` context
+- Implementation: `mce-comonad/src/writer.rs` (980 LOC)
+- CG-lite rules: `mce-comonad/src/cg.rs` (62 active rules, 24 types, 23 phases)
+
+### Suffix Tagger (M4')
+
+Statistical POS tagger using logistic regression on suffix features. Trained on UD Finnish-TDT treebank.
+
+- Model: 5.0MB binary (MCET format v1)
+- Implementation: `mce-disambig/src/suffix_tagger.rs` (1,480 LOC)
+- Pipeline: CG-lite -> Suffix Tagger -> Viterbi
+- Accuracy boost: 82.71% -> 95.56% (+12.85pp)
+
+## Crate Structure
 
 ```
 crates/
-├── mce-core/       # 공유 타입, 문자 분류, M1 Succinct Trie
-├── mce-fst/        # FST 엔진 (포맷 추상화, VFST 순회)
-├── mce-tokenizer/  # 텍스트 토크나이저
-├── mce-speller/    # 맞춤법/추천 엔진
-├── mce-disambig/   # M4' Disambiguation (Weighted Lattice + CS)
-├── mce-comonad/    # M2' Comonadic 형태음운 엔진
-├── mce-fi/         # Finnish 언어 모듈
-├── mce-wasm/       # WASM 바인딩
-└── mce-cli/        # CLI 도구
+├── mce-core/       # Shared types, character classification, M1 Succinct Trie (LOUDS)
+├── mce-fst/        # FST engine (format abstraction, VFST traversal, flag diacritics)
+├── mce-tokenizer/  # Text tokenizer (words, sentences, URLs, emails)
+├── mce-speller/    # Spell checking and suggestion engine
+├── mce-disambig/   # M4' Disambiguation (Viterbi + CG-lite + Suffix Tagger)
+├── mce-comonad/    # M2' Comonadic morphophonological engine + CG rules
+├── mce-fi/         # Finnish language module (analysis, generation, compounds, hyphenation)
+├── mce-grammar/    # Grammar checking (21 rules)
+├── mce-eval/       # UPOS/Lemma evaluation against UD treebanks
+├── mce-wasm/       # WASM bindings (20 API methods)
+└── mce-cli/        # CLI tools (11 subcommands)
 ```
 
-## 관련 프로젝트
+## Key Files
 
-- **연구 문서**: `~/oss/finnishNLP/mce-research/` (아키텍처, 수학 탐색, 논문 전략)
-- **원본 참조**: `~/oss/corevoikko/libvoikko/rust/` (cherry-pick 원본)
-- **참조 NLP**: `~/oss/finnishNLP/` (Omorfi, Trankit, UralicNLP, TNPP)
+| Purpose | File |
+|---------|------|
+| Writer Comonad | `mce-comonad/src/writer.rs` (980 LOC) |
+| CG-lite rules | `mce-comonad/src/cg.rs` (62 active / 85 total) |
+| Suffix Tagger | `mce-disambig/src/suffix_tagger.rs` (1,480 LOC) |
+| Finnish morphophonology | `mce-comonad/src/finnish.rs` (Writer pipeline default) |
+| Morphological generation | `mce-fi/src/generator.rs` (nouns 11 cases + verbs 4 types) |
+| Grammar rules | `mce-grammar/src/rules/` (21 rules) |
+| POS mapping | `mce-eval/src/pos_map.rs` |
+| Eval pipeline | `mce-eval/src/pipeline.rs` (CG + SuffixTagger + Viterbi) |
+| WASM API | `mce-wasm/src/lib.rs` (20 methods) |
+| Trained model | `data/suffix_tagger.bin` (5.0MB, MCET format v1) |
+| Per-rule benchmarks | `mce-comonad/src/bench.rs` (25 coKleisli + 21 CG) |
 
-## 빌드 및 검증
+## Related Projects
 
-커밋 전 반드시 전체 체인을 실행할 것:
+- **Research documents**: `~/oss/finnishNLP/mce-research/` (architecture, math exploration, paper strategy)
+- **Parent project**: `~/oss/corevoikko/` (Voikko Rust+WASM rewrite)
+- **Reference NLP**: `~/oss/finnishNLP/` (Omorfi, Trankit, UralicNLP, TNPP)
+
+## Build and Verification
+
+Run the full chain before every commit:
 
 ```bash
 cargo fmt --all --check
@@ -50,13 +104,50 @@ cargo clippy --all-features -- -D warnings
 cargo audit
 ```
 
-## cherry-pick 출처
+## WASM API (20 methods)
 
-corevoikko에서 ~25% cherry-pick. 적응 대상:
+```
+MceEngine.load(dict)              # Load dictionary, create engine
+MceEngine.load_model(data)        # Load suffix tagger model
+MceEngine.has_model()             # Check if model is loaded
+MceEngine.analyze(word)           # Single-word morphological analysis
+MceEngine.spell_check(word)       # Spell check
+MceEngine.suggest(word, max)      # Spelling suggestions
+MceEngine.suggest_with_context()  # Context-aware suggestions
+MceEngine.analyze_sentence(text)  # Sentence analysis with disambiguation
+MceEngine.disambiguate_sentence() # POS disambiguation only
+MceEngine.compound_split(word)    # Compound word splitting
+MceEngine.grammar_check(text)     # Grammar checking
+MceEngine.hyphenate(word)         # Single-word hyphenation
+MceEngine.hyphenate_text(text)    # Full-text hyphenation
+MceEngine.get_baseform(word)      # Get base form (lemma)
+MceEngine.is_valid_word(word)     # Dictionary lookup
+MceEngine.generate_form()         # Generate noun case form
+MceEngine.generate_paradigm()     # Full noun paradigm
+MceEngine.generate_verb_form()    # Generate verb conjugation
+MceEngine.generate_verb_paradigm()# Full verb paradigm
+MceEngine.version()               # Engine version string
+```
 
-| MCE crate | corevoikko 원본 | 내용 |
-|-----------|----------------|------|
-| `mce-core` | `voikko-core` | Analysis, Token, Character, Case 타입 |
-| `mce-fst` | `voikko-fst` | FST 순회 알고리즘, flag diacritics |
-| `mce-tokenizer` | `voikko-fi/tokenizer` | URL/email/word/sentence 토크나이저 |
-| `mce-speller` | `voikko-fi/speller+suggestion` | cache, status, SpellResult, Speller trait |
+## Cherry-pick Origins
+
+~25% of code cherry-picked and adapted from corevoikko:
+
+| MCE crate | corevoikko source | Content |
+|-----------|-------------------|---------|
+| `mce-core` | `voikko-core` | Analysis, Token, Character, Case types |
+| `mce-fst` | `voikko-fst` | FST traversal algorithms, flag diacritics |
+| `mce-tokenizer` | `voikko-fi/tokenizer` | URL/email/word/sentence tokenizer |
+| `mce-speller` | `voikko-fi/speller+suggestion` | Cache, status, SpellResult, Speller trait |
+
+## Paper Status
+
+Three papers based on MCE research:
+
+| Paper | Target | Status |
+|-------|--------|--------|
+| Paper-3: Comonadic Morphophonology | SCiL 2026 (deadline 3/12) | Ready to submit |
+| Paper-2: Morphological Fingerprint | SIGMORPHON 2026 | ~85% complete |
+| Paper-5: Comonadic Classification | ACL/EMNLP 2027 | Research phase |
+
+Research documents and paper drafts are in `~/oss/finnishNLP/mce-research/`.

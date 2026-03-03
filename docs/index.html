@@ -1,0 +1,1477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MCE — Morphological Computation Engine</title>
+
+  <!-- Carbon: fonts + theme tokens + grid -->
+  <link rel="stylesheet" href="https://1.www.s81c.com/common/carbon/plex/sans.css">
+  <link rel="stylesheet" href="https://1.www.s81c.com/common/carbon/plex/mono.css">
+  <link rel="stylesheet" href="https://1.www.s81c.com/common/carbon/web-components/tag/latest/themes.css">
+  <link rel="stylesheet" href="https://1.www.s81c.com/common/carbon-for-ibm-dotcom/version/v2.16.0/grid.css">
+
+  <!-- Carbon web components -->
+  <script type="module" src="https://1.www.s81c.com/common/carbon/web-components/tag/latest/ui-shell.min.js"></script>
+  <script type="module" src="https://1.www.s81c.com/common/carbon/web-components/tag/latest/button.min.js"></script>
+  <script type="module" src="https://1.www.s81c.com/common/carbon/web-components/tag/latest/text-input.min.js"></script>
+  <script type="module" src="https://1.www.s81c.com/common/carbon/web-components/tag/latest/textarea.min.js"></script>
+  <script type="module" src="https://1.www.s81c.com/common/carbon/web-components/tag/latest/code-snippet.min.js"></script>
+  <script type="module" src="https://1.www.s81c.com/common/carbon/web-components/tag/latest/tag.min.js"></script>
+  <script type="module" src="https://1.www.s81c.com/common/carbon/web-components/tag/latest/notification.min.js"></script>
+  <script type="module" src="https://1.www.s81c.com/common/carbon/web-components/tag/latest/skeleton-text.min.js"></script>
+  <script type="module" src="https://1.www.s81c.com/common/carbon/web-components/tag/latest/tile.min.js"></script>
+  <script type="module" src="https://1.www.s81c.com/common/carbon/web-components/tag/latest/inline-loading.min.js"></script>
+  <script type="module" src="https://1.www.s81c.com/common/carbon/web-components/tag/latest/link.min.js"></script>
+  <script type="module" src="https://1.www.s81c.com/common/carbon/web-components/tag/latest/stack.min.js"></script>
+  <script type="module" src="https://1.www.s81c.com/common/carbon/web-components/tag/latest/data-table.min.js"></script>
+  <script type="module" src="https://1.www.s81c.com/common/carbon/web-components/tag/latest/breadcrumb.min.js"></script>
+  <script type="module" src="https://1.www.s81c.com/common/carbon/web-components/tag/latest/tabs.min.js"></script>
+
+  <!-- Carbon type utility classes (compiled from @carbon/styles Sass) -->
+  <link rel="stylesheet" href="carbon-type.css">
+
+  <!-- Markdown rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/highlight.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/styles/github.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+
+  <style>
+    *, *::before, *::after { margin: 0; box-sizing: border-box; }
+
+    /* Carbon motion tokens */
+    :root {
+      --cds-duration-moderate-02: 240ms;
+      --cds-ease-entrance: cubic-bezier(0, 0, 0.38, 0.9);
+      --cds-ease-standard: cubic-bezier(0.2, 0, 0.38, 0.9);
+    }
+
+    body {
+      font-family: 'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif;
+      background: var(--cds-background);
+      color: var(--cds-text-primary);
+    }
+
+    /* -- Layout ----------------------------------------- */
+    .shell { margin-top: var(--cds-spacing-09); }
+
+    cds-side-nav {
+      position: fixed;
+      top: var(--cds-spacing-09);
+      left: 0;
+      bottom: 0;
+      width: 16rem;
+      overflow-y: auto;
+      z-index: 100;
+    }
+
+    main {
+      margin-left: 16rem;
+      padding: var(--cds-spacing-07) 0 var(--cds-spacing-10);
+    }
+
+    @media (max-width: 65.99rem) {
+      cds-side-nav { display: none; }
+      cds-side-nav[expanded] { display: block; width: 16rem; }
+      main { margin-left: 0; }
+    }
+
+    /* -- Content fade-in -------------------------------- */
+    .content-enter {
+      animation: contentIn var(--cds-duration-moderate-02) var(--cds-ease-entrance) forwards;
+    }
+    @keyframes contentIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* -- Skeleton --------------------------------------- */
+    .skeleton-block { padding: var(--cds-spacing-07) 0; }
+    .skeleton-block cds-skeleton-text { margin-bottom: var(--cds-spacing-05); }
+
+    /* -- Markdown --------------------------------------- */
+    .markdown h1 {
+      margin-bottom: var(--cds-spacing-05);
+      padding-bottom: var(--cds-spacing-04);
+      border-bottom: 1px solid var(--cds-border-subtle);
+    }
+    .markdown h2 { margin: var(--cds-spacing-07) 0 var(--cds-spacing-04); }
+    .markdown h3 { margin: var(--cds-spacing-06) 0 var(--cds-spacing-03); }
+    .markdown p {
+      color: var(--cds-text-secondary);
+      margin-bottom: var(--cds-spacing-04);
+    }
+    .markdown ul, .markdown ol {
+      margin: var(--cds-spacing-03) 0 var(--cds-spacing-05) var(--cds-spacing-05);
+      color: var(--cds-text-secondary);
+    }
+    .markdown li { margin-bottom: var(--cds-spacing-02); }
+    .markdown li > ul, .markdown li > ol { margin-top: var(--cds-spacing-02); margin-bottom: 0; }
+    .markdown a { color: var(--cds-link-primary); text-decoration: none; }
+    .markdown a:hover { text-decoration: underline; }
+    .markdown strong { color: var(--cds-text-primary); }
+    .markdown code {
+      font-family: var(--cds-code-02-font-family);
+      font-size: var(--cds-code-02-font-size);
+      letter-spacing: var(--cds-code-02-letter-spacing);
+      background: var(--cds-layer-01);
+      padding: var(--cds-spacing-01) var(--cds-spacing-03);
+    }
+    .markdown cds-code-snippet {
+      margin: var(--cds-spacing-04) 0 var(--cds-spacing-05);
+    }
+    .markdown cds-table { margin: var(--cds-spacing-04) 0 var(--cds-spacing-05); }
+    .markdown hr {
+      border: none;
+      border-top: 1px solid var(--cds-border-subtle);
+      margin: var(--cds-spacing-06) 0;
+    }
+    .markdown .mermaid { margin: var(--cds-spacing-05) 0; text-align: center; }
+    .markdown img { max-width: 100%; }
+
+    /* -- Section pages ---------------------------------- */
+    .section-view { display: none; }
+    .section-view.active { display: block; }
+
+    .section-header { margin-bottom: var(--cds-spacing-06); }
+    .section-header h1 { margin-bottom: var(--cds-spacing-02); }
+    .section-header p { color: var(--cds-text-secondary); }
+
+    /* -- Badges ----------------------------------------- */
+    .badge-row { display: flex; flex-wrap: wrap; gap: var(--cds-spacing-03); margin: var(--cds-spacing-05) 0; }
+
+    /* -- Demo ------------------------------------------- */
+    #status-area { margin-bottom: var(--cds-spacing-06); }
+    .tile-header {
+      padding: var(--cds-spacing-04) var(--cds-spacing-05);
+      border-bottom: 1px solid var(--cds-border-subtle);
+      display: flex; align-items: center; gap: var(--cds-spacing-04);
+    }
+    .tile-body { padding: var(--cds-spacing-05); }
+    .tile-body cds-code-snippet { margin-bottom: var(--cds-spacing-04); }
+    .tile-body cds-textarea { margin-bottom: var(--cds-spacing-04); }
+    .input-row { display: flex; gap: var(--cds-spacing-05); align-items: flex-end; }
+    .input-row cds-text-input { flex: 1; }
+    .input-row cds-button { flex-shrink: 0; }
+    .result {
+      margin-top: var(--cds-spacing-04);
+      padding: var(--cds-spacing-04);
+      background: var(--cds-layer-01);
+      border: 1px solid var(--cds-border-subtle);
+      font-family: var(--cds-code-02-font-family);
+      font-size: var(--cds-code-02-font-size);
+      line-height: var(--cds-code-02-line-height);
+      white-space: pre-wrap;
+      word-break: break-word;
+      min-height: var(--cds-spacing-06);
+      color: var(--cds-text-secondary);
+    }
+    .result:empty::before {
+      content: 'Press the button to see results';
+      color: var(--cds-text-placeholder);
+      font-style: italic;
+    }
+    .result .ok { color: var(--cds-support-success); font-weight: 600; }
+    .result .err { color: var(--cds-support-error); font-weight: 600; }
+
+    /* -- API table -------------------------------------- */
+    .api-method {
+      margin-bottom: var(--cds-spacing-05);
+      padding: var(--cds-spacing-04) var(--cds-spacing-05);
+      background: var(--cds-layer-01);
+      border-left: 3px solid var(--cds-border-interactive);
+    }
+    .api-method h3 {
+      font-family: var(--cds-code-02-font-family);
+      font-size: var(--cds-code-02-font-size);
+      margin-bottom: var(--cds-spacing-02);
+    }
+    .api-method p {
+      color: var(--cds-text-secondary);
+      margin: 0;
+    }
+    .api-sig {
+      font-family: var(--cds-code-02-font-family);
+      font-size: var(--cds-code-02-font-size);
+      color: var(--cds-text-secondary);
+      margin-top: var(--cds-spacing-02);
+    }
+
+    /* -- Performance table ------------------------------ */
+    .perf-table { width: 100%; margin: var(--cds-spacing-05) 0; }
+
+    /* -- Shared ----------------------------------------- */
+    .hidden { display: none; }
+    footer {
+      margin-top: var(--cds-spacing-09);
+      padding-top: var(--cds-spacing-05);
+      border-top: 1px solid var(--cds-border-subtle);
+      font-size: var(--cds-code-01-font-size);
+      color: var(--cds-text-helper);
+    }
+    footer cds-link { color: var(--cds-text-secondary); }
+
+    /* -- Mermaid in sections ----------------------------- */
+    .mermaid { margin: var(--cds-spacing-05) 0; text-align: center; }
+    .mermaid svg { max-width: 100%; }
+
+    /* -- Crate description list -------------------------- */
+    .crate-list { list-style: none; padding: 0; margin: var(--cds-spacing-05) 0; }
+    .crate-list li {
+      padding: var(--cds-spacing-03) var(--cds-spacing-04);
+      border-left: 2px solid var(--cds-border-subtle);
+      margin-bottom: var(--cds-spacing-03);
+    }
+    .crate-list li strong {
+      font-family: var(--cds-code-02-font-family);
+      font-size: var(--cds-code-02-font-size);
+    }
+  </style>
+</head>
+<body class="cds-theme-zone-g10">
+
+  <!-- Header -->
+  <cds-header aria-label="MCE">
+    <cds-header-menu-button button-label-active="Close menu" button-label-inactive="Open menu"></cds-header-menu-button>
+    <cds-header-name href="#/overview" prefix="">MCE</cds-header-name>
+    <cds-header-nav>
+      <cds-header-nav-item href="https://github.com/yongsk0066/mce" target="_blank">GitHub</cds-header-nav-item>
+    </cds-header-nav>
+  </cds-header>
+
+  <!-- Side nav -->
+  <cds-side-nav expanded>
+    <cds-side-nav-items>
+      <cds-side-nav-link href="#/overview">Overview</cds-side-nav-link>
+      <cds-side-nav-link href="#/architecture">Architecture</cds-side-nav-link>
+      <cds-side-nav-link href="#/demo">Interactive Demo</cds-side-nav-link>
+      <cds-side-nav-link href="#/api">API Reference</cds-side-nav-link>
+      <cds-side-nav-link href="#/performance">Performance</cds-side-nav-link>
+      <cds-side-nav-link href="#/getting-started">Getting Started</cds-side-nav-link>
+      <cds-side-nav-divider></cds-side-nav-divider>
+      <cds-side-nav-link href="#/doc/README.md">README</cds-side-nav-link>
+      <cds-side-nav-link href="#/doc/LEARNING.md">Learning Guide</cds-side-nav-link>
+      <cds-side-nav-divider></cds-side-nav-divider>
+      <cds-side-nav-menu title="Crates">
+        <cds-side-nav-menu-item href="#/doc/crates/mce-core/CLAUDE.md">mce-core</cds-side-nav-menu-item>
+        <cds-side-nav-menu-item href="#/doc/crates/mce-fst/CLAUDE.md">mce-fst</cds-side-nav-menu-item>
+        <cds-side-nav-menu-item href="#/doc/crates/mce-tokenizer/CLAUDE.md">mce-tokenizer</cds-side-nav-menu-item>
+        <cds-side-nav-menu-item href="#/doc/crates/mce-speller/CLAUDE.md">mce-speller</cds-side-nav-menu-item>
+        <cds-side-nav-menu-item href="#/doc/crates/mce-disambig/CLAUDE.md">mce-disambig</cds-side-nav-menu-item>
+        <cds-side-nav-menu-item href="#/doc/crates/mce-comonad/CLAUDE.md">mce-comonad</cds-side-nav-menu-item>
+        <cds-side-nav-menu-item href="#/doc/crates/mce-fi/CLAUDE.md">mce-fi</cds-side-nav-menu-item>
+        <cds-side-nav-menu-item href="#/doc/crates/mce-grammar/CLAUDE.md">mce-grammar</cds-side-nav-menu-item>
+        <cds-side-nav-menu-item href="#/doc/crates/mce-wasm/CLAUDE.md">mce-wasm</cds-side-nav-menu-item>
+        <cds-side-nav-menu-item href="#/doc/crates/mce-cli/CLAUDE.md">mce-cli</cds-side-nav-menu-item>
+        <cds-side-nav-menu-item href="#/doc/crates/mce-eval/CLAUDE.md">mce-eval</cds-side-nav-menu-item>
+      </cds-side-nav-menu>
+    </cds-side-nav-items>
+  </cds-side-nav>
+
+  <div class="shell">
+    <main>
+      <div class="cds--grid">
+        <div class="cds--row">
+          <div class="cds--col-lg-12 cds--col-md-8 cds--col-sm-4">
+
+            <!-- ============================================== -->
+            <!-- OVERVIEW                                       -->
+            <!-- ============================================== -->
+            <div id="overview-view" class="section-view">
+              <div class="section-header content-enter">
+                <h1 class="cds--type-heading-05">MCE &mdash; Morphological Computation Engine</h1>
+                <p class="cds--type-body-compact-01">Browser-first Finnish NLP engine. Runs entirely in WASM &mdash; no server, no network, no GPU required.</p>
+              </div>
+
+              <div class="badge-row">
+                <cds-tag type="green">UPOS 94.65%</cds-tag>
+                <cds-tag type="blue">Lemma 82.65%</cds-tag>
+                <cds-tag type="teal">Coverage 99.64%</cds-tag>
+                <cds-tag type="purple">42K tok/s</cds-tag>
+                <cds-tag type="cyan">225KB WASM</cds-tag>
+                <cds-tag type="magenta">805 tests</cds-tag>
+                <cds-tag type="warm-gray">11 crates</cds-tag>
+                <cds-tag type="high-contrast">~9.1MB deploy</cds-tag>
+              </div>
+
+              <div class="markdown">
+                <h2 class="cds--type-heading-03">What is MCE?</h2>
+                <p class="cds--type-body-01">MCE (Morphological Computation Engine) is a Rust-native Finnish NLP engine designed for browser deployment via WebAssembly. It provides morphological analysis, spell checking, grammar checking, hyphenation, POS tagging with disambiguation, and morphological generation &mdash; all running client-side with zero server dependencies.</p>
+
+                <h2 class="cds--type-heading-03">Key Features</h2>
+                <ul class="cds--type-body-01">
+                  <li><strong>Complete offline operation</strong> &mdash; WASM + dictionary loaded once, works without network</li>
+                  <li><strong>VFST dictionary format</strong> &mdash; Succinct trie with LOUDS encoding for compact storage</li>
+                  <li><strong>Comonadic architecture</strong> &mdash; Writer comonad for composable morphophonological rules</li>
+                  <li><strong>Viterbi disambiguation</strong> &mdash; Weighted lattice + suffix tagger for 94.65% UPOS accuracy</li>
+                  <li><strong>CG rules</strong> &mdash; 57 active constraint grammar rules for context-sensitive disambiguation</li>
+                  <li><strong>Morphological generation</strong> &mdash; Noun declension (11 cases) + verb conjugation (4 types)</li>
+                  <li><strong>Grammar checking</strong> &mdash; 21 rules for common Finnish writing errors</li>
+                  <li><strong>20 WASM API methods</strong> &mdash; Complete JS/TS API with full TypeScript types</li>
+                </ul>
+
+                <h2 class="cds--type-heading-03">Architecture: MCE v3 (4 Machines)</h2>
+                <cds-table size="sm">
+                  <cds-table-head>
+                    <cds-table-header-row>
+                      <cds-table-header-cell>Machine</cds-table-header-cell>
+                      <cds-table-header-cell>Role</cds-table-header-cell>
+                      <cds-table-header-cell>Math Foundation</cds-table-header-cell>
+                      <cds-table-header-cell>Crate</cds-table-header-cell>
+                    </cds-table-header-row>
+                  </cds-table-head>
+                  <cds-table-body>
+                    <cds-table-row>
+                      <cds-table-cell>M1: Succinct Trie</cds-table-cell>
+                      <cds-table-cell>Dictionary lookup / spell check</cds-table-cell>
+                      <cds-table-cell>LOUDS encoding</cds-table-cell>
+                      <cds-table-cell><code>mce-core</code></cds-table-cell>
+                    </cds-table-row>
+                    <cds-table-row>
+                      <cds-table-cell>M2': Comonadic Engine</cds-table-cell>
+                      <cds-table-cell>Morphological analysis + rule application</cds-table-cell>
+                      <cds-table-cell>Comonad (extend/extract)</cds-table-cell>
+                      <cds-table-cell><code>mce-comonad</code></cds-table-cell>
+                    </cds-table-row>
+                    <cds-table-row>
+                      <cds-table-cell>M3: PDT</cds-table-cell>
+                      <cds-table-cell>Compound word structure</cds-table-cell>
+                      <cds-table-cell>Pushdown Transducer</cds-table-cell>
+                      <cds-table-cell><code>mce-fst</code></cds-table-cell>
+                    </cds-table-row>
+                    <cds-table-row>
+                      <cds-table-cell>M4': Weighted Lattice</cds-table-cell>
+                      <cds-table-cell>Disambiguation</cds-table-cell>
+                      <cds-table-cell>Viterbi + Compressed Sensing</cds-table-cell>
+                      <cds-table-cell><code>mce-disambig</code></cds-table-cell>
+                    </cds-table-row>
+                  </cds-table-body>
+                </cds-table>
+
+                <h2 class="cds--type-heading-03">11 Crates</h2>
+                <ul class="crate-list">
+                  <li><strong>mce-core</strong> &mdash; Shared types, character classification, M1 Succinct Trie</li>
+                  <li><strong>mce-fst</strong> &mdash; FST engine (format abstraction, VFST traversal)</li>
+                  <li><strong>mce-tokenizer</strong> &mdash; Text tokenizer (URL, email, word, sentence detection)</li>
+                  <li><strong>mce-speller</strong> &mdash; Spell checking and suggestion engine</li>
+                  <li><strong>mce-disambig</strong> &mdash; M4' disambiguation (Weighted Lattice + Viterbi + Suffix Tagger)</li>
+                  <li><strong>mce-comonad</strong> &mdash; M2' Comonadic morphophonological engine</li>
+                  <li><strong>mce-fi</strong> &mdash; Finnish language module (analysis, CG rules, generation)</li>
+                  <li><strong>mce-grammar</strong> &mdash; Grammar checker (21 rules)</li>
+                  <li><strong>mce-eval</strong> &mdash; UD evaluation and benchmarking</li>
+                  <li><strong>mce-wasm</strong> &mdash; WebAssembly bindings (20 methods)</li>
+                  <li><strong>mce-cli</strong> &mdash; Command-line interface</li>
+                </ul>
+              </div>
+
+              <footer>
+                MCE &mdash; Morphological Computation Engine.
+                UI: <cds-link href="https://carbondesignsystem.com/">Carbon Design System</cds-link>.
+              </footer>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- ARCHITECTURE                                   -->
+            <!-- ============================================== -->
+            <div id="architecture-view" class="section-view">
+              <div class="section-header">
+                <h1 class="cds--type-heading-05">Architecture</h1>
+                <p class="cds--type-body-compact-01">MCE v3 pipeline and crate dependency graph.</p>
+              </div>
+
+              <div class="markdown">
+                <h2 class="cds--type-heading-03">MCE v3 Pipeline</h2>
+                <p class="cds--type-body-01">Text flows through four machines in sequence: tokenization, FST lookup, comonadic rule application, and Viterbi disambiguation.</p>
+                <div class="mermaid" id="pipeline-diagram">
+flowchart LR
+  Input["Raw Text"] --> T["mce-tokenizer\nSentence + Word"]
+  T --> M1["M1: Succinct Trie\nmce-core\nLOUDS lookup"]
+  M1 --> M3["M3: PDT\nmce-fst\nCompound split"]
+  M3 --> M2["M2': Comonad\nmce-comonad\nRule application"]
+  M2 --> M4["M4': Lattice\nmce-disambig\nViterbi + CG"]
+  M4 --> Out["CoNLL-U / JSON"]
+
+  style Input fill:#0f62fe,color:#fff
+  style Out fill:#198038,color:#fff
+  style M1 fill:#e0e0e0
+  style M2 fill:#e0e0e0
+  style M3 fill:#e0e0e0
+  style M4 fill:#e0e0e0
+  style T fill:#e0e0e0
+                </div>
+
+                <h2 class="cds--type-heading-03">Crate Dependency Graph</h2>
+                <div class="mermaid" id="crate-diagram">
+flowchart TD
+  wasm["mce-wasm\n(WASM bindings)"]
+  cli["mce-cli\n(CLI tool)"]
+  eval["mce-eval\n(Benchmarks)"]
+  fi["mce-fi\n(Finnish module)"]
+  grammar["mce-grammar\n(Grammar checker)"]
+  disambig["mce-disambig\n(Viterbi + CG)"]
+  comonad["mce-comonad\n(Writer comonad)"]
+  speller["mce-speller\n(Spell + Suggest)"]
+  tok["mce-tokenizer\n(Tokenizer)"]
+  fst["mce-fst\n(FST engine)"]
+  core["mce-core\n(Shared types)"]
+
+  wasm --> fi
+  wasm --> disambig
+  wasm --> grammar
+  wasm --> speller
+  cli --> fi
+  cli --> disambig
+  eval --> fi
+  eval --> disambig
+  fi --> fst
+  fi --> core
+  fi --> comonad
+  grammar --> fi
+  grammar --> tok
+  disambig --> fi
+  disambig --> core
+  speller --> fi
+  speller --> core
+  comonad --> core
+  tok --> core
+  fst --> core
+
+  style wasm fill:#0f62fe,color:#fff
+  style cli fill:#0f62fe,color:#fff
+  style core fill:#393939,color:#fff
+                </div>
+
+                <h2 class="cds--type-heading-03">Data Flow Detail</h2>
+                <cds-table size="sm">
+                  <cds-table-head>
+                    <cds-table-header-row>
+                      <cds-table-header-cell>Stage</cds-table-header-cell>
+                      <cds-table-header-cell>Input</cds-table-header-cell>
+                      <cds-table-header-cell>Output</cds-table-header-cell>
+                      <cds-table-header-cell>Crate</cds-table-header-cell>
+                    </cds-table-header-row>
+                  </cds-table-head>
+                  <cds-table-body>
+                    <cds-table-row>
+                      <cds-table-cell>Tokenization</cds-table-cell>
+                      <cds-table-cell>Raw text</cds-table-cell>
+                      <cds-table-cell>Token stream (words, punctuation, URLs)</cds-table-cell>
+                      <cds-table-cell><code>mce-tokenizer</code></cds-table-cell>
+                    </cds-table-row>
+                    <cds-table-row>
+                      <cds-table-cell>FST Lookup</cds-table-cell>
+                      <cds-table-cell>Word token</cds-table-cell>
+                      <cds-table-cell>Set of candidate analyses</cds-table-cell>
+                      <cds-table-cell><code>mce-fst</code></cds-table-cell>
+                    </cds-table-row>
+                    <cds-table-row>
+                      <cds-table-cell>Compound Split</cds-table-cell>
+                      <cds-table-cell>Analysis candidates</cds-table-cell>
+                      <cds-table-cell>Decomposed compound boundaries</cds-table-cell>
+                      <cds-table-cell><code>mce-fst</code></cds-table-cell>
+                    </cds-table-row>
+                    <cds-table-row>
+                      <cds-table-cell>Rule Application</cds-table-cell>
+                      <cds-table-cell>Analysis set + context</cds-table-cell>
+                      <cds-table-cell>Refined analyses (coKleisli composition)</cds-table-cell>
+                      <cds-table-cell><code>mce-comonad</code></cds-table-cell>
+                    </cds-table-row>
+                    <cds-table-row>
+                      <cds-table-cell>Disambiguation</cds-table-cell>
+                      <cds-table-cell>Weighted lattice</cds-table-cell>
+                      <cds-table-cell>Single best analysis per token</cds-table-cell>
+                      <cds-table-cell><code>mce-disambig</code></cds-table-cell>
+                    </cds-table-row>
+                  </cds-table-body>
+                </cds-table>
+              </div>
+
+              <footer>
+                MCE &mdash; Morphological Computation Engine.
+                UI: <cds-link href="https://carbondesignsystem.com/">Carbon Design System</cds-link>.
+              </footer>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- DEMO                                           -->
+            <!-- ============================================== -->
+            <div id="demo-view" class="section-view">
+              <div class="section-header">
+                <h1 class="cds--type-heading-05">Interactive Demo</h1>
+                <p class="cds--type-body-compact-01">Try MCE in the browser. WASM and dictionary loaded from local build &mdash; no server required.</p>
+              </div>
+
+              <div id="status-area">
+                <cds-inline-loading status="active" id="loading-indicator">Loading WASM + Finnish dictionary...</cds-inline-loading>
+              </div>
+
+              <cds-stack gap="5">
+
+              <!-- Spell Check -->
+              <cds-tile data-action="spell" data-input="spellInput">
+                <div class="tile-header"><h2 class="cds--type-heading-compact-01">Spell Check</h2><cds-tag type="green">spell_check()</cds-tag></div>
+                <div class="tile-body">
+                  <cds-code-snippet type="single">engine.spell_check('koira')  // true</cds-code-snippet>
+                  <div class="input-row">
+                    <cds-text-input id="spellInput" value="koira" label="Word" placeholder="Finnish word"></cds-text-input>
+                    <cds-button disabled size="md">Check</cds-button>
+                  </div>
+                  <div class="result"></div>
+                </div>
+              </cds-tile>
+
+              <!-- Morphological Analysis -->
+              <cds-tile data-action="analyze" data-input="analyzeInput">
+                <div class="tile-header"><h2 class="cds--type-heading-compact-01">Morphological Analysis</h2><cds-tag type="purple">analyze()</cds-tag></div>
+                <div class="tile-body">
+                  <cds-code-snippet type="single">engine.analyze('kissalla')  // JSON array of analyses</cds-code-snippet>
+                  <div class="input-row">
+                    <cds-text-input id="analyzeInput" value="kissalla" label="Word"></cds-text-input>
+                    <cds-button disabled size="md">Analyze</cds-button>
+                  </div>
+                  <div class="result"></div>
+                </div>
+              </cds-tile>
+
+              <!-- POS Tagging (Sentence Analysis) -->
+              <cds-tile data-action="pos" data-input="posInput">
+                <div class="tile-header"><h2 class="cds--type-heading-compact-01">POS Tagging</h2><cds-tag type="blue">analyze_sentence()</cds-tag></div>
+                <div class="tile-body">
+                  <cds-code-snippet type="single">engine.analyze_sentence('Koira juoksee nopeasti')  // CoNLL-U JSON</cds-code-snippet>
+                  <cds-textarea id="posInput" value="Koira juoksee nopeasti." label="Finnish text"></cds-textarea>
+                  <cds-button disabled size="md">Tag POS</cds-button>
+                  <div class="result"></div>
+                </div>
+              </cds-tile>
+
+              <!-- Hyphenation -->
+              <cds-tile data-action="hyphenate" data-input="hyphenInput">
+                <div class="tile-header"><h2 class="cds--type-heading-compact-01">Hyphenation</h2><cds-tag type="teal">hyphenate()</cds-tag></div>
+                <div class="tile-body">
+                  <cds-code-snippet type="single">engine.hyphenate('suomalainen')  // 'suo-ma-lai-nen'</cds-code-snippet>
+                  <div class="input-row">
+                    <cds-text-input id="hyphenInput" value="kissanpentu" label="Word"></cds-text-input>
+                    <cds-button disabled size="md">Hyphenate</cds-button>
+                  </div>
+                  <div class="result"></div>
+                </div>
+              </cds-tile>
+
+              <!-- Grammar Check -->
+              <cds-tile data-action="grammar" data-input="grammarInput">
+                <div class="tile-header"><h2 class="cds--type-heading-compact-01">Grammar Check</h2><cds-tag type="red">grammar_check()</cds-tag></div>
+                <div class="tile-body">
+                  <cds-code-snippet type="single">engine.grammar_check('koira koira juoksee.')  // JSON errors</cds-code-snippet>
+                  <cds-textarea id="grammarInput" value="koira koira juoksee." label="Text"></cds-textarea>
+                  <cds-button disabled size="md">Check Grammar</cds-button>
+                  <div class="result"></div>
+                </div>
+              </cds-tile>
+
+              <!-- Suggestions -->
+              <cds-tile data-action="suggest" data-input="suggestInput">
+                <div class="tile-header"><h2 class="cds--type-heading-compact-01">Spelling Suggestions</h2><cds-tag type="magenta">suggest()</cds-tag></div>
+                <div class="tile-body">
+                  <cds-code-snippet type="single">engine.suggest('koirra', 1)  // JSON array of suggestions</cds-code-snippet>
+                  <div class="input-row">
+                    <cds-text-input id="suggestInput" value="koirra" label="Misspelled word"></cds-text-input>
+                    <cds-button disabled size="md">Suggest</cds-button>
+                  </div>
+                  <div class="result"></div>
+                </div>
+              </cds-tile>
+
+              <!-- Compound Split -->
+              <cds-tile data-action="compound" data-input="compoundInput">
+                <div class="tile-header"><h2 class="cds--type-heading-compact-01">Compound Word Split</h2><cds-tag type="cyan">compound_split()</cds-tag></div>
+                <div class="tile-body">
+                  <cds-code-snippet type="single">engine.compound_split('rautatieasema')  // JSON splits</cds-code-snippet>
+                  <div class="input-row">
+                    <cds-text-input id="compoundInput" value="rautatieasema" label="Compound word"></cds-text-input>
+                    <cds-button disabled size="md">Split</cds-button>
+                  </div>
+                  <div class="result"></div>
+                </div>
+              </cds-tile>
+
+              <!-- Generation -->
+              <cds-tile data-action="paradigm" data-input="paradigmInput">
+                <div class="tile-header"><h2 class="cds--type-heading-compact-01">Paradigm Generation</h2><cds-tag type="warm-gray">generate_paradigm()</cds-tag></div>
+                <div class="tile-body">
+                  <cds-code-snippet type="single">engine.generate_paradigm('koira')  // JSON noun paradigm</cds-code-snippet>
+                  <div class="input-row">
+                    <cds-text-input id="paradigmInput" value="koira" label="Base form (noun)"></cds-text-input>
+                    <cds-button disabled size="md">Generate</cds-button>
+                  </div>
+                  <div class="result"></div>
+                </div>
+              </cds-tile>
+
+              </cds-stack>
+
+              <footer>
+                Powered by MCE &mdash; Rust compiled to WebAssembly (225KB).
+                UI: <cds-link href="https://carbondesignsystem.com/">Carbon Design System</cds-link>.
+              </footer>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- API REFERENCE                                  -->
+            <!-- ============================================== -->
+            <div id="api-view" class="section-view">
+              <div class="section-header">
+                <h1 class="cds--type-heading-05">API Reference</h1>
+                <p class="cds--type-body-compact-01">All 20 WASM-exported methods on <code>MceEngine</code>.</p>
+              </div>
+
+              <div class="markdown">
+                <h2 class="cds--type-heading-03">Initialization</h2>
+
+                <div class="api-method">
+                  <h3>MceEngine.load(mor_vfst: Uint8Array): MceEngine</h3>
+                  <p>Create an engine by loading a VFST dictionary binary. Throws on invalid data.</p>
+                  <div class="api-sig">Static constructor. Returns a new MceEngine instance.</div>
+                </div>
+
+                <div class="api-method">
+                  <h3>engine.load_model(data: Uint8Array): void</h3>
+                  <p>Load a suffix tagger model for POS disambiguation. Improves UPOS from 82.71% to 94.65%.</p>
+                </div>
+
+                <div class="api-method">
+                  <h3>engine.has_model(): boolean</h3>
+                  <p>Check whether a suffix tagger model is loaded.</p>
+                </div>
+
+                <div class="api-method">
+                  <h3>MceEngine.version(): string</h3>
+                  <p>Return the MCE version string (e.g., "0.1.0").</p>
+                </div>
+
+                <h2 class="cds--type-heading-03">Single-Word Analysis</h2>
+
+                <div class="api-method">
+                  <h3>engine.analyze(word: string): string</h3>
+                  <p>Morphological analysis of a single word. Returns JSON array of analysis objects with BASEFORM, CLASS, and morphological features.</p>
+                </div>
+
+                <div class="api-method">
+                  <h3>engine.get_baseform(word: string): string</h3>
+                  <p>Get the base form (lemma) of a word. Returns the first available base form or the input word.</p>
+                </div>
+
+                <div class="api-method">
+                  <h3>engine.spell_check(word: string): boolean</h3>
+                  <p>Check if a word is correctly spelled according to the VFST dictionary.</p>
+                </div>
+
+                <div class="api-method">
+                  <h3>engine.is_valid_word(word: string): boolean</h3>
+                  <p>Extended word validation including OOV handling. More permissive than spell_check for proper nouns and abbreviations.</p>
+                </div>
+
+                <div class="api-method">
+                  <h3>engine.suggest(word: string, max_edits: number): string</h3>
+                  <p>Generate spelling suggestions for a misspelled word. Returns JSON array of suggestion strings, ranked by edit distance.</p>
+                </div>
+
+                <div class="api-method">
+                  <h3>engine.suggest_with_context(word: string, prev_word: string, max_edits: number): string</h3>
+                  <p>Context-aware suggestions using the previous word for better ranking.</p>
+                </div>
+
+                <div class="api-method">
+                  <h3>engine.compound_split(word: string): string</h3>
+                  <p>Split a compound word into its components. Returns JSON array of component parts.</p>
+                </div>
+
+                <h2 class="cds--type-heading-03">Sentence-Level Analysis</h2>
+
+                <div class="api-method">
+                  <h3>engine.analyze_sentence(text: string): string</h3>
+                  <p>Full sentence analysis with tokenization, POS tagging, and disambiguation. Returns JSON with CoNLL-U-style token objects.</p>
+                </div>
+
+                <div class="api-method">
+                  <h3>engine.disambiguate_sentence(text: string): string</h3>
+                  <p>Sentence disambiguation returning the best analysis for each token (Viterbi + CG). Returns JSON array of disambiguated tokens.</p>
+                </div>
+
+                <div class="api-method">
+                  <h3>engine.grammar_check(text: string): string</h3>
+                  <p>Check text for grammar errors. Returns JSON array of error objects with position, length, description, and suggestions.</p>
+                </div>
+
+                <h2 class="cds--type-heading-03">Hyphenation</h2>
+
+                <div class="api-method">
+                  <h3>engine.hyphenate(word: string): string</h3>
+                  <p>Hyphenate a single word. Returns the word with hyphens inserted at valid break points.</p>
+                </div>
+
+                <div class="api-method">
+                  <h3>engine.hyphenate_text(text: string): string</h3>
+                  <p>Hyphenate all words in a text, preserving whitespace and punctuation.</p>
+                </div>
+
+                <h2 class="cds--type-heading-03">Morphological Generation</h2>
+
+                <div class="api-method">
+                  <h3>engine.generate_form(baseform: string, case: string, number: string): string</h3>
+                  <p>Generate a specific inflected form. Case: "nominative", "genitive", "partitive", etc. Number: "singular", "plural".</p>
+                </div>
+
+                <div class="api-method">
+                  <h3>engine.generate_paradigm(baseform: string): string</h3>
+                  <p>Generate the full noun paradigm (11 cases x 2 numbers). Returns JSON object keyed by case+number.</p>
+                </div>
+
+                <div class="api-method">
+                  <h3>engine.generate_verb_form(baseform: string, tense: string, person: string, number: string): string</h3>
+                  <p>Generate a specific verb form. Supports 4 tense types, 3 persons, 2 numbers.</p>
+                </div>
+
+                <div class="api-method">
+                  <h3>engine.generate_verb_paradigm(baseform: string): string</h3>
+                  <p>Generate the full verb conjugation paradigm. Returns JSON object keyed by tense+person+number.</p>
+                </div>
+              </div>
+
+              <footer>
+                MCE &mdash; Morphological Computation Engine.
+                UI: <cds-link href="https://carbondesignsystem.com/">Carbon Design System</cds-link>.
+              </footer>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- PERFORMANCE                                    -->
+            <!-- ============================================== -->
+            <div id="performance-view" class="section-view">
+              <div class="section-header">
+                <h1 class="cds--type-heading-05">Performance</h1>
+                <p class="cds--type-body-compact-01">MCE benchmarks on Finnish-TDT compared to existing systems.</p>
+              </div>
+
+              <div class="markdown">
+                <h2 class="cds--type-heading-03">Accuracy (Finnish-TDT)</h2>
+                <cds-table size="sm">
+                  <cds-table-head>
+                    <cds-table-header-row>
+                      <cds-table-header-cell>System</cds-table-header-cell>
+                      <cds-table-header-cell>UPOS</cds-table-header-cell>
+                      <cds-table-header-cell>Lemma</cds-table-header-cell>
+                      <cds-table-header-cell>Coverage</cds-table-header-cell>
+                      <cds-table-header-cell>Environment</cds-table-header-cell>
+                    </cds-table-header-row>
+                  </cds-table-head>
+                  <cds-table-body>
+                    <cds-table-row>
+                      <cds-table-cell><strong>MCE (CG + Suffix)</strong></cds-table-cell>
+                      <cds-table-cell><strong>94.65%</strong></cds-table-cell>
+                      <cds-table-cell>82.65%</cds-table-cell>
+                      <cds-table-cell>99.64%</cds-table-cell>
+                      <cds-table-cell>Browser (WASM)</cds-table-cell>
+                    </cds-table-row>
+                    <cds-table-row>
+                      <cds-table-cell>MCE (rule-only)</cds-table-cell>
+                      <cds-table-cell>82.71%</cds-table-cell>
+                      <cds-table-cell>82.65%</cds-table-cell>
+                      <cds-table-cell>99.64%</cds-table-cell>
+                      <cds-table-cell>Browser (WASM)</cds-table-cell>
+                    </cds-table-row>
+                    <cds-table-row>
+                      <cds-table-cell>TNPP (TurkuNLP)</cds-table-cell>
+                      <cds-table-cell>97.80%</cds-table-cell>
+                      <cds-table-cell>96.13%</cds-table-cell>
+                      <cds-table-cell>~100%</cds-table-cell>
+                      <cds-table-cell>Server (GPU)</cds-table-cell>
+                    </cds-table-row>
+                    <cds-table-row>
+                      <cds-table-cell>Trankit</cds-table-cell>
+                      <cds-table-cell>~96%</cds-table-cell>
+                      <cds-table-cell>~95%</cds-table-cell>
+                      <cds-table-cell>~100%</cds-table-cell>
+                      <cds-table-cell>Server (GPU)</cds-table-cell>
+                    </cds-table-row>
+                    <cds-table-row>
+                      <cds-table-cell>Omorfi (1-best)</cds-table-cell>
+                      <cds-table-cell>83.88%</cds-table-cell>
+                      <cds-table-cell>82.63%</cds-table-cell>
+                      <cds-table-cell>~95%</cds-table-cell>
+                      <cds-table-cell>CLI (HFST)</cds-table-cell>
+                    </cds-table-row>
+                  </cds-table-body>
+                </cds-table>
+
+                <h2 class="cds--type-heading-03">Deployment Size</h2>
+                <cds-table size="sm">
+                  <cds-table-head>
+                    <cds-table-header-row>
+                      <cds-table-header-cell>System</cds-table-header-cell>
+                      <cds-table-header-cell>Total Size</cds-table-header-cell>
+                      <cds-table-header-cell>WASM Binary</cds-table-header-cell>
+                      <cds-table-header-cell>Dictionary / Model</cds-table-header-cell>
+                      <cds-table-header-cell>Offline</cds-table-header-cell>
+                    </cds-table-header-row>
+                  </cds-table-head>
+                  <cds-table-body>
+                    <cds-table-row>
+                      <cds-table-cell><strong>MCE</strong></cds-table-cell>
+                      <cds-table-cell><strong>~9.1MB</strong></cds-table-cell>
+                      <cds-table-cell>225KB</cds-table-cell>
+                      <cds-table-cell>~8.9MB (gzip: 1.03MB)</cds-table-cell>
+                      <cds-table-cell>Yes</cds-table-cell>
+                    </cds-table-row>
+                    <cds-table-row>
+                      <cds-table-cell>Omorfi (HFST)</cds-table-cell>
+                      <cds-table-cell>~50MB</cds-table-cell>
+                      <cds-table-cell>N/A</cds-table-cell>
+                      <cds-table-cell>~50MB FST binary</cds-table-cell>
+                      <cds-table-cell>Yes</cds-table-cell>
+                    </cds-table-row>
+                    <cds-table-row>
+                      <cds-table-cell>TNPP</cds-table-cell>
+                      <cds-table-cell>~1.5GB</cds-table-cell>
+                      <cds-table-cell>N/A</cds-table-cell>
+                      <cds-table-cell>~1.5GB (BERT + models)</cds-table-cell>
+                      <cds-table-cell>No</cds-table-cell>
+                    </cds-table-row>
+                    <cds-table-row>
+                      <cds-table-cell>Trankit</cds-table-cell>
+                      <cds-table-cell>~1.2GB</cds-table-cell>
+                      <cds-table-cell>N/A</cds-table-cell>
+                      <cds-table-cell>~1.2GB (XLM-R + adapters)</cds-table-cell>
+                      <cds-table-cell>No</cds-table-cell>
+                    </cds-table-row>
+                  </cds-table-body>
+                </cds-table>
+
+                <h2 class="cds--type-heading-03">Runtime Performance</h2>
+                <cds-table size="sm">
+                  <cds-table-head>
+                    <cds-table-header-row>
+                      <cds-table-header-cell>Metric</cds-table-header-cell>
+                      <cds-table-header-cell>MCE (WASM)</cds-table-header-cell>
+                      <cds-table-header-cell>Notes</cds-table-header-cell>
+                    </cds-table-header-row>
+                  </cds-table-head>
+                  <cds-table-body>
+                    <cds-table-row>
+                      <cds-table-cell>Throughput</cds-table-cell>
+                      <cds-table-cell><strong>42,000 tok/s</strong></cds-table-cell>
+                      <cds-table-cell>Single-threaded, Chrome V8</cds-table-cell>
+                    </cds-table-row>
+                    <cds-table-row>
+                      <cds-table-cell>Latency per sentence</cds-table-cell>
+                      <cds-table-cell>&lt;5ms</cds-table-cell>
+                      <cds-table-cell>Typical 10-15 token sentence</cds-table-cell>
+                    </cds-table-row>
+                    <cds-table-row>
+                      <cds-table-cell>Dictionary load</cds-table-cell>
+                      <cds-table-cell>~200ms</cds-table-cell>
+                      <cds-table-cell>One-time initialization</cds-table-cell>
+                    </cds-table-row>
+                    <cds-table-row>
+                      <cds-table-cell>Memory usage</cds-table-cell>
+                      <cds-table-cell>~15MB</cds-table-cell>
+                      <cds-table-cell>WASM heap after load</cds-table-cell>
+                    </cds-table-row>
+                  </cds-table-body>
+                </cds-table>
+
+                <h2 class="cds--type-heading-03">Feature Comparison</h2>
+                <cds-table size="sm">
+                  <cds-table-head>
+                    <cds-table-header-row>
+                      <cds-table-header-cell>Feature</cds-table-header-cell>
+                      <cds-table-header-cell>MCE</cds-table-header-cell>
+                      <cds-table-header-cell>Omorfi</cds-table-header-cell>
+                      <cds-table-header-cell>TNPP</cds-table-header-cell>
+                      <cds-table-header-cell>Trankit</cds-table-header-cell>
+                    </cds-table-header-row>
+                  </cds-table-head>
+                  <cds-table-body>
+                    <cds-table-row>
+                      <cds-table-cell>Spell check</cds-table-cell>
+                      <cds-table-cell>Yes</cds-table-cell>
+                      <cds-table-cell>Via HFST</cds-table-cell>
+                      <cds-table-cell>No</cds-table-cell>
+                      <cds-table-cell>No</cds-table-cell>
+                    </cds-table-row>
+                    <cds-table-row>
+                      <cds-table-cell>Suggestions</cds-table-cell>
+                      <cds-table-cell>Yes</cds-table-cell>
+                      <cds-table-cell>Via HFST</cds-table-cell>
+                      <cds-table-cell>No</cds-table-cell>
+                      <cds-table-cell>No</cds-table-cell>
+                    </cds-table-row>
+                    <cds-table-row>
+                      <cds-table-cell>Hyphenation</cds-table-cell>
+                      <cds-table-cell>Yes</cds-table-cell>
+                      <cds-table-cell>Yes</cds-table-cell>
+                      <cds-table-cell>No</cds-table-cell>
+                      <cds-table-cell>No</cds-table-cell>
+                    </cds-table-row>
+                    <cds-table-row>
+                      <cds-table-cell>Grammar check</cds-table-cell>
+                      <cds-table-cell>Yes (21 rules)</cds-table-cell>
+                      <cds-table-cell>Via CG3</cds-table-cell>
+                      <cds-table-cell>No</cds-table-cell>
+                      <cds-table-cell>No</cds-table-cell>
+                    </cds-table-row>
+                    <cds-table-row>
+                      <cds-table-cell>POS tagging</cds-table-cell>
+                      <cds-table-cell>Yes (94.65%)</cds-table-cell>
+                      <cds-table-cell>Yes (83.88%)</cds-table-cell>
+                      <cds-table-cell>Yes (97.80%)</cds-table-cell>
+                      <cds-table-cell>Yes (~96%)</cds-table-cell>
+                    </cds-table-row>
+                    <cds-table-row>
+                      <cds-table-cell>Generation</cds-table-cell>
+                      <cds-table-cell>Yes</cds-table-cell>
+                      <cds-table-cell>Yes</cds-table-cell>
+                      <cds-table-cell>No</cds-table-cell>
+                      <cds-table-cell>No</cds-table-cell>
+                    </cds-table-row>
+                    <cds-table-row>
+                      <cds-table-cell>Browser</cds-table-cell>
+                      <cds-table-cell>Yes (WASM)</cds-table-cell>
+                      <cds-table-cell>No</cds-table-cell>
+                      <cds-table-cell>No</cds-table-cell>
+                      <cds-table-cell>No</cds-table-cell>
+                    </cds-table-row>
+                    <cds-table-row>
+                      <cds-table-cell>Offline</cds-table-cell>
+                      <cds-table-cell>Yes</cds-table-cell>
+                      <cds-table-cell>Yes</cds-table-cell>
+                      <cds-table-cell>No</cds-table-cell>
+                      <cds-table-cell>No</cds-table-cell>
+                    </cds-table-row>
+                    <cds-table-row>
+                      <cds-table-cell>Dep. parsing</cds-table-cell>
+                      <cds-table-cell>No (planned)</cds-table-cell>
+                      <cds-table-cell>No</cds-table-cell>
+                      <cds-table-cell>Yes</cds-table-cell>
+                      <cds-table-cell>Yes</cds-table-cell>
+                    </cds-table-row>
+                  </cds-table-body>
+                </cds-table>
+              </div>
+
+              <footer>
+                MCE &mdash; Morphological Computation Engine.
+                UI: <cds-link href="https://carbondesignsystem.com/">Carbon Design System</cds-link>.
+              </footer>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- GETTING STARTED                                -->
+            <!-- ============================================== -->
+            <div id="getting-started-view" class="section-view">
+              <div class="section-header">
+                <h1 class="cds--type-heading-05">Getting Started</h1>
+                <p class="cds--type-body-compact-01">Build, install, and use MCE.</p>
+              </div>
+
+              <div class="markdown">
+                <h2 class="cds--type-heading-03">Prerequisites</h2>
+                <ul class="cds--type-body-01">
+                  <li>Rust toolchain (stable, 1.75+)</li>
+                  <li><code>wasm-pack</code> for WASM builds</li>
+                  <li>Node.js 18+ (for npm package / docs site)</li>
+                </ul>
+
+                <h2 class="cds--type-heading-03">Build from Source</h2>
+                <cds-code-snippet type="multi">
+# Clone the repository
+git clone https://github.com/yongsk0066/mce.git
+cd mce
+
+# Run all tests
+cargo test --all-features
+
+# Build WASM package
+wasm-pack build crates/mce-wasm --target web --release
+
+# Check code quality
+cargo fmt --all --check
+cargo clippy --all-features -- -D warnings</cds-code-snippet>
+
+                <h2 class="cds--type-heading-03">CLI Usage</h2>
+                <cds-code-snippet type="multi">
+# Build the CLI
+cargo build --release -p mce-cli
+
+# Analyze a word
+./target/release/mce-cli analyze koira
+
+# Spell check
+./target/release/mce-cli spell koirra
+
+# Full sentence analysis
+echo "Koira juoksee nopeasti." | ./target/release/mce-cli analyze-sentence</cds-code-snippet>
+
+                <h2 class="cds--type-heading-03">JavaScript / WASM Usage</h2>
+                <cds-code-snippet type="multi">
+import init, { MceEngine } from './mce_wasm.js';
+
+// Initialize WASM
+await init();
+
+// Load dictionary
+const dictBytes = await fetch('mor.vfst').then(r => r.arrayBuffer());
+const engine = MceEngine.load(new Uint8Array(dictBytes));
+
+// Optional: load suffix tagger model for better POS accuracy
+const modelBytes = await fetch('suffix_tagger.bin').then(r => r.arrayBuffer());
+engine.load_model(new Uint8Array(modelBytes));
+
+// Spell check
+console.log(engine.spell_check('koira'));       // true
+console.log(engine.spell_check('koirra'));      // false
+
+// Morphological analysis
+console.log(engine.analyze('kissalla'));         // JSON array
+
+// Full sentence POS tagging
+console.log(engine.analyze_sentence('Koira juoksee nopeasti.'));
+
+// Suggestions for misspelled words
+console.log(engine.suggest('koirra', 1));        // JSON array
+
+// Hyphenation
+console.log(engine.hyphenate('suomalainen'));    // "suo-ma-lai-nen"
+
+// Grammar checking
+console.log(engine.grammar_check('koira koira juoksee.'));
+
+// Compound word splitting
+console.log(engine.compound_split('rautatieasema'));
+
+// Generate noun paradigm
+console.log(engine.generate_paradigm('koira'));</cds-code-snippet>
+
+                <h2 class="cds--type-heading-03">Project Structure</h2>
+                <cds-code-snippet type="multi">
+mce/
+├── crates/
+│   ├── mce-core/        # Shared types, character classification, M1 Succinct Trie
+│   ├── mce-fst/         # FST engine (VFST format, flag diacritics)
+│   ├── mce-tokenizer/   # Text tokenizer (URL, email, word, sentence)
+│   ├── mce-speller/     # Spell checking and suggestion engine
+│   ├── mce-disambig/    # Viterbi + CG disambiguation
+│   ├── mce-comonad/     # Writer comonad morphophonological engine
+│   ├── mce-fi/          # Finnish language module
+│   ├── mce-grammar/     # Grammar checker (21 rules)
+│   ├── mce-eval/        # UD evaluation and benchmarks
+│   ├── mce-wasm/        # WebAssembly bindings (20 methods)
+│   └── mce-cli/         # Command-line interface
+├── data/                # Dictionary data files
+├── docs/                # This documentation site
+└── Cargo.toml           # Workspace manifest</cds-code-snippet>
+              </div>
+
+              <footer>
+                MCE &mdash; Morphological Computation Engine.
+                UI: <cds-link href="https://carbondesignsystem.com/">Carbon Design System</cds-link>.
+              </footer>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- DOCUMENT VIEW (for markdown files)             -->
+            <!-- ============================================== -->
+            <div id="doc-view" class="section-view">
+              <div id="doc-skeleton" class="skeleton-block">
+                <cds-skeleton-text heading width="45%"></cds-skeleton-text>
+                <cds-skeleton-text paragraph line-count="4" width="90%"></cds-skeleton-text>
+                <cds-skeleton-text heading width="30%"></cds-skeleton-text>
+                <cds-skeleton-text paragraph line-count="6" width="85%"></cds-skeleton-text>
+                <cds-skeleton-text heading width="35%"></cds-skeleton-text>
+                <cds-skeleton-text paragraph line-count="3" width="80%"></cds-skeleton-text>
+              </div>
+              <div id="doc-content" class="markdown hidden"></div>
+              <footer>
+                <span id="doc-source"></span>
+                <cds-link href="https://github.com/yongsk0066/mce" target="_blank">View on GitHub</cds-link>
+              </footer>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script type="module">
+    // -- Config -----------------------------------------------
+    const REPO = 'yongsk0066/mce';
+    const BRANCH = 'main';
+    const RAW_BASE = `https://raw.githubusercontent.com/${REPO}/${BRANCH}`;
+
+    mermaid.initialize({ startOnLoad: false, theme: 'neutral', fontFamily: 'IBM Plex Sans' });
+
+    // -- DOM refs ---------------------------------------------
+    const $ = (s) => document.querySelector(s);
+    const $$ = (s) => document.querySelectorAll(s);
+
+    const views = {
+      overview:          $('#overview-view'),
+      architecture:      $('#architecture-view'),
+      demo:              $('#demo-view'),
+      api:               $('#api-view'),
+      performance:       $('#performance-view'),
+      'getting-started': $('#getting-started-view'),
+      doc:               $('#doc-view'),
+    };
+
+    const docSkeleton = $('#doc-skeleton');
+    const docContent = $('#doc-content');
+    const docSource = $('#doc-source');
+    const sideNav = $('cds-side-nav');
+    const docCache = new Map();
+
+    function show(el) { el.classList.remove('hidden'); el.classList.add('active'); }
+    function hide(el) { el.classList.add('hidden'); el.classList.remove('active'); }
+
+    function escHtml(s) {
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    // -- Router -----------------------------------------------
+    async function route() {
+      const hash = location.hash || '#/overview';
+
+      // Update active nav
+      $$('cds-side-nav-link, cds-side-nav-menu-item').forEach(el => {
+        if (el.getAttribute('href') === hash) el.setAttribute('active', '');
+        else el.removeAttribute('active');
+      });
+
+      if (window.innerWidth < 1056) sideNav.removeAttribute('expanded');
+
+      // Hide all views
+      Object.values(views).forEach(v => { v.classList.remove('active'); v.style.display = 'none'; });
+
+      // Determine which view
+      const path = hash.slice(2); // remove "#/"
+
+      if (path.startsWith('doc/')) {
+        views.doc.style.display = 'block';
+        show(views.doc);
+        await loadDoc(path.slice(4));
+        return;
+      }
+
+      const viewName = path || 'overview';
+      const view = views[viewName];
+      if (view) {
+        view.style.display = 'block';
+        show(view);
+        view.classList.remove('content-enter');
+        void view.offsetWidth;
+        view.classList.add('content-enter');
+
+        // Render mermaid diagrams in the view if needed
+        const mermaidNodes = view.querySelectorAll('.mermaid:not([data-processed])');
+        if (mermaidNodes.length) {
+          try { await mermaid.run({ nodes: mermaidNodes }); }
+          catch (e) { console.warn('mermaid:', e); }
+        }
+
+        window.scrollTo(0, 0);
+        return;
+      }
+
+      location.hash = '#/overview';
+    }
+
+    async function loadDoc(path) {
+      show(docSkeleton);
+      hide(docContent);
+      docContent.classList.remove('content-enter');
+
+      try {
+        let md = docCache.get(path);
+        if (!md) {
+          const res = await fetch(`${RAW_BASE}/${path}`);
+          if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+          md = await res.text();
+          docCache.set(path, md);
+        }
+
+        let html = marked.parse(md);
+
+        // Rewrite relative .md links to SPA routes
+        const base = path.substring(0, path.lastIndexOf('/') + 1);
+        html = html.replace(/href="(?!https?:\/\/|#|mailto:)([^"]*\.md)"/g, (_, p) => {
+          try { return `href="#/doc/${new URL(p, 'file:///' + base).pathname.slice(1)}"`; }
+          catch { return `href="#/doc/${base}${p}"`; }
+        });
+
+        docContent.innerHTML = html;
+
+        // Apply Carbon type classes
+        const typeMap = {
+          H1: 'cds--type-heading-05',
+          H2: 'cds--type-heading-03',
+          H3: 'cds--type-heading-02',
+          P: 'cds--type-body-01',
+          UL: 'cds--type-body-01',
+          OL: 'cds--type-body-01',
+        };
+        for (const [tag, cls] of Object.entries(typeMap)) {
+          docContent.querySelectorAll(`:scope > ${tag}`).forEach(el => el.classList.add(cls));
+        }
+
+        // Replace blockquotes with cds-callout
+        docContent.querySelectorAll('blockquote').forEach(bq => {
+          const callout = document.createElement('cds-callout');
+          callout.setAttribute('kind', 'info');
+          callout.innerHTML = bq.innerHTML;
+          bq.replaceWith(callout);
+        });
+
+        // Extract mermaid blocks before hljs
+        docContent.querySelectorAll('code.language-mermaid').forEach(el => {
+          const pre = el.parentElement;
+          const div = document.createElement('div');
+          div.className = 'mermaid';
+          div.textContent = el.textContent;
+          pre.replaceWith(div);
+        });
+
+        // Replace tables with cds-table
+        docContent.querySelectorAll('table').forEach(table => {
+          const cdsTable = document.createElement('cds-table');
+          cdsTable.setAttribute('size', 'sm');
+          const thead = table.querySelector('thead');
+          const tbody = table.querySelector('tbody');
+          let thtml = '';
+          if (thead) {
+            thtml += '<cds-table-head><cds-table-header-row>';
+            thead.querySelectorAll('th').forEach(th => {
+              thtml += `<cds-table-header-cell>${th.innerHTML}</cds-table-header-cell>`;
+            });
+            thtml += '</cds-table-header-row></cds-table-head>';
+          }
+          if (tbody) {
+            thtml += '<cds-table-body>';
+            tbody.querySelectorAll('tr').forEach(tr => {
+              thtml += '<cds-table-row>';
+              tr.querySelectorAll('td').forEach(td => {
+                thtml += `<cds-table-cell>${td.innerHTML}</cds-table-cell>`;
+              });
+              thtml += '</cds-table-row>';
+            });
+            thtml += '</cds-table-body>';
+          }
+          cdsTable.innerHTML = thtml;
+          table.replaceWith(cdsTable);
+        });
+
+        // Replace code blocks with cds-code-snippet
+        docContent.querySelectorAll('pre code').forEach(block => {
+          const raw = block.textContent;
+          const snippet = document.createElement('cds-code-snippet');
+          snippet.setAttribute('type', 'multi');
+          snippet.setAttribute('copy-text', raw);
+          const langClass = [...block.classList].find(c => c.startsWith('language-'));
+          const lang = langClass?.slice(9);
+          if (lang && lang !== 'plaintext' && hljs.getLanguage(lang)) {
+            snippet.innerHTML = hljs.highlight(raw, { language: lang }).value;
+          } else if (!lang || lang === 'plaintext') {
+            snippet.textContent = raw;
+          } else {
+            snippet.innerHTML = hljs.highlightAuto(raw).value;
+          }
+          block.parentElement.replaceWith(snippet);
+        });
+
+        // Source breadcrumb
+        const segments = path.split('/');
+        let crumbs = '';
+        for (let i = 0; i < segments.length; i++) {
+          const isLast = i === segments.length - 1;
+          const partial = segments.slice(0, i + 1).join('/');
+          if (isLast) {
+            crumbs += `<cds-breadcrumb-item><cds-breadcrumb-link href="https://github.com/${REPO}/blob/${BRANCH}/${partial}" target="_blank" aria-current="page">${escHtml(segments[i])}</cds-breadcrumb-link></cds-breadcrumb-item>`;
+          } else {
+            crumbs += `<cds-breadcrumb-item><cds-breadcrumb-link href="https://github.com/${REPO}/tree/${BRANCH}/${partial}" target="_blank">${escHtml(segments[i])}</cds-breadcrumb-link></cds-breadcrumb-item>`;
+          }
+        }
+        docSource.innerHTML = `<cds-breadcrumb>${crumbs}</cds-breadcrumb>`;
+
+        hide(docSkeleton);
+        show(docContent);
+        docContent.classList.add('content-enter');
+
+        // Render mermaid diagrams
+        const nodes = docContent.querySelectorAll('.mermaid');
+        if (nodes.length) {
+          try { await mermaid.run({ nodes }); }
+          catch (e) { console.warn('mermaid:', e); }
+        }
+
+        window.scrollTo(0, 0);
+      } catch (e) {
+        hide(docSkeleton);
+        show(docContent);
+        docContent.innerHTML = `<p style="color:var(--cds-support-error)">Failed to load <code>${escHtml(path)}</code>: ${escHtml(e.message)}</p>`;
+      }
+    }
+
+    // Hamburger toggle
+    document.addEventListener('cds-header-menu-button-toggled', (e) => {
+      if (e.detail?.active) sideNav.setAttribute('expanded', '');
+      else sideNav.removeAttribute('expanded');
+    });
+
+    // Start router
+    window.addEventListener('hashchange', route);
+    route();
+
+    // -- Demo: MCE WASM (loaded in background) ----------------
+    let engine = null;
+    const demoView = views.demo;
+
+    const actions = {
+      spell(w) {
+        const ok = engine.spell_check(w);
+        return ok
+          ? `<span class="ok">CORRECT</span> "${escHtml(w)}" is correctly spelled`
+          : `<span class="err">MISSPELLED</span> "${escHtml(w)}" is not in dictionary`;
+      },
+      analyze(w) {
+        const a = engine.analyze(w);
+        try {
+          const parsed = JSON.parse(a);
+          return escHtml(JSON.stringify(parsed, null, 2));
+        } catch { return escHtml(a || '(no analysis)'); }
+      },
+      pos(t) {
+        const r = engine.analyze_sentence(t);
+        try {
+          const parsed = JSON.parse(r);
+          return escHtml(JSON.stringify(parsed, null, 2));
+        } catch { return escHtml(r || '(no result)'); }
+      },
+      hyphenate(w) { return escHtml(engine.hyphenate(w)); },
+      grammar(t) {
+        const r = engine.grammar_check(t);
+        try {
+          const parsed = JSON.parse(r);
+          if (Array.isArray(parsed) && parsed.length === 0) return '(no grammar errors found)';
+          return escHtml(JSON.stringify(parsed, null, 2));
+        } catch { return escHtml(r || '(no errors)'); }
+      },
+      suggest(w) {
+        const r = engine.suggest(w, 1);
+        try {
+          const parsed = JSON.parse(r);
+          return escHtml(parsed.length ? parsed.join(', ') : '(no suggestions)');
+        } catch { return escHtml(r || '(no suggestions)'); }
+      },
+      compound(w) {
+        const r = engine.compound_split(w);
+        try {
+          const parsed = JSON.parse(r);
+          return escHtml(JSON.stringify(parsed, null, 2));
+        } catch { return escHtml(r || '(no splits)'); }
+      },
+      paradigm(w) {
+        const r = engine.generate_paradigm(w);
+        try {
+          const parsed = JSON.parse(r);
+          return escHtml(JSON.stringify(parsed, null, 2));
+        } catch { return escHtml(r || '(no paradigm)'); }
+      },
+    };
+
+    // Delegate button clicks
+    demoView.addEventListener('click', (e) => {
+      const btn = e.target.closest('cds-button');
+      if (!btn || btn.hasAttribute('disabled')) return;
+      const tile = btn.closest('cds-tile');
+      if (!tile) return;
+      const action = tile.dataset.action;
+      const inputEl = document.getElementById(tile.dataset.input);
+      const val = (inputEl?.value ?? '').trim();
+      if (!val || !actions[action]) return;
+      const result = tile.querySelector('.result');
+      result.innerHTML = actions[action](val);
+    });
+
+    // Enter key triggers button
+    demoView.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      const btn = e.target.closest('.tile-body')?.querySelector('cds-button');
+      if (btn && !btn.hasAttribute('disabled')) btn.click();
+    });
+
+    // Init MCE WASM
+    const loadingEl = $('#loading-indicator');
+    try {
+      // Try to load from local build first, then from a CDN path
+      const wasmPaths = ['../pkg/mce_wasm.js', './mce_wasm.js'];
+      let wasmModule = null;
+      for (const p of wasmPaths) {
+        try {
+          wasmModule = await import(p);
+          break;
+        } catch { continue; }
+      }
+
+      if (!wasmModule) throw new Error('WASM module not found. Run: wasm-pack build crates/mce-wasm --target web');
+
+      const { default: init, MceEngine } = wasmModule;
+      await init();
+
+      // Try to load dictionary
+      const dictPaths = ['../data/mor.vfst', './mor.vfst'];
+      let dictBytes = null;
+      for (const p of dictPaths) {
+        try {
+          const res = await fetch(p);
+          if (res.ok) { dictBytes = new Uint8Array(await res.arrayBuffer()); break; }
+        } catch { continue; }
+      }
+
+      if (!dictBytes) throw new Error('Dictionary not found. Ensure mor.vfst is accessible.');
+
+      const t0 = performance.now();
+      engine = MceEngine.load(dictBytes);
+
+      // Try to load suffix tagger model
+      const modelPaths = ['../data/suffix_tagger.bin', './suffix_tagger.bin'];
+      for (const p of modelPaths) {
+        try {
+          const res = await fetch(p);
+          if (res.ok) {
+            engine.load_model(new Uint8Array(await res.arrayBuffer()));
+            break;
+          }
+        } catch { continue; }
+      }
+
+      const ms = Math.round(performance.now() - t0);
+      const hasModel = engine.has_model();
+      loadingEl?.setAttribute('status', 'finished');
+      setTimeout(() => {
+        $('#status-area').innerHTML =
+          `<cds-inline-notification kind="success" title="Ready" subtitle="Loaded in ${ms}ms${hasModel ? ' (with suffix tagger)' : ' (rule-only mode)'}" hide-close-button low-contrast></cds-inline-notification>`;
+      }, 600);
+      demoView.querySelectorAll('cds-button[disabled]').forEach(b => b.removeAttribute('disabled'));
+    } catch (e) {
+      loadingEl?.setAttribute('status', 'error');
+      setTimeout(() => {
+        $('#status-area').innerHTML =
+          `<cds-inline-notification kind="warning" title="Demo unavailable" subtitle="${escHtml(e.message)}" hide-close-button low-contrast></cds-inline-notification>`;
+      }, 600);
+    }
+  </script>
+
+</body>
+</html>

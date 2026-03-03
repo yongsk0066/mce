@@ -1,0 +1,16 @@
+{
+  "name": "mce-docs",
+  "version": "1.0.0",
+  "description": "MCE documentation site — Carbon Design System",
+  "scripts": {
+    "build:css": "sass carbon-type.scss carbon-type.css"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "Apache-2.0",
+  "type": "commonjs",
+  "devDependencies": {
+    "@carbon/styles": "^1.100.0",
+    "sass": "^1.97.3"
+  }
+}
