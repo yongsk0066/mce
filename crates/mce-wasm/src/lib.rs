@@ -1219,7 +1219,7 @@ mod tests {
     #[test]
     fn version_returns_crate_version() {
         let v = MceEngine::version();
-        assert_eq!(v, "0.1.0");
+        assert_eq!(v, env!("CARGO_PKG_VERSION"));
     }
 
     // -----------------------------------------------------------------------
