@@ -17,6 +17,45 @@ MCE uses a mathematically grounded architecture: a Writer Comonad for morphophon
 - **Sentence-level disambiguation** via Viterbi + Constraint Grammar + Suffix Tagger
 - **Writer Comonad** pipeline for morphophonological rules (consonant gradation, vowel harmony)
 
+## Use Cases
+
+### Browser-Based Writing Tools
+- In-browser Finnish spell checker with no server -- data never leaves the device
+- Grammar checker extension for web editors (Google Docs, Notion, CMS platforms)
+- Real-time hyphenation engine for responsive Finnish typography
+- Offline-capable PWA for Finnish writers working without internet
+
+### Education & Language Learning
+- Interactive morphology explorer showing all 11 noun cases for any Finnish word
+- Verb conjugation trainer that generates paradigms and quizzes learners
+- Reading assistant: hover over any word to see its lemma, POS tag, and case
+- L2 Finnish error correction with explanations of grammar mistakes
+
+### Accessibility & Privacy
+- Fully offline NLP for air-gapped environments (military, healthcare, legal)
+- GDPR-compliant by design -- no cloud dependency, text never leaves the browser
+- TTS preprocessing: correct morphological analysis improves text-to-speech output
+- 9.1MB total footprint fits on IoT, edge, and mobile devices
+
+### Research & NLP Pipelines
+- Morphological annotation of Finnish corpora at 95.56% UPOS accuracy
+- Lemmatization for information retrieval and search indexing
+- Compound word decomposition for machine translation preprocessing
+- Writer Comonad as a research tool for studying morphophonological theory
+
+### Developer Integration
+- npm package (`@yongsk0066/mce`) -- drop-in for any JS/TS project
+- Rust crate -- native speed for server-side batch processing
+- CLI with 11 subcommands for scripting and automation
+- WASM API with 20 methods covering the full NLP pipeline
+
+### What Only MCE Can Do
+- Run a complete Finnish NLP stack in a browser tab with no internet connection
+- Apply category theory (comonads) to morphophonological rule composition
+- Generate full noun paradigms (11 cases x 2 numbers) and verb conjugations client-side
+- Analyze Finnish compounds of arbitrary depth (*lentokonesuihkuturbiinimoottori*)
+- Deliver spell check + grammar check + hyphenation + POS tagging in under 9.1MB
+
 ## Quick Start
 
 ### npm (Browser / Node.js)
