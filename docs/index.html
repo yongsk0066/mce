@@ -249,7 +249,7 @@
       <cds-side-nav-link href="#/overview">Overview</cds-side-nav-link>
       <cds-side-nav-link href="#/getting-started">Getting Started</cds-side-nav-link>
       <cds-side-nav-link href="#/demo">Interactive Demo</cds-side-nav-link>
-      <cds-side-nav-link href="#/architecture">Architecture</cds-side-nav-link>
+      <cds-side-nav-link href="#/doc/ARCHITECTURE.md">Architecture</cds-side-nav-link>
       <cds-side-nav-link href="#/api">API Reference</cds-side-nav-link>
       <cds-side-nav-link href="#/performance">Performance</cds-side-nav-link>
       <cds-side-nav-divider></cds-side-nav-divider>
@@ -1235,6 +1235,12 @@ mce/
 
       // Determine which view
       const path = hash.slice(2); // remove "#/"
+
+      // Architecture links directly to the markdown doc
+      if (path === 'architecture') {
+        location.hash = '#/doc/ARCHITECTURE.md';
+        return;
+      }
 
       if (path.startsWith('doc/')) {
         views.doc.style.display = 'block';
