@@ -26,11 +26,12 @@ from sklearn.feature_extraction import DictVectorizer
 # Paths
 # ──────────────────────────────────────────────────────────────────────
 
-UD_DIR = Path.home() / "oss/finnishNLP/ud-finnish-tdt"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+UD_DIR = PROJECT_ROOT / "vendor" / "ud-finnish-tdt"
 TRAIN_FILE = UD_DIR / "fi_tdt-ud-train.conllu"
 DEV_FILE = UD_DIR / "fi_tdt-ud-dev.conllu"
 TEST_FILE = UD_DIR / "fi_tdt-ud-test.conllu"
-MODEL_DIR = Path.home() / "oss/finnishNLP/mce/data"
+MODEL_DIR = PROJECT_ROOT / "data"
 MODEL_FILE = MODEL_DIR / "suffix_tagger.bin"
 
 # ──────────────────────────────────────────────────────────────────────

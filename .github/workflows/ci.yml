@@ -31,14 +31,4 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
-      - name: Install wasm-pack
-        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
-      - name: Build WASM
-        run: wasm-pack build --target web --out-dir pkg crates/mce-wasm
-      - name: Check WASM size
-        run: |
-          SIZE=$(wc -c < crates/mce-wasm/pkg/mce_wasm_bg.wasm)
-          echo "WASM binary size: $SIZE bytes"
-          if [ "$SIZE" -gt 400000 ]; then
-            echo "::warning::WASM binary exceeds 400KB"
-          fi
+      - uses: ./.github/actions/check-wasm-size

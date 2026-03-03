@@ -1,0 +1,94 @@
+name: Performance
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  accuracy:
+    runs-on: ubuntu-latest
+    outputs:
+      upos: ${{ steps.eval.outputs.upos }}
+      lemma: ${{ steps.eval.outputs.lemma }}
+      coverage: ${{ steps.eval.outputs.coverage }}
+      speed: ${{ steps.eval.outputs.speed }}
+      total-tokens: ${{ steps.eval.outputs.total-tokens }}
+      passed: ${{ steps.eval.outputs.passed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: ./.github/actions/bench-accuracy
+        id: eval
+        with:
+          dict-path: data
+          conllu-path: vendor/ud-finnish-tdt/fi_tdt-ud-dev.conllu
+          model-path: data/suffix_tagger.bin
+          lemma-dict-path: data/lemma_dict.tsv
+          upos-threshold: '94.0'
+          lemma-threshold: '85.0'
+
+  trie-bench:
+    runs-on: ubuntu-latest
+    outputs:
+      results: ${{ steps.bench.outputs.results }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: ./.github/actions/bench-trie
+        id: bench
+
+  wasm-size:
+    runs-on: ubuntu-latest
+    outputs:
+      size: ${{ steps.wasm.outputs.size }}
+      size-kb: ${{ steps.wasm.outputs.size-kb }}
+      passed: ${{ steps.wasm.outputs.passed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: ./.github/actions/check-wasm-size
+        id: wasm
+
+  report:
+    if: github.event_name == 'pull_request'
+    needs: [accuracy, trie-bench, wasm-size]
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: mce-perf-report
+          message: |
+            ## MCE Performance Report
+
+            | Metric | Value | Threshold | Status |
+            |--------|-------|-----------|--------|
+            | UPOS Accuracy | **${{ needs.accuracy.outputs.upos }}%** | >= 94.0% | ${{ needs.accuracy.outputs.passed == 'true' && '✅' || '❌' }} |
+            | Lemma Accuracy | **${{ needs.accuracy.outputs.lemma }}%** | >= 85.0% | ${{ needs.accuracy.outputs.passed == 'true' && '✅' || '❌' }} |
+            | Coverage | ${{ needs.accuracy.outputs.coverage }}% | — | ℹ️ |
+            | Speed | ${{ needs.accuracy.outputs.speed }} tok/s | — | ℹ️ |
+            | WASM Size | **${{ needs.wasm-size.outputs.size-kb }}KB** | < 390KB | ${{ needs.wasm-size.outputs.passed == 'true' && '✅' || '❌' }} |
+            | Tokens Evaluated | ${{ needs.accuracy.outputs.total-tokens }} | — | ℹ️ |
+
+            <details><summary>Trie Benchmark (criterion)</summary>
+
+            ```
+            ${{ needs.trie-bench.outputs.results }}
+            ```
+
+            </details>
+
+            ---
+            *Evaluated on UD Finnish-TDT v2.17 dev set*
