@@ -61,19 +61,20 @@ export class MceEngine {
      * Analyze a sentence with tokenization and disambiguation.
      *
      * Pipeline:
-     * 1. Tokenize the text into word tokens (using MCE tokenizer)
+     * 1. Tokenize the text into all tokens (words, punctuation, etc.)
      * 2. Analyze each word with FinnishAnalyzer
-     * 3. Disambiguate using ViterbiDisambiguator (POS bigram model)
-     * 4. Return JSON array of `[{word, analysis}]`
+     * 3. Disambiguate word tokens using ViterbiDisambiguator (POS bigram model)
+     * 4. Return JSON array including all non-whitespace tokens
      *
-     * Non-word tokens (whitespace, punctuation) are skipped in the analysis
-     * but preserved in the output with a `null` analysis field.
+     * Word tokens get full analysis; punctuation tokens get `"type":"punctuation"`
+     * with `null` analysis, matching CoNLL-U conventions.
      *
      * Example output:
      * ```json
      * [
-     *   {"word":"Koira","analysis":{"CLASS":"nimisana","BASEFORM":"koira"}},
-     *   {"word":"juoksee","analysis":{"CLASS":"teonsana","BASEFORM":"juosta"}}
+     *   {"word":"Koira","type":"word","analysis":{"CLASS":"nimisana","BASEFORM":"koira"}},
+     *   {"word":"juoksee","type":"word","analysis":{"CLASS":"teonsana","BASEFORM":"juosta"}},
+     *   {"word":".","type":"punctuation","analysis":null}
      * ]
      * ```
      * @param {string} text
@@ -145,16 +146,16 @@ export class MceEngine {
      * Disambiguate a sentence and return full pipeline results as JSON.
      *
      * Full pipeline:
-     * 1. Tokenize the text into word tokens
+     * 1. Tokenize the text into all tokens (words, punctuation, etc.)
      * 2. Analyze each word with FinnishAnalyzer
-     * 3. Disambiguate using ViterbiDisambiguator with emission scoring
-     * 4. Return JSON with POS tags and baseforms for each word
+     * 3. Disambiguate word tokens using ViterbiDisambiguator with emission scoring
+     * 4. Return JSON with POS tags and baseforms, including punctuation tokens
      *
      * Example output:
      * ```json
      * [
-     *   {"word":"Koira","pos":"nimisana","baseform":"koira"},
-     *   {"word":"juoksee","pos":"teonsana","baseform":"juosta"}
+     *   {"word":"Koira","type":"word","pos":"nimisana","baseform":"koira","attributes":{...}},
+     *   {"word":".","type":"punctuation","pos":null,"baseform":null,"attributes":null}
      * ]
      * ```
      * @param {string} text
@@ -403,6 +404,14 @@ export class MceEngine {
         return ret !== 0;
     }
     /**
+     * Check whether a wordlist (M1 Succinct Trie) has been loaded.
+     * @returns {boolean}
+     */
+    has_wordlist() {
+        const ret = wasm.mceengine_has_wordlist(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
      * Hyphenate a Finnish word. Returns the word with hyphens inserted.
      *
      * Uses rule-based Finnish syllabification to find valid break points.
@@ -459,10 +468,11 @@ export class MceEngine {
         }
     }
     /**
-     * Check if a word is valid Finnish (has at least one morphological analysis).
+     * Check if a word has a valid morphological analysis in the VFST dictionary.
      *
-     * This is a lightweight spell check that uses the FST-based morphological
-     * analyzer. Returns `true` if the word has at least one valid analysis.
+     * Pure linguistic check: returns `true` only if the FST-based morphological
+     * analyzer produces at least one analysis. Unlike [`spell_check`](Self::spell_check),
+     * this does **not** attempt compound splitting or other recovery strategies.
      * @param {string} word
      * @returns {boolean}
      */
@@ -526,10 +536,54 @@ export class MceEngine {
         }
     }
     /**
+     * Load a wordlist for dictionary-based spell checking and suggestion generation.
+     *
+     * Accepts one of two formats:
+     * - **Text wordlist**: one word per line, UTF-8. Words are sorted and
+     *   deduplicated internally. Lines starting with `#` are skipped.
+     * - **TSV (lemma_dict.tsv)**: tab-separated `word\tUPOS\tlemma`. Extracts
+     *   column 1 (word forms) and column 3 (lemmas), deduplicates, and builds
+     *   a trie from the combined set.
+     *
+     * The format is auto-detected: if any line contains a tab character, TSV
+     * parsing is used; otherwise plain one-word-per-line.
+     *
+     * When loaded, `suggest()` uses the trie's fuzzy search (Levenshtein
+     * automaton) for fast candidate generation instead of brute-force
+     * character-level edits.
+     *
+     * # Errors
+     *
+     * Returns a `JsValue` error if the data is not valid UTF-8.
+     * @param {Uint8Array} data
+     */
+    load_wordlist(data) {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            const ptr0 = passArray8ToWasm0(data, wasm.__wbindgen_export);
+            const len0 = WASM_VECTOR_LEN;
+            wasm.mceengine_load_wordlist(retptr, this.__wbg_ptr, ptr0, len0);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            if (r1) {
+                throw takeObject(r0);
+            }
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
+    /**
      * Check spelling of a word.
      *
-     * Returns `true` if the VFST transducer produces at least one valid
-     * morphological analysis for the word.
+     * Returns `true` if the word is correctly spelled Finnish. Uses a
+     * multi-stage pipeline:
+     * 1. Morphological analysis via VFST (handles inflections, derivations)
+     * 2. Compound-aware check (splits the word and validates each part)
+     *
+     * This is more permissive than [`is_valid_word`](Self::is_valid_word),
+     * which only checks stage 1. For example, novel compound words that
+     * the FST doesn't recognize as a single entry may still pass the
+     * compound check.
      * @param {string} word
      * @returns {boolean}
      */
@@ -543,33 +597,33 @@ export class MceEngine {
      * Generate spelling suggestions for a word.
      *
      * Uses FinnishAnalyzer to check if the word is valid. If valid, returns
-     * an empty array. If invalid, returns candidate suggestions.
-     *
-     * Note: full suggestion generation requires a succinct trie (M1) for
-     * fuzzy search. Currently returns an empty array for misspelled words
-     * as a placeholder until M1 trie integration is complete.
+     * an empty array. If invalid, generates candidates via:
+     * - **With wordlist**: M1 Succinct Trie fuzzy search (Levenshtein automaton)
+     *   for fast candidate generation, filtered through the morphological analyzer.
+     * - **Without wordlist**: Falls back to `suggest_with_context()` using
+     *   brute-force character-level edit generation.
      *
      * # Arguments
      *
      * * `word` - The word to check / suggest for.
-     * * `_max_edits` - Maximum edit distance (reserved for future trie-based suggestions).
+     * * `max_edits` - Maximum edit distance for fuzzy search.
      *
      * Example output:
      * ```json
-     * []
+     * ["koira","koiru"]
      * ```
      * @param {string} word
-     * @param {number} _max_edits
+     * @param {number} max_edits
      * @returns {string}
      */
-    suggest(word, _max_edits) {
+    suggest(word, max_edits) {
         let deferred2_0;
         let deferred2_1;
         try {
             const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
             const ptr0 = passStringToWasm0(word, wasm.__wbindgen_export, wasm.__wbindgen_export2);
             const len0 = WASM_VECTOR_LEN;
-            wasm.mceengine_suggest(retptr, this.__wbg_ptr, ptr0, len0, _max_edits);
+            wasm.mceengine_suggest(retptr, this.__wbg_ptr, ptr0, len0, max_edits);
             var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
             var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
             deferred2_0 = r0;

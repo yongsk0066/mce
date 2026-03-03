@@ -72,6 +72,19 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+      - name: Build fresh WASM for docs
+        run: wasm-pack build --target web --out-dir pkg crates/mce-wasm
+      - name: Copy latest assets to docs
+        run: |
+          cp crates/mce-wasm/pkg/mce_wasm_bg.wasm docs/
+          cp crates/mce-wasm/pkg/mce_wasm.js docs/
+          cp data/wordlist.txt docs/
       - uses: actions/upload-pages-artifact@v4
         with:
           path: docs/
