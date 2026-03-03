@@ -7,9 +7,7 @@
 
 use std::hint::black_box;
 
-use criterion::{
-    BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main,
-};
+use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use mce_core::trie::{SuccinctTrie, TrieBuilder};
 
 // ── Key generation ──────────────────────────────────────────────────────
