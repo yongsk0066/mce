@@ -449,7 +449,9 @@ mod tests {
     fn lemma_case_insensitive_comparison() {
         let mut r = EvalResults::new();
         // Gold "Helsinki", pred "helsinki" -> should match (case-insensitive).
-        r.add(&make_result("Helsinki", "PROPN", "PROPN", "Helsinki", "helsinki"));
+        r.add(&make_result(
+            "Helsinki", "PROPN", "PROPN", "Helsinki", "helsinki",
+        ));
         assert_eq!(r.lemma_correct, 1);
     }
 

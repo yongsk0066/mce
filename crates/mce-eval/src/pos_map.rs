@@ -509,9 +509,27 @@ mod tests {
     #[test]
     fn refine_conjunction_all_sconj_forms() {
         let sconj_forms = [
-            "että", "kun", "jos", "koska", "vaikka", "jotta", "kunnes", "mikäli", "ellei",
-            "ettei", "joskin", "jollei", "jollen", "jollet", "jolloin", "kohan", "sillä", "johon",
-            "vaikkei", "vaikkakaan", "kuin",
+            "että",
+            "kun",
+            "jos",
+            "koska",
+            "vaikka",
+            "jotta",
+            "kunnes",
+            "mikäli",
+            "ellei",
+            "ettei",
+            "joskin",
+            "jollei",
+            "jollen",
+            "jollet",
+            "jolloin",
+            "kohan",
+            "sillä",
+            "johon",
+            "vaikkei",
+            "vaikkakaan",
+            "kuin",
         ];
         for form in &sconj_forms {
             assert_eq!(
@@ -533,8 +551,19 @@ mod tests {
     #[test]
     fn mce_to_upos_all_aux_lemmas() {
         let aux_lemmas = [
-            "olla", "voida", "saattaa", "täytyä", "pitää", "joutua", "mahtaa", "taitaa", "aikoa",
-            "tarvita", "ehtiä", "kannattaa", "kelvata",
+            "olla",
+            "voida",
+            "saattaa",
+            "täytyä",
+            "pitää",
+            "joutua",
+            "mahtaa",
+            "taitaa",
+            "aikoa",
+            "tarvita",
+            "ehtiä",
+            "kannattaa",
+            "kelvata",
         ];
         for lemma in &aux_lemmas {
             let mut a = make_analysis("teonsana");

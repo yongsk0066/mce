@@ -1,96 +1,105 @@
-# @yongsk0066/mce
+# mce-wasm
 
-Finnish NLP engine compiled to WebAssembly. Runs entirely in the browser with no server required.
+WebAssembly bindings for the MCE Finnish NLP engine. Exposes 22 API methods via `wasm-bindgen` for complete offline Finnish language processing in the browser.
 
 ## Features
 
-- **Morphological analysis** — decompose Finnish words into morphemes
-- **Spell checking** — validate words against the dictionary
-- **Suggestions** — context-aware spelling suggestions
-- **POS tagging** — sentence-level disambiguation (UPOS 95.56%)
-- **Hyphenation** — Finnish hyphenation rules
-- **Grammar checking** — detect common grammar errors
-- **Compound splitting** — decompose compound words
-- **Lemmatization** — extract base forms
-- **Morphological generation** — generate inflected forms (noun cases, verb conjugations)
+- **~225KB** WASM binary, **<5ms/sentence** latency
+- Morphological analysis, spell checking, grammar checking, hyphenation
+- Sentence-level POS disambiguation (Viterbi + CG + optional suffix tagger)
+- Compound word splitting, spelling suggestions, morphological generation
+- Fully offline -- no server dependency
 
-225KB WASM, <5ms/sentence, fully offline.
-
-## Quick Start
-
-```js
-import init, { MceEngine } from '@yongsk0066/mce';
-
-await init();
-
-// Load the dictionary (mor.vfst — not included, see below)
-const dictBytes = await fetch('mor.vfst').then(r => r.arrayBuffer());
-const engine = MceEngine.load(new Uint8Array(dictBytes));
-
-// Spell check
-engine.spell_check("koira");          // true
-engine.spell_check("koirra");         // false
-
-// Morphological analysis
-engine.analyze("koirien");            // JSON array of analyses
-
-// Suggestions
-engine.suggest("koirra", 1);          // ["koira", ...]
-
-// Sentence analysis with POS tagging
-engine.analyze_sentence("Koira juoksee nopeasti.");
-
-// Hyphenation
-engine.hyphenate("suomalainen");      // "suo-ma-lai-nen"
-
-// Grammar checking
-engine.grammar_check("koira koira juoksee.");
-
-// Compound splitting
-engine.compound_split("rautatieasema");
-
-// Lemmatization
-engine.get_baseform("koirien");       // "koira"
-
-// Generate inflected forms
-engine.generate_paradigm("koira");    // all 11 noun cases
-engine.generate_verb_paradigm("juosta"); // verb conjugations
-```
-
-## Dictionary
-
-This package provides the WASM engine only. You need a `mor.vfst` dictionary file to use it. The dictionary is available from the [MCE repository](https://github.com/yongsk0066/mce).
-
-## API
+## API (22 methods)
 
 | Method | Description |
 |--------|-------------|
-| `MceEngine.load(bytes)` | Create engine from VFST dictionary |
-| `engine.load_model(bytes)` | Load suffix tagger model for better POS accuracy |
-| `engine.has_model()` | Check if suffix tagger model is loaded |
-| `engine.analyze(word)` | Morphological analysis (JSON) |
-| `engine.spell_check(word)` | Spell check (boolean) |
-| `engine.suggest(word, maxEdits)` | Spelling suggestions (JSON) |
-| `engine.suggest_with_context(word, prev, maxEdits)` | Context-aware suggestions (JSON) |
-| `engine.analyze_sentence(text)` | Sentence analysis with disambiguation (JSON) |
-| `engine.disambiguate_sentence(text)` | Full disambiguation with scores (JSON) |
-| `engine.compound_split(word)` | Compound word splitting (JSON) |
-| `engine.grammar_check(text)` | Grammar checking (JSON) |
-| `engine.hyphenate(word)` | Hyphenate a word |
-| `engine.hyphenate_text(text)` | Hyphenate full text |
-| `engine.get_baseform(word)` | Get lemma / base form |
-| `engine.is_valid_word(word)` | Check if word exists in dictionary |
-| `engine.generate_form(base, case, number)` | Generate a specific inflected form |
-| `engine.generate_paradigm(base)` | Generate all noun case forms |
-| `engine.generate_verb_form(base, tense, person, number)` | Generate a specific verb form |
-| `engine.generate_verb_paradigm(base)` | Generate all verb conjugations |
-| `MceEngine.version()` | Engine version string |
+| `load(dict)` | Create engine from VFST dictionary bytes |
+| `load_model(data)` | Load suffix tagger model (boosts UPOS 83% -> 95%) |
+| `has_model()` | Check if suffix tagger model is loaded |
+| `load_wordlist(data)` | Load wordlist for trie-based spelling suggestions |
+| `has_wordlist()` | Check if wordlist (suggestion trie) is loaded |
+| `analyze(word)` | Single-word morphological analysis (JSON) |
+| `spell_check(word)` | Check if word is correctly spelled (morph analysis + compound-aware) |
+| `suggest(word, max)` | Spelling suggestions for misspelled words |
+| `suggest_with_context(word, prev, max)` | Context-aware suggestions ranked by POS bigram |
+| `analyze_sentence(text)` | Sentence analysis with disambiguation (JSON) |
+| `disambiguate_sentence(text)` | POS disambiguation with full attributes (JSON) |
+| `compound_split(word)` | Compound word splitting with penalties |
+| `grammar_check(text)` | Grammar error detection with byte offsets |
+| `hyphenate(word)` | Single-word Finnish hyphenation |
+| `hyphenate_text(text)` | Full-text hyphenation preserving non-word tokens |
+| `get_baseform(word)` | Lemma lookup (disambiguated) |
+| `is_valid_word(word)` | Pure morphological analysis check (boolean) |
+| `generate_form(base, case, number)` | Generate noun case form (singular only; number param reserved for future use) |
+| `generate_paradigm(base)` | Full noun paradigm (11 singular cases) |
+| `generate_verb_form(...)` | Generate verb conjugation |
+| `generate_verb_paradigm(inf)` | Full verb paradigm |
+| `version()` | Engine version string |
 
-## License
+## Usage
 
-Apache-2.0
+```typescript
+import init, { MceEngine } from './mce_wasm.js';
 
-## Links
+await init();
 
-- [GitHub](https://github.com/yongsk0066/mce)
-- [Full Documentation](https://github.com/yongsk0066/mce#readme)
+// Load dictionary (required)
+const dict = await fetch('mor.vfst').then(r => r.arrayBuffer());
+const engine = MceEngine.load(new Uint8Array(dict));
+
+// Optional: load suffix tagger for higher accuracy
+const model = await fetch('suffix_tagger.bin').then(r => r.arrayBuffer());
+engine.load_model(new Uint8Array(model));
+console.log(engine.has_model()); // true
+
+// Morphological analysis
+engine.analyze("koira");
+// [{"CLASS":"nimisana","BASEFORM":"koira","STRUCTURE":"=ppppp",...}]
+
+// Spell checking
+engine.spell_check("koira");    // true
+engine.spell_check("koirra");   // false
+
+// Sentence-level analysis with disambiguation
+engine.analyze_sentence("Koira juoksee nopeasti");
+// [{"word":"Koira","analysis":{"CLASS":"nimisana","BASEFORM":"koira"}},
+//  {"word":"juoksee","analysis":{"CLASS":"teonsana","BASEFORM":"juosta"}}]
+
+// Grammar checking (byte offsets for editor integration)
+engine.grammar_check("koira koira juoksee.");
+// [{"start":6,"end":11,"code":"REPEATED_WORD","message":"Repeated word: koira","suggestions":["koira"]}]
+
+// Compound word splitting
+engine.compound_split("rautatieasema");
+// [{"parts":[{"surface":"rauta",...},{"surface":"tie",...},{"surface":"asema",...}],"penalty":30}]
+
+// Hyphenation
+engine.hyphenate("suomalainen");              // "suo-ma-lai-nen"
+engine.hyphenate_text("Koira juoksee.");      // "Koi-ra juok-see."
+
+// Lemma lookup
+engine.get_baseform("koirien");               // "koira"
+
+// Morphological generation
+engine.generate_paradigm("koira");            // Full 11-case paradigm JSON
+engine.generate_verb_paradigm("juosta");      // Full verb conjugation JSON
+```
+
+## Build
+
+```bash
+# Install wasm-pack
+cargo install wasm-pack
+
+# Build WASM package
+wasm-pack build crates/mce-wasm --target web --release
+
+# Output: pkg/mce_wasm.js, pkg/mce_wasm_bg.wasm (~225KB)
+```
+
+## Dependencies
+
+Uses: `mce-core`, `mce-fst`, `mce-fi`, `mce-disambig`, `mce-comonad`, `mce-tokenizer`, `mce-grammar`, `wasm-bindgen`, `js-sys`, `serde`, `serde-wasm-bindgen`
+
+Used by: JavaScript/browser consumers
