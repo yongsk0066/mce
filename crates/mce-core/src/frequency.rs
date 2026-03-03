@@ -363,6 +363,39 @@ mod tests {
     }
 
     #[test]
+    fn top_n_zero_returns_empty() {
+        let fl = FrequencyList::from_conllu(TEST_CONLLU);
+        let top0 = fl.top_n(0);
+        assert!(top0.is_empty());
+    }
+
+    #[test]
+    fn top_n_exceeds_length() {
+        let fl = FrequencyList::from_conllu(TEST_CONLLU);
+        // There are 6 unique words; requesting 100 should return all 6.
+        let top100 = fl.top_n(100);
+        assert_eq!(top100.len(), 6);
+    }
+
+    #[test]
+    fn skips_sym_upos() {
+        let conllu = "\
+# sent_id = sym.1
+# text = 5 % alennus
+1\t5\t5\tNUM\tNum\tNumType=Card\t3\tnummod\t3:nummod\t_
+2\t%\t%\tSYM\tSym\t_\t1\tnmod\t1:nmod\t_
+3\talennus\talennus\tNOUN\tN\tCase=Nom|Number=Sing\t0\troot\t0:root\t_
+";
+        let fl = FrequencyList::from_conllu(conllu);
+        // SYM token "%" should be skipped.
+        assert_eq!(fl.frequency("%"), 0);
+        // Other tokens should be counted.
+        assert_eq!(fl.frequency("5"), 1);
+        assert_eq!(fl.frequency("alennus"), 1);
+        assert_eq!(fl.total(), 2);
+    }
+
+    #[test]
     fn skips_multiword_tokens() {
         let conllu = "\
 # sent_id = mwt.1

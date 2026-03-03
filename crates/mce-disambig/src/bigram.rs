@@ -1134,6 +1134,61 @@ mod tests {
         assert_eq!(scorer.num_word_priors(), 1);
     }
 
+    // ─────────────────────────────────────────────────────────────
+    // from_counts: direct log-probability formula verification
+    // ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn from_counts_log_prob_formula_direct() {
+        // Verify the exact Laplace-smoothed log-probability formula:
+        // P(curr | prev) = (count + 1) / (total + V)
+        // where V = number of distinct tags.
+        //
+        // Counts: A->B=10, A->C=30, total for A = 40
+        // Tags: {A, B, C} => V = 3
+        // P(B|A) = (10+1)/(40+3) = 11/43
+        // P(C|A) = (30+1)/(40+3) = 31/43
+        let counts = vec![(("A", "B"), 10u64), (("A", "C"), 30u64)];
+        let model = BigramModel::from_counts(&counts);
+
+        let expected_ab = (11.0_f64 / 43.0).ln();
+        let expected_ac = (31.0_f64 / 43.0).ln();
+
+        let actual_ab = model.get_weight("A", "B");
+        let actual_ac = model.get_weight("A", "C");
+
+        assert!(
+            (actual_ab - expected_ab).abs() < 1e-10,
+            "A->B: expected {}, got {}",
+            expected_ab,
+            actual_ab
+        );
+        assert!(
+            (actual_ac - expected_ac).abs() < 1e-10,
+            "A->C: expected {}, got {}",
+            expected_ac,
+            actual_ac
+        );
+    }
+
+    #[test]
+    fn from_counts_default_weight_formula() {
+        // Default weight = ln(1 / (avg_total + V))
+        // Counts: A->B=10, A->C=30 => total for A = 40, avg = 40
+        // V = 3
+        // default = ln(1 / (40 + 3)) = ln(1/43)
+        let counts = vec![(("A", "B"), 10u64), (("A", "C"), 30u64)];
+        let model = BigramModel::from_counts(&counts);
+
+        let expected_default = (1.0_f64 / 43.0).ln();
+        assert!(
+            (model.default_weight() - expected_default).abs() < 1e-10,
+            "Default weight: expected {}, got {}",
+            expected_default,
+            model.default_weight()
+        );
+    }
+
     #[test]
     fn class_to_upos_category_mappings() {
         assert_eq!(class_to_upos_category("nimisana"), "NOUN");

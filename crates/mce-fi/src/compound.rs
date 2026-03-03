@@ -177,4 +177,32 @@ mod tests {
         let candidates = finnish_stem_reconstructor("kirjoitu", "s");
         assert!(candidates.is_empty());
     }
+
+    #[test]
+    fn finnish_reconstructor_empty_stem() {
+        // Empty stem with "en" linking should not panic or produce anything.
+        let candidates = finnish_stem_reconstructor("", "en");
+        assert!(candidates.is_empty());
+    }
+
+    #[test]
+    fn finnish_reconstructor_empty_stem_n_link() {
+        // Empty stem with "n" linking.
+        let candidates = finnish_stem_reconstructor("", "n");
+        assert!(candidates.is_empty());
+    }
+
+    #[test]
+    fn finnish_reconstructor_nen_suffix_ihminen() {
+        // ihmis + en -> ihminen
+        let candidates = finnish_stem_reconstructor("ihmis", "en");
+        assert_eq!(candidates, vec!["ihminen"]);
+    }
+
+    #[test]
+    fn finnish_reconstructor_nen_suffix_only_s() {
+        // A stem that is just "s": s + en -> nen
+        let candidates = finnish_stem_reconstructor("s", "en");
+        assert_eq!(candidates, vec!["nen"]);
+    }
 }

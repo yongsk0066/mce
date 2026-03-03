@@ -525,6 +525,30 @@ mod tests {
     }
 
     #[test]
+    fn heap_size_in_bytes_nonzero() {
+        let trie = build_test_trie();
+        assert!(
+            trie.heap_size_in_bytes() > 0,
+            "non-empty trie must report nonzero heap size"
+        );
+    }
+
+    #[test]
+    fn duplicate_insert_dedup() {
+        let mut builder = TrieBuilder::new();
+        builder.insert(b"cat".to_vec());
+        builder.insert(b"cat".to_vec());
+        builder.insert(b"cat".to_vec());
+        builder.insert(b"dog".to_vec());
+        builder.insert(b"dog".to_vec());
+        let trie = builder.build();
+        // Duplicates are deduped during build.
+        assert_eq!(trie.len(), 2);
+        assert!(trie.contains(b"cat"));
+        assert!(trie.contains(b"dog"));
+    }
+
+    #[test]
     fn fuzzy_search_sorted_by_distance() {
         let mut builder = TrieBuilder::new();
         builder.insert(b"abc".to_vec());

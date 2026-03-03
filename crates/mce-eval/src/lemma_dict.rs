@@ -371,4 +371,126 @@ helsinkiin\tNOUN\tHelsinki
         assert_eq!(strip_suffix("metsästä", "NOUN"), "metsä");
         assert_eq!(strip_suffix("juoksevat", "VERB"), "juokse");
     }
+
+    // --- from_tsv / parse edge case tests ---
+
+    #[test]
+    fn parse_skips_malformed_lines_no_tab() {
+        let tsv = "juoksee\tVERB\tjuosta\nmalformed_no_tabs\nkissa\tNOUN\tkissa\n";
+        let dict = LemmaDict::parse(tsv);
+        // Only two valid lines; the malformed line (no tab -> less than 3 parts) is skipped.
+        assert_eq!(dict.len(), 2);
+        assert_eq!(dict.lookup("juoksee", "VERB"), Some("juosta"));
+        assert_eq!(dict.lookup("kissa", "NOUN"), Some("kissa"));
+    }
+
+    #[test]
+    fn parse_skips_empty_lines_in_middle() {
+        let tsv = "juoksee\tVERB\tjuosta\n\n\nkissa\tNOUN\tkissa\n";
+        let dict = LemmaDict::parse(tsv);
+        assert_eq!(dict.len(), 2);
+    }
+
+    #[test]
+    fn parse_handles_whitespace_only_lines() {
+        let tsv = "juoksee\tVERB\tjuosta\n   \n\t\nkissa\tNOUN\tkissa\n";
+        let dict = LemmaDict::parse(tsv);
+        assert_eq!(dict.len(), 2);
+    }
+
+    #[test]
+    fn parse_line_with_only_one_tab() {
+        // Only two fields: should be skipped (needs 3).
+        let tsv = "juoksee\tVERB\n";
+        let dict = LemmaDict::parse(tsv);
+        assert_eq!(dict.len(), 0);
+    }
+
+    #[test]
+    fn parse_lemma_with_tabs_in_value() {
+        // splitn(3, '\t') means the third field captures everything after the second tab,
+        // including any additional tabs.
+        let tsv = "compound\tNOUN\tsome\textra\ttabs\n";
+        let dict = LemmaDict::parse(tsv);
+        assert_eq!(dict.len(), 1);
+        // The lemma should be "some\textra\ttabs" since splitn(3, '\t') stops at 3 parts.
+        assert_eq!(dict.lookup("compound", "NOUN"), Some("some\textra\ttabs"));
+    }
+
+    #[test]
+    fn parse_empty_string() {
+        let dict = LemmaDict::parse("");
+        assert!(dict.is_empty());
+        assert_eq!(dict.len(), 0);
+    }
+
+    #[test]
+    fn lookup_returns_none_for_wrong_upos() {
+        let dict = LemmaDict::parse(SAMPLE_TSV);
+        // "juoksee" exists as VERB but not as NOUN.
+        assert_eq!(dict.lookup("juoksee", "NOUN"), None);
+        // "jäällä" exists as NOUN but not as VERB.
+        assert_eq!(dict.lookup("jäällä", "VERB"), None);
+    }
+
+    #[test]
+    fn lookup_case_insensitive_mixed_case() {
+        let dict = LemmaDict::parse(SAMPLE_TSV);
+        assert_eq!(dict.lookup("JuOkSeE", "VERB"), Some("juosta"));
+        assert_eq!(dict.lookup("HELSINKIIN", "NOUN"), Some("Helsinki"));
+    }
+
+    #[test]
+    fn resolve_lemma_propn_dict_hit_preserves_case() {
+        // When dict has a hit for PROPN, the case should be preserved (not lowercased).
+        let tsv = "helsingin\tPROPN\tHelsinki\n";
+        let dict = LemmaDict::parse(tsv);
+        let lemma = dict.resolve_lemma("helsingin", "PROPN", "helsinki");
+        assert_eq!(lemma, "Helsinki");
+    }
+
+    #[test]
+    fn resolve_lemma_empty_fst_baseform() {
+        let dict = LemmaDict::empty();
+        // When FST baseform is empty, resolve_lemma returns empty string (lowercased).
+        let lemma = dict.resolve_lemma("koira", "NOUN", "");
+        assert_eq!(lemma, "");
+    }
+
+    #[test]
+    fn strip_suffix_verb_passive() {
+        assert_eq!(strip_suffix("juostaan", "VERB"), "juosta");
+    }
+
+    #[test]
+    fn strip_suffix_verb_3sg_long_vowel() {
+        assert_eq!(strip_suffix("juoksee", "VERB"), "juoks");
+    }
+
+    #[test]
+    fn strip_suffix_propn_treated_as_noun() {
+        // PROPN uses the same suffix table as NOUN/ADJ.
+        // "helsinkiin" -> strip "n" -> "helsinkii" (only "n" matches, not "in").
+        assert_eq!(strip_suffix("helsinkiin", "PROPN"), "helsinkii");
+        // "tampereella" -> strip "lla" -> "tamperee".
+        assert_eq!(strip_suffix("tampereella", "PROPN"), "tamperee");
+        // "suomessa" -> strip "ssa" -> "suome".
+        assert_eq!(strip_suffix("suomessa", "PROPN"), "suome");
+    }
+
+    #[test]
+    fn strip_noun_abessive() {
+        assert_eq!(strip_suffix("talotta", "NOUN"), "talo");
+        assert_eq!(strip_suffix("metsättä", "NOUN"), "metsä");
+    }
+
+    #[test]
+    fn strip_noun_comitative() {
+        assert_eq!(strip_suffix("taloine", "NOUN"), "talo");
+    }
+
+    #[test]
+    fn strip_noun_partitive_ia() {
+        assert_eq!(strip_suffix("koiria", "NOUN"), "koir");
+    }
 }

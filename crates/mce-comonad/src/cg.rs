@@ -4408,6 +4408,128 @@ mod tests {
         assert_eq!(classes(&result[0]), vec!["teonsana"]);
     }
 
+    // -- RemoveIfSandwiched: last-reading-standing --------------------------
+
+    #[test]
+    fn remove_if_sandwiched_fires_when_both_neighbors_match() {
+        // Sentence: [nimisana] [teonsana, laatusana] [nimisana]
+        // Rule: REMOVE teonsana IF (-1 nimisana) AND (+1 nimisana)
+        let sentence = vec![
+            vec![make("nimisana")],
+            vec![make("teonsana"), make("laatusana")],
+            vec![make("nimisana")],
+        ];
+
+        let rule = RemoveIfSandwiched {
+            remove_class: "teonsana".into(),
+            preceded_by_class: "nimisana".into(),
+            followed_by_class: "nimisana".into(),
+        };
+
+        let result = apply_cg_rules(&sentence, &[Box::new(rule)]);
+        assert_eq!(classes(&result[1]), vec!["laatusana"]);
+    }
+
+    #[test]
+    fn remove_if_sandwiched_last_reading_standing_preserved() {
+        // Sentence: [nimisana] [teonsana] [nimisana]
+        // Rule: REMOVE teonsana IF (-1 nimisana) AND (+1 nimisana)
+        // Only one reading at position 1 -> safety prevents removal.
+        let sentence = vec![
+            vec![make("nimisana")],
+            vec![make("teonsana")],
+            vec![make("nimisana")],
+        ];
+
+        let rule = RemoveIfSandwiched {
+            remove_class: "teonsana".into(),
+            preceded_by_class: "nimisana".into(),
+            followed_by_class: "nimisana".into(),
+        };
+
+        let result = apply_cg_rules(&sentence, &[Box::new(rule)]);
+        // Safety: last reading kept
+        assert_eq!(result[1].len(), 1);
+        assert_eq!(classes(&result[1]), vec!["teonsana"]);
+    }
+
+    #[test]
+    fn remove_if_sandwiched_no_left_match() {
+        // Sentence: [teonsana] [teonsana, laatusana] [nimisana]
+        // Rule: REMOVE teonsana IF (-1 nimisana) AND (+1 nimisana)
+        // Left neighbor has teonsana, not nimisana -> rule does not fire.
+        let sentence = vec![
+            vec![make("teonsana")],
+            vec![make("teonsana"), make("laatusana")],
+            vec![make("nimisana")],
+        ];
+
+        let rule = RemoveIfSandwiched {
+            remove_class: "teonsana".into(),
+            preceded_by_class: "nimisana".into(),
+            followed_by_class: "nimisana".into(),
+        };
+
+        let result = apply_cg_rules(&sentence, &[Box::new(rule)]);
+        assert_eq!(classes(&result[1]), vec!["laatusana", "teonsana"]);
+    }
+
+    // -- RemoveAtSentenceStart: last-reading-standing ----------------------
+
+    #[test]
+    fn remove_at_sentence_start_fires_at_position_zero() {
+        // Position 0: [teonsana, nimisana]
+        // Rule: REMOVE teonsana IF at sentence start
+        let sentence = vec![
+            vec![make("teonsana"), make("nimisana")],
+            vec![make("teonsana")],
+        ];
+
+        let rule = RemoveAtSentenceStart {
+            remove_class: "teonsana".into(),
+        };
+
+        let result = apply_cg_rules(&sentence, &[Box::new(rule)]);
+        assert_eq!(classes(&result[0]), vec!["nimisana"]);
+        // Position 1 is not at sentence start, so unchanged.
+        assert_eq!(classes(&result[1]), vec!["teonsana"]);
+    }
+
+    #[test]
+    fn remove_at_sentence_start_last_reading_standing_preserved() {
+        // Position 0: [teonsana] — only one reading
+        // Rule: REMOVE teonsana IF at sentence start
+        // Safety: last reading kept.
+        let sentence = vec![vec![make("teonsana")]];
+
+        let rule = RemoveAtSentenceStart {
+            remove_class: "teonsana".into(),
+        };
+
+        let result = apply_cg_rules(&sentence, &[Box::new(rule)]);
+        assert_eq!(result[0].len(), 1);
+        assert_eq!(classes(&result[0]), vec!["teonsana"]);
+    }
+
+    #[test]
+    fn remove_at_sentence_start_does_not_fire_at_non_zero_position() {
+        // Position 0: [nimisana]
+        // Position 1: [teonsana, nimisana]
+        // Rule: REMOVE teonsana IF at sentence start
+        // Position 1 has a left neighbor, so rule does not fire.
+        let sentence = vec![
+            vec![make("nimisana")],
+            vec![make("teonsana"), make("nimisana")],
+        ];
+
+        let rule = RemoveAtSentenceStart {
+            remove_class: "teonsana".into(),
+        };
+
+        let result = apply_cg_rules(&sentence, &[Box::new(rule)]);
+        assert_eq!(classes(&result[1]), vec!["nimisana", "teonsana"]);
+    }
+
     #[test]
     fn finnish_rules_adp_not_followed_by_noun_removed() {
         // ADP not followed by noun is removed.

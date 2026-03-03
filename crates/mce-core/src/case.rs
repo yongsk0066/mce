@@ -120,4 +120,44 @@ mod tests {
         set_case(&mut w, CaseType::FirstUpper);
         assert_eq!(to_string(&w), "Koira");
     }
+
+    #[test]
+    fn detect_no_letters_empty() {
+        assert_eq!(detect_case(&[]), CaseType::NoLetters);
+    }
+
+    #[test]
+    fn detect_no_letters_digits() {
+        assert_eq!(detect_case(&chars("12345")), CaseType::NoLetters);
+    }
+
+    #[test]
+    fn detect_complex_mixed_case() {
+        // "mCE" has lower first char, upper in the middle -> Complex
+        assert_eq!(detect_case(&chars("mCE")), CaseType::Complex);
+        // "iPhone" is also Complex
+        assert_eq!(detect_case(&chars("iPhone")), CaseType::Complex);
+    }
+
+    #[test]
+    fn finnish_chars_case_detection() {
+        // ä is lowercase, Ä is uppercase
+        assert_eq!(detect_case(&chars("äiti")), CaseType::AllLower);
+        assert_eq!(detect_case(&chars("Äiti")), CaseType::FirstUpper);
+        assert_eq!(detect_case(&chars("ÄITI")), CaseType::AllUpper);
+        // ö
+        assert_eq!(detect_case(&chars("öljy")), CaseType::AllLower);
+        assert_eq!(detect_case(&chars("Öljy")), CaseType::FirstUpper);
+    }
+
+    #[test]
+    fn set_case_no_letters_and_complex_are_noop() {
+        let mut w = chars("123");
+        set_case(&mut w, CaseType::NoLetters);
+        assert_eq!(to_string(&w), "123");
+
+        let mut w2 = chars("mCE");
+        set_case(&mut w2, CaseType::Complex);
+        assert_eq!(to_string(&w2), "mCE");
+    }
 }
