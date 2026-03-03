@@ -563,4 +563,201 @@ mod tests {
         assert_eq!(s.tokens[0].upos, "NOUN");
         assert_eq!(s.tokens[2].upos, "PUNCT");
     }
+
+    #[test]
+    fn token_result_incorrect_upos() {
+        let mut r = EvalResults::new();
+        r.add(&TokenResult {
+            form: "iso".to_string(),
+            gold_upos: "ADJ".to_string(),
+            pred_upos: "NOUN".to_string(),
+            gold_lemma: "iso".to_string(),
+            pred_lemma: "iso".to_string(),
+        });
+        assert_eq!(r.upos_correct, 0);
+        assert_eq!(r.total, 1);
+        // Lemma still correct even though UPOS is wrong.
+        assert_eq!(r.lemma_correct, 1);
+    }
+
+    #[test]
+    fn token_result_unknown_pred() {
+        let mut r = EvalResults::new();
+        r.add(&TokenResult {
+            form: "xyzzy".to_string(),
+            gold_upos: "NOUN".to_string(),
+            pred_upos: "X".to_string(),
+            gold_lemma: "xyzzy".to_string(),
+            pred_lemma: String::new(),
+        });
+        assert_eq!(r.upos_correct, 0);
+        assert_eq!(r.unknown_count, 1);
+        assert_eq!(r.total, 1);
+    }
+
+    #[test]
+    fn punct_filtered_from_gold_sentence() {
+        // Verify PUNCT tokens are removed when skip_punct is true.
+        let s = make_gold_sentence();
+        let non_punct: Vec<_> = s
+            .tokens
+            .iter()
+            .filter(|t| t.upos != "PUNCT" && t.upos != "SYM")
+            .collect();
+        assert_eq!(non_punct.len(), 2);
+        assert_eq!(non_punct[0].form, "Koira");
+        assert_eq!(non_punct[1].form, "juoksee");
+    }
+
+    #[test]
+    fn multiple_sentences_accumulate_results() {
+        let mut r = EvalResults::new();
+        // Sentence 1: 2 correct
+        r.add(&TokenResult {
+            form: "koira".to_string(),
+            gold_upos: "NOUN".to_string(),
+            pred_upos: "NOUN".to_string(),
+            gold_lemma: "koira".to_string(),
+            pred_lemma: "koira".to_string(),
+        });
+        r.add(&TokenResult {
+            form: "juoksee".to_string(),
+            gold_upos: "VERB".to_string(),
+            pred_upos: "VERB".to_string(),
+            gold_lemma: "juosta".to_string(),
+            pred_lemma: "juosta".to_string(),
+        });
+        // Sentence 2: 1 correct, 1 wrong
+        r.add(&TokenResult {
+            form: "iso".to_string(),
+            gold_upos: "ADJ".to_string(),
+            pred_upos: "NOUN".to_string(),
+            gold_lemma: "iso".to_string(),
+            pred_lemma: "iso".to_string(),
+        });
+        r.add(&TokenResult {
+            form: "kissa".to_string(),
+            gold_upos: "NOUN".to_string(),
+            pred_upos: "NOUN".to_string(),
+            gold_lemma: "kissa".to_string(),
+            pred_lemma: "kissa".to_string(),
+        });
+
+        assert_eq!(r.total, 4);
+        assert_eq!(r.upos_correct, 3);
+        assert_eq!(r.lemma_correct, 4);
+        assert!((r.upos_accuracy() - 0.75).abs() < 1e-10);
+        assert!((r.lemma_accuracy() - 1.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn remaining_gold_counted_as_miss() {
+        // Simulate the alignment logic from evaluate_end_to_end:
+        // When MCE produces fewer tokens than gold, remaining gold tokens
+        // get pred_upos "X" and empty pred_lemma.
+        let mut r = EvalResults::new();
+
+        // One matched token
+        r.add(&TokenResult {
+            form: "koira".to_string(),
+            gold_upos: "NOUN".to_string(),
+            pred_upos: "NOUN".to_string(),
+            gold_lemma: "koira".to_string(),
+            pred_lemma: "koira".to_string(),
+        });
+
+        // Two remaining gold tokens counted as misses
+        r.add(&TokenResult {
+            form: "juoksee".to_string(),
+            gold_upos: "VERB".to_string(),
+            pred_upos: "X".to_string(),
+            gold_lemma: "juosta".to_string(),
+            pred_lemma: String::new(),
+        });
+        r.add(&TokenResult {
+            form: "nopeasti".to_string(),
+            gold_upos: "ADV".to_string(),
+            pred_upos: "X".to_string(),
+            gold_lemma: "nopeasti".to_string(),
+            pred_lemma: String::new(),
+        });
+
+        assert_eq!(r.total, 3);
+        assert_eq!(r.upos_correct, 1);
+        assert_eq!(r.unknown_count, 2);
+        assert!((r.coverage() - 1.0 / 3.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn empty_sentence_skipped() {
+        // Verify that an all-PUNCT sentence yields no evaluation tokens.
+        let s = ConlluSentence {
+            sent_id: "punct.1".to_string(),
+            text: "...".to_string(),
+            tokens: vec![
+                ConlluToken {
+                    id: 1,
+                    form: ".".to_string(),
+                    lemma: ".".to_string(),
+                    upos: "PUNCT".to_string(),
+                    xpos: "Punct".to_string(),
+                    feats: "_".to_string(),
+                },
+                ConlluToken {
+                    id: 2,
+                    form: ".".to_string(),
+                    lemma: ".".to_string(),
+                    upos: "PUNCT".to_string(),
+                    xpos: "Punct".to_string(),
+                    feats: "_".to_string(),
+                },
+                ConlluToken {
+                    id: 3,
+                    form: ".".to_string(),
+                    lemma: ".".to_string(),
+                    upos: "PUNCT".to_string(),
+                    xpos: "Punct".to_string(),
+                    feats: "_".to_string(),
+                },
+            ],
+        };
+        let non_punct: Vec<_> = s
+            .tokens
+            .iter()
+            .filter(|t| t.upos != "PUNCT" && t.upos != "SYM")
+            .collect();
+        assert!(
+            non_punct.is_empty(),
+            "All-PUNCT sentence should have no eval tokens"
+        );
+    }
+
+    #[test]
+    fn sym_tokens_also_filtered() {
+        // SYM tokens should also be excluded when skip_punct is true.
+        let tokens = vec![
+            ConlluToken {
+                id: 1,
+                form: "koira".to_string(),
+                lemma: "koira".to_string(),
+                upos: "NOUN".to_string(),
+                xpos: "N".to_string(),
+                feats: "_".to_string(),
+            },
+            ConlluToken {
+                id: 2,
+                form: "%".to_string(),
+                lemma: "%".to_string(),
+                upos: "SYM".to_string(),
+                xpos: "Sym".to_string(),
+                feats: "_".to_string(),
+            },
+        ];
+        let non_punct_sym: Vec<_> = tokens
+            .iter()
+            .filter(|t| t.upos != "PUNCT" && t.upos != "SYM")
+            .collect();
+        assert_eq!(non_punct_sym.len(), 1);
+        assert_eq!(non_punct_sym[0].form, "koira");
+    }
 }

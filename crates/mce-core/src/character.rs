@@ -157,4 +157,53 @@ mod tests {
         let b: Vec<char> = "hello".chars().collect();
         assert!(equals_ignore_case(&a, &b));
     }
+
+    #[test]
+    fn is_whitespace_nbsp_and_ideographic_space() {
+        // U+00A0 Non-Breaking Space
+        assert!(is_whitespace('\u{00A0}'));
+        assert_eq!(get_char_type('\u{00A0}'), CharType::Whitespace);
+        // U+3000 Ideographic Space
+        assert!(is_whitespace('\u{3000}'));
+        assert_eq!(get_char_type('\u{3000}'), CharType::Whitespace);
+        // U+2000 En Quad
+        assert!(is_whitespace('\u{2000}'));
+        // U+200A Hair Space
+        assert!(is_whitespace('\u{200A}'));
+    }
+
+    #[test]
+    fn char_type_unknown_for_symbols() {
+        assert_eq!(get_char_type('@'), CharType::Unknown);
+        assert_eq!(get_char_type('#'), CharType::Unknown);
+        assert_eq!(get_char_type('$'), CharType::Unknown);
+        assert_eq!(get_char_type('%'), CharType::Unknown);
+    }
+
+    #[test]
+    fn equals_ignore_case_finnish_chars() {
+        // "Äiti" vs "äiti"
+        let a: Vec<char> = "Äiti".chars().collect();
+        let b: Vec<char> = "äiti".chars().collect();
+        assert!(equals_ignore_case(&a, &b));
+
+        // "ÖLJY" vs "öljy"
+        let a: Vec<char> = "ÖLJY".chars().collect();
+        let b: Vec<char> = "öljy".chars().collect();
+        assert!(equals_ignore_case(&a, &b));
+    }
+
+    #[test]
+    fn equals_ignore_case_different_lengths() {
+        let a: Vec<char> = "abc".chars().collect();
+        let b: Vec<char> = "ab".chars().collect();
+        assert!(!equals_ignore_case(&a, &b));
+    }
+
+    #[test]
+    fn equals_ignore_case_different_content() {
+        let a: Vec<char> = "abc".chars().collect();
+        let b: Vec<char> = "abd".chars().collect();
+        assert!(!equals_ignore_case(&a, &b));
+    }
 }

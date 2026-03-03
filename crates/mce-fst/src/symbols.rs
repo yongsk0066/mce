@@ -138,4 +138,26 @@ mod tests {
         let (t, _) = parse_symbol_table(&data, 0).unwrap();
         assert_eq!(*t.char_to_symbol.get(&'\u{00e4}').unwrap(), 1);
     }
+
+    #[test]
+    fn unterminated_symbol_rejected() {
+        // Build data claiming 2 symbols, but the second has no null terminator.
+        let mut data = Vec::new();
+        data.extend_from_slice(&2u16.to_le_bytes()); // symbol_count = 2
+        data.push(0); // first symbol: empty string, null-terminated
+        data.extend_from_slice(b"abc"); // second symbol: no null terminator
+        let result = parse_symbol_table(&data, 0);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn zero_symbol_count() {
+        let data = 0u16.to_le_bytes().to_vec();
+        let (t, offset) = parse_symbol_table(&data, 0).unwrap();
+        assert_eq!(t.symbol_strings.len(), 0);
+        assert_eq!(t.first_normal_char, 0);
+        assert_eq!(t.first_multi_char, 0);
+        assert_eq!(t.flag_feature_count, 0);
+        assert_eq!(offset, 2);
+    }
 }

@@ -135,4 +135,36 @@ mod tests {
         transitions.push(bytemuck::cast(oc));
         assert_eq!(unweighted_max_tc(&transitions, 0), 301);
     }
+
+    #[test]
+    fn weighted_max_tc_simple() {
+        let transitions = vec![WeightedTransition {
+            sym_in: 0,
+            sym_out: 0,
+            target_state: 0,
+            weight: 0,
+            more_transitions: 5,
+            _reserved: 0,
+        }];
+        assert_eq!(weighted_max_tc(&transitions, 0), 5);
+    }
+
+    #[test]
+    fn weighted_max_tc_overflow() {
+        let mut transitions = vec![WeightedTransition {
+            sym_in: 0,
+            sym_out: 0,
+            target_state: 0,
+            weight: 0,
+            more_transitions: 255,
+            _reserved: 0,
+        }];
+        let oc = WeightedOverflowCell {
+            more_transitions: 400,
+            _short_padding: 0,
+            _padding: 0,
+        };
+        transitions.push(bytemuck::cast(oc));
+        assert_eq!(weighted_max_tc(&transitions, 0), 401);
+    }
 }

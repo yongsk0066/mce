@@ -342,6 +342,69 @@ mod tests {
     }
 
     #[test]
+    fn post_process_teonsana_with_participle_keeps_class() {
+        // A verb with a non-past_passive participle keeps its class.
+        let mut a = Analysis::new();
+        a.set(ATTR_CLASS, "teonsana");
+        a.set(ATTR_PARTICIPLE, "present_active");
+        post_process_attributes(&mut a);
+        // Should remain teonsana (only past_passive forces laatusana)
+        assert_eq!(a.get(ATTR_CLASS), Some("teonsana"));
+    }
+
+    #[test]
+    fn post_process_teonsana_past_passive_forces_laatusana() {
+        // past_passive participle forces class to "laatusana" even on a verb
+        let mut a = Analysis::new();
+        a.set(ATTR_CLASS, "teonsana");
+        a.set(ATTR_PARTICIPLE, "past_passive");
+        post_process_attributes(&mut a);
+        assert_eq!(a.get(ATTR_CLASS), Some("laatusana"));
+        // Since it became laatusana, it should also get default comparison
+        assert_eq!(a.get(ATTR_COMPARISON), Some("positive"));
+    }
+
+    #[test]
+    fn post_process_nimisana_laatusana_gets_positive_comparison() {
+        // nimisana_laatusana should get default "positive" comparison
+        let mut a = Analysis::new();
+        a.set(ATTR_CLASS, "nimisana_laatusana");
+        post_process_attributes(&mut a);
+        assert_eq!(a.get(ATTR_COMPARISON), Some("positive"));
+    }
+
+    #[test]
+    fn post_process_removes_negative_from_minen_infinitive() {
+        // MINEN-infinitive form removes NEGATIVE even on a verb
+        let mut a = Analysis::new();
+        a.set(ATTR_CLASS, "teonsana");
+        a.set(ATTR_NEGATIVE, "true");
+        a.set(ATTR_MOOD, "MINEN-infinitive");
+        post_process_attributes(&mut a);
+        assert!(!a.contains_key(ATTR_NEGATIVE));
+    }
+
+    #[test]
+    fn post_process_removes_negative_from_e_infinitive() {
+        let mut a = Analysis::new();
+        a.set(ATTR_CLASS, "teonsana");
+        a.set(ATTR_NEGATIVE, "true");
+        a.set(ATTR_MOOD, "E-infinitive");
+        post_process_attributes(&mut a);
+        assert!(!a.contains_key(ATTR_NEGATIVE));
+    }
+
+    #[test]
+    fn post_process_removes_negative_from_ma_infinitive() {
+        let mut a = Analysis::new();
+        a.set(ATTR_CLASS, "teonsana");
+        a.set(ATTR_NEGATIVE, "true");
+        a.set(ATTR_MOOD, "MA-infinitive");
+        post_process_attributes(&mut a);
+        assert!(!a.contains_key(ATTR_NEGATIVE));
+    }
+
+    #[test]
     fn duplicate_org_name_returns_none_for_non_noun() {
         let fst: Vec<char> = "[Lt][Xp]juosta[X]juoksen[Tt][Ap][P1][Ny]".chars().collect();
         let mut a = Analysis::new();

@@ -472,4 +472,136 @@ mod tests {
         let a = make_analysis("nimisana");
         assert_eq!(mce_class_to_upos(&a), "NOUN");
     }
+
+    #[test]
+    fn refine_conjunction_default_fallback() {
+        // Unknown conjunction forms should default to CCONJ.
+        assert_eq!(refine_conjunction("unknown_conj"), "CCONJ");
+        assert_eq!(refine_conjunction(""), "CCONJ");
+        assert_eq!(refine_conjunction("xyz"), "CCONJ");
+    }
+
+    #[test]
+    fn refine_conjunction_case_insensitive() {
+        // The function lowercases the surface form internally.
+        assert_eq!(refine_conjunction("Ja"), "CCONJ");
+        assert_eq!(refine_conjunction("JA"), "CCONJ");
+        assert_eq!(refine_conjunction("Että"), "SCONJ");
+        assert_eq!(refine_conjunction("KOSKA"), "SCONJ");
+        assert_eq!(refine_conjunction("Kun"), "SCONJ");
+    }
+
+    #[test]
+    fn refine_conjunction_all_cconj_forms() {
+        let cconj_forms = [
+            "ja", "tai", "vai", "mutta", "eli", "sekä", "eikä", "saati", "taikka", "ynnä", "vaan",
+        ];
+        for form in &cconj_forms {
+            assert_eq!(
+                refine_conjunction(form),
+                "CCONJ",
+                "'{}' should be CCONJ",
+                form
+            );
+        }
+    }
+
+    #[test]
+    fn refine_conjunction_all_sconj_forms() {
+        let sconj_forms = [
+            "että", "kun", "jos", "koska", "vaikka", "jotta", "kunnes", "mikäli", "ellei",
+            "ettei", "joskin", "jollei", "jollen", "jollet", "jolloin", "kohan", "sillä", "johon",
+            "vaikkei", "vaikkakaan", "kuin",
+        ];
+        for form in &sconj_forms {
+            assert_eq!(
+                refine_conjunction(form),
+                "SCONJ",
+                "'{}' should be SCONJ",
+                form
+            );
+        }
+    }
+
+    #[test]
+    fn mce_to_upos_verb_without_baseform_stays_verb() {
+        // A teonsana without baseform should stay VERB (not match any AUX lemma).
+        let a = make_analysis("teonsana");
+        assert_eq!(mce_to_upos(&a, "juoksee"), "VERB");
+    }
+
+    #[test]
+    fn mce_to_upos_all_aux_lemmas() {
+        let aux_lemmas = [
+            "olla", "voida", "saattaa", "täytyä", "pitää", "joutua", "mahtaa", "taitaa", "aikoa",
+            "tarvita", "ehtiä", "kannattaa", "kelvata",
+        ];
+        for lemma in &aux_lemmas {
+            let mut a = make_analysis("teonsana");
+            a.set(ATTR_BASEFORM, *lemma);
+            assert_eq!(
+                mce_to_upos(&a, "form"),
+                "AUX",
+                "AUX lemma '{}' should map to AUX",
+                lemma
+            );
+        }
+    }
+
+    #[test]
+    fn nimisana_laatusana_maps_to_adj() {
+        let a = make_analysis("nimisana_laatusana");
+        assert_eq!(mce_class_to_upos(&a), "ADJ");
+        assert_eq!(mce_to_upos(&a, "suomalainen"), "ADJ");
+    }
+
+    #[test]
+    fn lyhenne_maps_to_noun() {
+        let a = make_analysis("lyhenne");
+        assert_eq!(mce_class_to_upos(&a), "NOUN");
+        assert_eq!(mce_to_upos(&a, "EU"), "NOUN");
+    }
+
+    #[test]
+    fn all_upos_list_complete() {
+        // Verify the ALL_UPOS constant has 17 UD UPOS tags.
+        assert_eq!(ALL_UPOS.len(), 17);
+        assert!(ALL_UPOS.contains(&"NOUN"));
+        assert!(ALL_UPOS.contains(&"VERB"));
+        assert!(ALL_UPOS.contains(&"ADJ"));
+        assert!(ALL_UPOS.contains(&"ADV"));
+        assert!(ALL_UPOS.contains(&"PRON"));
+        assert!(ALL_UPOS.contains(&"DET"));
+        assert!(ALL_UPOS.contains(&"ADP"));
+        assert!(ALL_UPOS.contains(&"AUX"));
+        assert!(ALL_UPOS.contains(&"CCONJ"));
+        assert!(ALL_UPOS.contains(&"SCONJ"));
+        assert!(ALL_UPOS.contains(&"NUM"));
+        assert!(ALL_UPOS.contains(&"PART"));
+        assert!(ALL_UPOS.contains(&"INTJ"));
+        assert!(ALL_UPOS.contains(&"PROPN"));
+        assert!(ALL_UPOS.contains(&"PUNCT"));
+        assert!(ALL_UPOS.contains(&"SYM"));
+        assert!(ALL_UPOS.contains(&"X"));
+    }
+
+    #[test]
+    fn pron_stays_pron_when_det_forms_empty() {
+        // FINNISH_DET_FORMS is intentionally empty, so all asemosana -> PRON.
+        let mut a = make_analysis("asemosana");
+        a.set(ATTR_BASEFORM, "tämä");
+        assert_eq!(mce_to_upos(&a, "tämä"), "PRON");
+
+        let mut a2 = make_analysis("asemosana");
+        a2.set(ATTR_BASEFORM, "se");
+        assert_eq!(mce_to_upos(&a2, "se"), "PRON");
+    }
+
+    #[test]
+    fn adv_passthrough_for_non_particle() {
+        // Regular adverb stays ADV; no PART mapping in Finnish-TDT.
+        let a = make_analysis("seikkasana");
+        assert_eq!(mce_to_upos(&a, "nopeasti"), "ADV");
+        assert_eq!(mce_to_upos(&a, "hyvin"), "ADV");
+    }
 }

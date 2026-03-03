@@ -119,4 +119,44 @@ mod tests {
         a.remove("CLASS");
         assert!(a.is_empty());
     }
+
+    #[test]
+    fn keys_returns_all_keys() {
+        let mut a = Analysis::new();
+        a.set("BASEFORM", "koira");
+        a.set("CLASS", "nimisana");
+        a.set("NUMBER", "singular");
+        let mut keys = a.keys();
+        keys.sort();
+        assert_eq!(keys, vec!["BASEFORM", "CLASS", "NUMBER"]);
+    }
+
+    #[test]
+    fn contains_key_present_and_absent() {
+        let mut a = Analysis::new();
+        a.set("BASEFORM", "koira");
+        assert!(a.contains_key("BASEFORM"));
+        assert!(!a.contains_key("CLASS"));
+    }
+
+    #[test]
+    fn attributes_returns_inner_map() {
+        let mut a = Analysis::new();
+        a.set("BASEFORM", "koira");
+        a.set("CLASS", "nimisana");
+        let attrs = a.attributes();
+        assert_eq!(attrs.len(), 2);
+        assert_eq!(attrs.get("BASEFORM").map(String::as_str), Some("koira"));
+        assert_eq!(attrs.get("CLASS").map(String::as_str), Some("nimisana"));
+    }
+
+    #[test]
+    fn remove_nonexistent_key_is_noop() {
+        let mut a = Analysis::new();
+        a.set("BASEFORM", "koira");
+        a.remove("NONEXISTENT");
+        // The existing entry should remain intact.
+        assert_eq!(a.len(), 1);
+        assert_eq!(a.get("BASEFORM"), Some("koira"));
+    }
 }

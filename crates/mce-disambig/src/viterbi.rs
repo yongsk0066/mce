@@ -362,6 +362,59 @@ mod tests {
         assert_eq!(result[1].get("BASEFORM"), Some("juosta"));
     }
 
+    /// When two readings have exactly equal total scores, Viterbi picks the
+    /// one with the lower index (first encountered), since the comparison
+    /// uses strict `>`.
+    #[test]
+    fn tie_breaking_equal_scores_picks_lower_index() {
+        // Two readings with identical emission scores.
+        let lattice = Lattice {
+            nodes: vec![LatticeNode::new(
+                0,
+                vec![
+                    Reading::new(make_analysis("nimisana", "a"), -1.0),
+                    Reading::new(make_analysis("teonsana", "b"), -1.0), // same score
+                ],
+            )],
+        };
+
+        let transition: Box<TransitionFn> = Box::new(|_, _| 0.0);
+        let path = viterbi(&lattice, &transition);
+        // Index 0 wins because score is not strictly greater for index 1.
+        assert_eq!(path, vec![0]);
+    }
+
+    /// Multi-position tie-breaking: equal paths through the trellis.
+    #[test]
+    fn tie_breaking_multi_position() {
+        // Position 0: A(-1.0) or B(-1.0)  — tied
+        // Position 1: C(-1.0) or D(-1.0)  — tied
+        // All transitions are 0.0, so all paths have equal total score.
+        let lattice = Lattice {
+            nodes: vec![
+                LatticeNode::new(
+                    0,
+                    vec![
+                        Reading::new(make_analysis("A", "a"), -1.0),
+                        Reading::new(make_analysis("B", "b"), -1.0),
+                    ],
+                ),
+                LatticeNode::new(
+                    1,
+                    vec![
+                        Reading::new(make_analysis("C", "c"), -1.0),
+                        Reading::new(make_analysis("D", "d"), -1.0),
+                    ],
+                ),
+            ],
+        };
+
+        let transition: Box<TransitionFn> = Box::new(|_, _| 0.0);
+        let path = viterbi(&lattice, &transition);
+        // Lower indices win due to strict `>` comparison.
+        assert_eq!(path, vec![0, 0]);
+    }
+
     /// Longer sentence (5 positions) to verify DP correctness.
     #[test]
     fn five_position_sentence() {

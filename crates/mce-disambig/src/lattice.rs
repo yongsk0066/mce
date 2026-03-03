@@ -154,4 +154,37 @@ mod tests {
         assert_eq!(node.position, 5);
         assert_eq!(node.num_readings(), 0);
     }
+
+    #[test]
+    fn lattice_from_scored_maps_scores_correctly() {
+        let sentence = vec![vec![
+            (make_analysis("nimisana", "koira"), -1.5),
+            (make_analysis("teonsana", "koira"), -3.7),
+        ]];
+        let lat = Lattice::from_scored(sentence);
+        assert_eq!(lat.nodes[0].readings.len(), 2);
+        assert!((lat.nodes[0].readings[0].score - (-1.5)).abs() < f64::EPSILON);
+        assert!((lat.nodes[0].readings[1].score - (-3.7)).abs() < f64::EPSILON);
+        assert_eq!(
+            lat.nodes[0].readings[0].analysis.get("BASEFORM"),
+            Some("koira")
+        );
+        assert_eq!(
+            lat.nodes[0].readings[1].analysis.get("CLASS"),
+            Some("teonsana")
+        );
+    }
+
+    #[test]
+    fn lattice_from_scored_empty_inner_vec_becomes_empty_node() {
+        let sentence = vec![
+            vec![(make_analysis("nimisana", "koira"), -1.0)],
+            vec![], // empty inner vec
+        ];
+        let lat = Lattice::from_scored(sentence);
+        assert_eq!(lat.len(), 2);
+        assert_eq!(lat.nodes[0].num_readings(), 1);
+        assert_eq!(lat.nodes[1].num_readings(), 0);
+        assert_eq!(lat.nodes[1].position, 1);
+    }
 }

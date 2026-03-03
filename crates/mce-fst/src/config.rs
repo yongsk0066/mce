@@ -171,4 +171,46 @@ mod tests {
         cfg.flag_depth -= 1;
         assert_eq!(cfg.current_flags()[0], 5); // original intact
     }
+
+    #[test]
+    fn zero_flag_config() {
+        // UnweightedConfig with 0 flag features should have empty undo vectors.
+        let cfg = UnweightedConfig::new(0, 20);
+        assert!(cfg.current_flag_values.is_empty());
+        assert!(cfg.flag_undo_value.is_empty());
+        assert!(cfg.flag_undo_feature.is_empty());
+        assert_eq!(cfg.buffer_size, 20);
+
+        // WeightedConfig with 0 flag features should have empty flag_value_stack.
+        let wcfg = WeightedConfig::new(0, 20);
+        assert!(wcfg.flag_value_stack.is_empty());
+        assert_eq!(wcfg.flag_feature_count, 0);
+        assert!(wcfg.current_flags().is_empty());
+    }
+
+    #[test]
+    fn weighted_config_reset() {
+        let mut cfg = WeightedConfig::new(2, 10);
+        cfg.stack_depth = 5;
+        cfg.flag_depth = 3;
+        cfg.input_depth = 7;
+        cfg.input_length = 8;
+        cfg.state_index_stack[0] = 42;
+        cfg.current_transition_stack[0] = 99;
+        // Set some flag values.
+        cfg.current_flags_mut()[0] = 10;
+        cfg.current_flags_mut()[1] = 20;
+
+        cfg.reset();
+
+        assert_eq!(cfg.stack_depth, 0);
+        assert_eq!(cfg.flag_depth, 0);
+        assert_eq!(cfg.input_depth, 0);
+        assert_eq!(cfg.input_length, 0);
+        assert_eq!(cfg.state_index_stack[0], 0);
+        assert_eq!(cfg.current_transition_stack[0], 0);
+        // Flag values at depth 0 should be cleared.
+        assert_eq!(cfg.current_flags()[0], 0);
+        assert_eq!(cfg.current_flags()[1], 0);
+    }
 }

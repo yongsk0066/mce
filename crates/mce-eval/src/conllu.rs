@@ -203,4 +203,99 @@ mod tests {
         assert_eq!(sentences.len(), 1);
         assert_eq!(sentences[0].tokens.len(), 2);
     }
+
+    #[test]
+    fn feats_field_preserved() {
+        // Verify that the feats field is correctly parsed and preserved.
+        let sentences = parse_conllu(SAMPLE);
+        // "Koira" has feats "Case=Nom|Number=Sing"
+        assert_eq!(sentences[0].tokens[0].feats, "Case=Nom|Number=Sing");
+        // "juoksee" has rich feats
+        assert_eq!(
+            sentences[0].tokens[1].feats,
+            "Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin|Voice=Act"
+        );
+        // "nopeasti" has empty feats ("_")
+        assert_eq!(sentences[0].tokens[2].feats, "_");
+    }
+
+    #[test]
+    fn xpos_field_preserved() {
+        let sentences = parse_conllu(SAMPLE);
+        assert_eq!(sentences[0].tokens[0].xpos, "N");
+        assert_eq!(sentences[0].tokens[1].xpos, "V");
+        assert_eq!(sentences[0].tokens[2].xpos, "Adv");
+        assert_eq!(sentences[0].tokens[3].xpos, "Punct");
+    }
+
+    #[test]
+    fn skip_empty_node_ids() {
+        // Empty nodes have IDs like "1.1" and should be skipped.
+        let content = "\
+# sent_id = empty.1
+# text = Koira juoksee.
+1\tKoira\tkoira\tNOUN\tN\tCase=Nom\t2\tnsubj\t2:nsubj\t_
+1.1\tKoira\tkoira\tNOUN\tN\tCase=Nom\t_\t_\t_\t_
+2\tjuoksee\tjuosta\tVERB\tV\t_\t0\troot\t0:root\tSpaceAfter=No
+3\t.\t.\tPUNCT\tPunct\t_\t2\tpunct\t2:punct\t_
+";
+        let sentences = parse_conllu(content);
+        assert_eq!(sentences.len(), 1);
+        // Empty node "1.1" should be skipped, leaving 3 tokens (1, 2, 3).
+        let ids: Vec<usize> = sentences[0].tokens.iter().map(|t| t.id).collect();
+        assert_eq!(ids, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn comments_only_no_sentence() {
+        // File with only comments and no token lines should produce no sentences.
+        let content = "\
+# This is a comment
+# sent_id = ghost.1
+# text = Nothing here
+";
+        let sentences = parse_conllu(content);
+        assert!(sentences.is_empty());
+    }
+
+    #[test]
+    fn line_with_fewer_than_10_fields_skipped() {
+        // A line with fewer than 10 tab-separated fields should be ignored.
+        let content = "\
+# sent_id = short.1
+# text = test
+1\ttest\ttest\tNOUN
+2\tgood\tgood\tNOUN\tN\tCase=Nom\t0\troot\t0:root\t_
+";
+        let sentences = parse_conllu(content);
+        assert_eq!(sentences.len(), 1);
+        // Only the second line (ID 2) has 10 fields.
+        assert_eq!(sentences[0].tokens.len(), 1);
+        assert_eq!(sentences[0].tokens[0].id, 2);
+    }
+
+    #[test]
+    fn multiple_blank_lines_between_sentences() {
+        let content = "\
+# sent_id = s1
+# text = A.
+1\tA\ta\tNOUN\tN\t_\t0\troot\t0:root\t_
+
+
+# sent_id = s2
+# text = B.
+1\tB\tb\tNOUN\tN\t_\t0\troot\t0:root\t_
+";
+        let sentences = parse_conllu(content);
+        assert_eq!(sentences.len(), 2);
+        assert_eq!(sentences[0].sent_id, "s1");
+        assert_eq!(sentences[1].sent_id, "s2");
+    }
+
+    #[test]
+    fn sentence_text_preserved() {
+        let sentences = parse_conllu(SAMPLE);
+        assert_eq!(sentences[0].text, "Koira juoksee nopeasti.");
+        assert_eq!(sentences[1].text, "Iso kissa nukkuu.");
+    }
 }

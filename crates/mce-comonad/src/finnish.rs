@@ -1497,6 +1497,20 @@ mod tests {
     }
 
     #[test]
+    fn strong_grade_kamma_to_kampa() {
+        // Reverse gradation: weak form -> strong form
+        // kamma (weak: mm) -> kampa (strong: mp)
+        assert_eq!(strong("kamma"), "kampa");
+    }
+
+    #[test]
+    fn strong_grade_via_writer_kamma() {
+        // Verify that the public `gradate` function also works for strong grade
+        let result = gradate("kamma", Grade::Strong);
+        assert_eq!(result, "kampa");
+    }
+
+    #[test]
     fn writer_vs_legacy_gradation_pipeline_vec_equivalence() {
         let test_words: Vec<Vec<char>> = vec![
             "kaappi".chars().collect(),

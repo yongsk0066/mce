@@ -236,4 +236,106 @@ mod tests {
         assert!(parser.parse("@X.FOO@").is_err());
         assert!(parser.parse("@P@").is_err());
     }
+
+    #[test]
+    fn clear_resets_to_neutral() {
+        let ofv = OpFeatureValue {
+            op: FlagOp::C,
+            feature: 1,
+            value: 99, // value is ignored for Clear
+        };
+        // Regardless of the current value, Clear always resets to NEUTRAL.
+        assert_eq!(
+            check_flag(&ofv, 42),
+            FlagCheckResult::AcceptAndUpdate {
+                feature: 1,
+                value: FLAG_VALUE_NEUTRAL,
+            }
+        );
+        assert_eq!(
+            check_flag(&ofv, FLAG_VALUE_NEUTRAL),
+            FlagCheckResult::AcceptAndUpdate {
+                feature: 1,
+                value: FLAG_VALUE_NEUTRAL,
+            }
+        );
+    }
+
+    #[test]
+    fn unification_matching_value_accepts() {
+        let ofv = OpFeatureValue {
+            op: FlagOp::U,
+            feature: 2,
+            value: 7,
+        };
+        // When current value equals ofv.value, accept without update.
+        assert_eq!(
+            check_flag(&ofv, 7),
+            FlagCheckResult::AcceptNoUpdate { feature: 2 }
+        );
+    }
+
+    #[test]
+    fn unification_neutral_sets_value() {
+        let ofv = OpFeatureValue {
+            op: FlagOp::U,
+            feature: 3,
+            value: 5,
+        };
+        // When current is neutral, unification sets the value.
+        assert_eq!(
+            check_flag(&ofv, FLAG_VALUE_NEUTRAL),
+            FlagCheckResult::AcceptAndUpdate {
+                feature: 3,
+                value: 5,
+            }
+        );
+    }
+
+    #[test]
+    fn require_specific_value_match() {
+        let ofv = OpFeatureValue {
+            op: FlagOp::R,
+            feature: 0,
+            value: 5,
+        };
+        // Current matches required value -> accept.
+        assert_eq!(
+            check_flag(&ofv, 5),
+            FlagCheckResult::AcceptNoUpdate { feature: 0 }
+        );
+        // Current does not match -> reject.
+        assert_eq!(check_flag(&ofv, 3), FlagCheckResult::Reject);
+        // Neutral does not match a specific value -> reject.
+        assert_eq!(
+            check_flag(&ofv, FLAG_VALUE_NEUTRAL),
+            FlagCheckResult::Reject
+        );
+    }
+
+    #[test]
+    fn disallow_any_rejects_non_neutral() {
+        let ofv = OpFeatureValue {
+            op: FlagOp::D,
+            feature: 0,
+            value: FLAG_VALUE_ANY,
+        };
+        // Any non-neutral current value is disallowed.
+        assert_eq!(check_flag(&ofv, 5), FlagCheckResult::Reject);
+        assert_eq!(check_flag(&ofv, 1), FlagCheckResult::Reject);
+        // Neutral is accepted.
+        assert_eq!(
+            check_flag(&ofv, FLAG_VALUE_NEUTRAL),
+            FlagCheckResult::AcceptNoUpdate { feature: 0 }
+        );
+    }
+
+    #[test]
+    fn parse_clear_flag() {
+        let mut parser = FlagDiacriticParser::new();
+        let ofv = parser.parse("@C.NUM@").unwrap();
+        assert_eq!(ofv.op, FlagOp::C);
+        // "NUM" is the feature, "@" (no value after dot) maps to FLAG_VALUE_ANY.
+        assert_eq!(ofv.value, FLAG_VALUE_ANY);
+    }
 }

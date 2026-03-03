@@ -447,6 +447,40 @@ mod tests {
     // default_rules
     // -----------------------------------------------------------------------
 
+    // -----------------------------------------------------------------------
+    // FinnishGrammarChecker struct construction
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn without_analyzer_constructs_successfully() {
+        let checker = FinnishGrammarChecker::without_analyzer();
+        // Should not panic and should have rules registered.
+        let errors = checker.check("Koira juoksee.");
+        // Correct sentence: no errors expected.
+        assert!(errors.is_empty());
+    }
+
+    #[test]
+    fn without_analyzer_with_rules_empty_rules() {
+        let checker = FinnishGrammarChecker::without_analyzer_with_rules(vec![]);
+        // No rules registered, so no errors should be produced.
+        let errors = checker.check("koira koira juoksee.");
+        assert!(errors.is_empty());
+    }
+
+    #[test]
+    fn double_space_rule_fires() {
+        let checker = FinnishGrammarChecker::without_analyzer();
+        let errors = checker.check("Koira  juoksee.");
+        let double_space: Vec<&GrammarError> =
+            errors.iter().filter(|e| e.code == "DOUBLE_SPACE").collect();
+        assert_eq!(double_space.len(), 1);
+    }
+
+    // -----------------------------------------------------------------------
+    // default_rules
+    // -----------------------------------------------------------------------
+
     #[test]
     fn default_rules_has_twenty_one_rules() {
         let rules = default_rules();

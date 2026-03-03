@@ -381,4 +381,145 @@ mod tests {
         assert!(output.contains("UPOS Accuracy"));
         assert!(output.contains("Lemma Accuracy"));
     }
+
+    #[test]
+    fn support_counts_gold_occurrences() {
+        let mut r = EvalResults::new();
+        // 3 gold NOUN tokens: 2 correct, 1 missed (gold=NOUN, pred=ADJ)
+        r.add(&make_result("koira", "NOUN", "NOUN", "", ""));
+        r.add(&make_result("kissa", "NOUN", "NOUN", "", ""));
+        r.add(&make_result("talo", "NOUN", "ADJ", "", "")); // FN for NOUN
+        // 1 gold VERB token: correct
+        r.add(&make_result("juoksee", "VERB", "VERB", "", ""));
+        // 1 gold ADJ token: correct + 1 FP from above
+        r.add(&make_result("iso", "ADJ", "ADJ", "", ""));
+
+        // support(NOUN) = TP + FN = 2 + 1 = 3
+        assert_eq!(r.support("NOUN"), 3);
+        // support(VERB) = TP + FN = 1 + 0 = 1
+        assert_eq!(r.support("VERB"), 1);
+        // support(ADJ) = TP + FN = 1 + 0 = 1
+        // Note: the FP on ADJ (from talo NOUN->ADJ) does not affect support.
+        assert_eq!(r.support("ADJ"), 1);
+    }
+
+    #[test]
+    fn support_unknown_tag_is_zero() {
+        let r = EvalResults::new();
+        assert_eq!(r.support("NONEXISTENT"), 0);
+    }
+
+    #[test]
+    fn all_tags_sorted() {
+        let mut r = EvalResults::new();
+        r.add(&make_result("a", "VERB", "VERB", "", ""));
+        r.add(&make_result("b", "ADJ", "ADJ", "", ""));
+        r.add(&make_result("c", "NOUN", "NOUN", "", ""));
+        let tags = r.all_tags();
+        assert_eq!(tags, vec!["ADJ", "NOUN", "VERB"]);
+    }
+
+    #[test]
+    fn f1_calculation() {
+        let mut r = EvalResults::new();
+        // NOUN: TP=2, FP=1, FN=1 -> P=2/3, R=2/3, F1=2/3
+        r.add(&make_result("a", "NOUN", "NOUN", "", ""));
+        r.add(&make_result("b", "NOUN", "NOUN", "", ""));
+        r.add(&make_result("c", "ADJ", "NOUN", "", "")); // FP for NOUN
+        r.add(&make_result("d", "NOUN", "VERB", "", "")); // FN for NOUN
+        r.add(&make_result("e", "VERB", "VERB", "", ""));
+
+        let p = r.precision("NOUN");
+        let rc = r.recall("NOUN");
+        let f = r.f1("NOUN");
+        assert!((p - 2.0 / 3.0).abs() < 1e-10);
+        assert!((rc - 2.0 / 3.0).abs() < 1e-10);
+        assert!((f - 2.0 / 3.0).abs() < 1e-10); // 2 * (2/3) * (2/3) / (2/3 + 2/3) = 2/3
+    }
+
+    #[test]
+    fn f1_zero_when_no_tp() {
+        let mut r = EvalResults::new();
+        // ADJ: TP=0, FP=0, FN=1
+        r.add(&make_result("iso", "ADJ", "NOUN", "", ""));
+        assert_eq!(r.f1("ADJ"), 0.0);
+    }
+
+    #[test]
+    fn lemma_case_insensitive_comparison() {
+        let mut r = EvalResults::new();
+        // Gold "Helsinki", pred "helsinki" -> should match (case-insensitive).
+        r.add(&make_result("Helsinki", "PROPN", "PROPN", "Helsinki", "helsinki"));
+        assert_eq!(r.lemma_correct, 1);
+    }
+
+    #[test]
+    fn lemma_empty_gold_not_counted() {
+        let mut r = EvalResults::new();
+        // When gold_lemma is empty, lemma comparison is skipped.
+        r.add(&make_result("foo", "NOUN", "NOUN", "", "koira"));
+        assert_eq!(r.lemma_correct, 0);
+    }
+
+    #[test]
+    fn lemma_empty_pred_not_counted() {
+        let mut r = EvalResults::new();
+        // When pred_lemma is empty, lemma comparison is skipped.
+        r.add(&make_result("foo", "NOUN", "NOUN", "koira", ""));
+        assert_eq!(r.lemma_correct, 0);
+    }
+
+    #[test]
+    fn top_confusions_truncated() {
+        let mut r = EvalResults::new();
+        // Create 3 different confusion types.
+        r.add(&make_result("a", "ADJ", "NOUN", "", ""));
+        r.add(&make_result("b", "ADJ", "NOUN", "", ""));
+        r.add(&make_result("c", "VERB", "NOUN", "", ""));
+        r.add(&make_result("d", "PROPN", "NOUN", "", ""));
+
+        // top_confusions(2) should return only the top 2.
+        let top = r.top_confusions(2);
+        assert_eq!(top.len(), 2);
+        // ADJ->NOUN should be first (count=2).
+        assert_eq!(top[0].0, ("ADJ".to_string(), "NOUN".to_string()));
+        assert_eq!(top[0].1, 2);
+    }
+
+    #[test]
+    fn top_confusions_empty_when_all_correct() {
+        let mut r = EvalResults::new();
+        r.add(&make_result("koira", "NOUN", "NOUN", "", ""));
+        r.add(&make_result("juoksee", "VERB", "VERB", "", ""));
+        let top = r.top_confusions(10);
+        assert!(top.is_empty());
+    }
+
+    #[test]
+    fn default_is_same_as_new() {
+        let r1 = EvalResults::new();
+        let r2 = EvalResults::default();
+        assert_eq!(r1.total, r2.total);
+        assert_eq!(r1.upos_correct, r2.upos_correct);
+        assert_eq!(r1.lemma_correct, r2.lemma_correct);
+        assert_eq!(r1.unknown_count, r2.unknown_count);
+    }
+
+    #[test]
+    fn x_gold_and_x_pred_not_unknown() {
+        let mut r = EvalResults::new();
+        // When gold is also X, it's not counted as "unknown" — the condition
+        // only triggers when pred==X and gold!=X.
+        r.add(&make_result("???", "X", "X", "", ""));
+        assert_eq!(r.unknown_count, 0);
+        assert_eq!(r.upos_correct, 1);
+    }
+
+    #[test]
+    fn coverage_full_when_no_unknowns() {
+        let mut r = EvalResults::new();
+        r.add(&make_result("a", "NOUN", "NOUN", "", ""));
+        r.add(&make_result("b", "VERB", "ADJ", "", "")); // wrong but not unknown
+        assert!((r.coverage() - 1.0).abs() < 1e-10);
+    }
 }
