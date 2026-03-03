@@ -5,8 +5,9 @@ on:
     branches: [main]
     paths:
       - 'docs/**'
-      - 'data/wordlist.txt'
+      - 'data/**'
       - 'crates/mce-wasm/src/**'
+      - 'crates/mce-wasm/Cargo.toml'
   workflow_dispatch:
 
 permissions:

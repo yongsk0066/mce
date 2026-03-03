@@ -632,7 +632,7 @@ flowchart TD
               <cds-tile data-action="suggest" data-input="suggestInput">
                 <div class="tile-header"><h2 class="cds--type-heading-compact-01">Spelling Suggestions</h2><cds-tag type="magenta">suggest()</cds-tag></div>
                 <div class="tile-body">
-                  <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">Generates correction suggestions ranked by edit distance using trie-based fuzzy search. Each candidate is verified through morphological analysis &mdash; only real Finnish words are suggested.</p>
+                  <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">Generates correction suggestions ranked by edit distance using trie-based fuzzy search against a 44K-word dictionary. All candidates are known dictionary forms. Auto-escalates edit distance (up to 3) if no results found.</p>
                   <div class="example-presets" style="display:flex;gap:var(--cds-spacing-02);flex-wrap:wrap;margin-bottom:var(--cds-spacing-04)">
                     <cds-tag type="green" class="example-tag" data-value="koirra" data-target="suggestInput" data-hint="Extra consonant: &lsquo;koirra&rsquo; &rarr; &lsquo;koira&rsquo; (dog). The top suggestion should be the correct form. Tests single-edit correction.">koirra</cds-tag>
                     <cds-tag type="purple" class="example-tag" data-value="Helsigni" data-target="suggestInput" data-hint="Transposed letters in &lsquo;Helsinki&rsquo;. Tests whether proper noun suggestions are supported and transposition handling.">Helsigni</cds-tag>
@@ -761,7 +761,7 @@ flowchart TD
 
                 <div class="api-method">
                   <h3>engine.suggest(word: string, max_edits: number): string</h3>
-                  <p>Generate spelling suggestions using trie-based fuzzy search and morphological filtering. Requires wordlist loaded via <code>load_wordlist()</code>. Falls back to edit-distance candidates without wordlist. Returns JSON array of suggestion strings.</p>
+                  <p>Generate spelling suggestions using trie-based fuzzy search against a 44K-word dictionary. All candidates are known dictionary forms, ranked by edit distance. Auto-escalates distance if no results (up to 3). Falls back to <code>suggest_with_context()</code> without wordlist. Returns JSON array of up to 10 suggestions.</p>
                 </div>
 
                 <div class="api-method">
@@ -877,7 +877,7 @@ flowchart TD
                     </cds-table-row>
                     <cds-table-row>
                       <cds-table-cell>Trankit</cds-table-cell>
-                      <cds-table-cell>~96%</cds-table-cell>
+                      <cds-table-cell>98.48%</cds-table-cell>
                       <cds-table-cell>~95%</cds-table-cell>
                       <cds-table-cell>~100%</cds-table-cell>
                       <cds-table-cell>Server (GPU)</cds-table-cell>
@@ -949,7 +949,7 @@ flowchart TD
                   <cds-table-body>
                     <cds-table-row>
                       <cds-table-cell>Throughput</cds-table-cell>
-                      <cds-table-cell><strong>42,000 tok/s</strong></cds-table-cell>
+                      <cds-table-cell><strong>42,090 tok/s</strong></cds-table-cell>
                       <cds-table-cell>Single-threaded, Chrome V8</cds-table-cell>
                     </cds-table-row>
                     <cds-table-row>
@@ -1015,7 +1015,7 @@ flowchart TD
                       <cds-table-cell>Yes (95.56%)</cds-table-cell>
                       <cds-table-cell>Yes (83.88%)</cds-table-cell>
                       <cds-table-cell>Yes (97.80%)</cds-table-cell>
-                      <cds-table-cell>Yes (~96%)</cds-table-cell>
+                      <cds-table-cell>Yes (98.48%)</cds-table-cell>
                     </cds-table-row>
                     <cds-table-row>
                       <cds-table-cell>Generation</cds-table-cell>

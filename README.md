@@ -254,7 +254,7 @@ MCE is built by Yongseok Jang as the analytical core for [corevoikko](https://gi
 ## Documentation
 
 - [CLAUDE.md](CLAUDE.md) -- project context and architecture details
-- Research documents: see `~/oss/finnishNLP/mce-research/INDEX.md`
+- [ARCHITECTURE.md](ARCHITECTURE.md) -- 4-machine architecture and crate dependency graph
 
 ## Links
 
