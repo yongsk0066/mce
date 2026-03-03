@@ -384,8 +384,8 @@ a language:
 
 MCE's experiments across 12 languages (4 language families + 1 isolate) show that bond
 rank profiles separate agglutinative from fusional languages with high statistical
-significance (Kruskal-Wallis H=270.69, p < 10^-60), and correlate strongly with
-syncretism rates (Spearman rho=-0.743).
+significance (Kruskal-Wallis H=183.07, p=1e-41), and correlate with
+syncretism rates (Spearman rho=-0.32, indicating bond rank measures different information from paradigm entropy).
 
 A key finding: Russian verbal Bond 2 = 3 (not the expected 4) because the past tense
 uses gender instead of person agreement, collapsing one dimension. Finnish verbal

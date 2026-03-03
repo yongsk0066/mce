@@ -35,7 +35,7 @@ Vowel harmony resolves archiphonemes (`A` -> `a`/`ä`, `O` -> `o`/`ö`, `U` -> `
 
 Constraint Grammar disambiguation removes unlikely morphological readings at each sentence position based on context. The CG engine uses the same coKleisli architecture:
 
-- **85 rules** across **24 phases**, targeting top UPOS confusions
+- **62 active rules** (85 total, 23 disabled) across **24 phases**, targeting top UPOS confusions
 - **24 rule types**: `RemoveIfPreceded`, `SelectIfFollowed`, `SelectIfSandwiched`, `RemoveByBaseformList`, `SelectAtSentenceStart`, and 19 others
 - **Safety invariant**: a rule never removes the last reading at any position
 

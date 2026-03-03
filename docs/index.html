@@ -347,7 +347,7 @@
                     <cds-table-row>
                       <cds-table-cell>M4': Weighted Lattice</cds-table-cell>
                       <cds-table-cell>Disambiguation</cds-table-cell>
-                      <cds-table-cell>Viterbi + Compressed Sensing</cds-table-cell>
+                      <cds-table-cell>Viterbi + CG-lite + Suffix Tagger</cds-table-cell>
                       <cds-table-cell><code>mce-disambig</code></cds-table-cell>
                     </cds-table-row>
                   </cds-table-body>
@@ -361,7 +361,7 @@
                   <li><strong>mce-speller</strong> &mdash; Spell checking and suggestion engine</li>
                   <li><strong>mce-disambig</strong> &mdash; M4' disambiguation (Weighted Lattice + Viterbi + Suffix Tagger)</li>
                   <li><strong>mce-comonad</strong> &mdash; M2' Comonadic morphophonological engine</li>
-                  <li><strong>mce-fi</strong> &mdash; Finnish language module (analysis, CG rules, generation)</li>
+                  <li><strong>mce-fi</strong> &mdash; Finnish language module (analysis, compound splitting, hyphenation, generation)</li>
                   <li><strong>mce-grammar</strong> &mdash; Grammar checker (21 rules)</li>
                   <li><strong>mce-eval</strong> &mdash; UD evaluation and benchmarking</li>
                   <li><strong>mce-wasm</strong> &mdash; WebAssembly bindings (20 methods)</li>
@@ -1088,7 +1088,7 @@ cargo build --release -p mce-cli
 ./target/release/mce-cli spell koirra
 
 # Full sentence analysis
-echo "Koira juoksee nopeasti." | ./target/release/mce-cli analyze-sentence</cds-code-snippet>
+echo "Koira juoksee nopeasti." | ./target/release/mce-cli sentence</cds-code-snippet>
 
                 <h2 class="cds--type-heading-03">JavaScript / WASM Usage</h2>
                 <cds-code-snippet type="multi">

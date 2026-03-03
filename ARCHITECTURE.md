@@ -146,7 +146,7 @@ flowchart LR
   subgraph CDN
     cdn_w["mce_wasm.js"]
     cdn_d["mor.vfst"]
-    cdn_m["model.bin"]
+    cdn_m["suffix_tagger.bin"]
   end
 
   cdn_w -->|"fetch once"| wasm
