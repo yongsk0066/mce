@@ -395,6 +395,8 @@
               </div>
 
               <div class="markdown">
+                <p class="cds--type-body-01">The workspace separates algebraic computation (Writer Comonad for morphophonological rules) from statistical inference (Viterbi + suffix tagger for disambiguation). WASM builds only pull browser-safe crates &mdash; evaluation and CLI code never ship to the browser. See <a href="#/doc/ARCHITECTURE.md">ARCHITECTURE.md</a> for the full design rationale.</p>
+
                 <h2 class="cds--type-heading-03">MCE v3 Pipeline</h2>
                 <p class="cds--type-body-01">Text flows through four machines in sequence: tokenization, FST lookup, comonadic rule application, and Viterbi disambiguation.</p>
                 <div class="mermaid" id="pipeline-diagram">
@@ -1510,7 +1512,7 @@ mce/
     const loadingEl = $('#loading-indicator');
     try {
       // Try to load from local build first, then from a CDN path
-      const wasmPaths = ['../pkg/mce_wasm.js', './mce_wasm.js'];
+      const wasmPaths = ['./mce_wasm.js'];
       let wasmModule = null;
       for (const p of wasmPaths) {
         try {
@@ -1525,7 +1527,7 @@ mce/
       await init();
 
       // Try to load dictionary
-      const dictPaths = ['../data/mor.vfst', './mor.vfst'];
+      const dictPaths = ['./mor.vfst'];
       let dictBytes = null;
       for (const p of dictPaths) {
         try {
@@ -1540,7 +1542,7 @@ mce/
       engine = MceEngine.load(dictBytes);
 
       // Try to load suffix tagger model
-      const modelPaths = ['../data/suffix_tagger.bin', './suffix_tagger.bin'];
+      const modelPaths = ['./suffix_tagger.bin'];
       for (const p of modelPaths) {
         try {
           const res = await fetch(p);
