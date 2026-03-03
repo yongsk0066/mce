@@ -23,7 +23,7 @@ use mce_fi::morphology::{Analyzer, FinnishAnalyzer};
 use mce_tokenizer::next_token;
 
 use crate::conllu::ConlluSentence;
-use crate::lemma_dict::LemmaDict;
+use crate::lemma_dict::{strip_suffix, LemmaDict};
 use crate::metrics::{EvalResults, TokenResult};
 use crate::pos_map::mce_to_upos;
 
@@ -168,6 +168,36 @@ impl EvalPipeline {
         }
     }
 
+    /// Resolve lemma for an OOV word (no FST analysis found).
+    ///
+    /// Priority:
+    /// 1. Dictionary (form, UPOS) -> lemma
+    /// 2. Suffix stripping (strip Finnish inflectional suffixes)
+    /// 3. Lowercased surface form (last resort)
+    ///
+    /// Case normalization: if UPOS is not PROPN, lowercase the lemma.
+    fn resolve_lemma_oov(&self, form: &str, upos: &str, fst_baseform: &str) -> String {
+        // Check dictionary first.
+        if let Some(ref dict) = self.lemma_dict {
+            if let Some(dict_lemma) = dict.lookup(form, upos) {
+                return if upos != "PROPN" {
+                    dict_lemma.to_lowercase()
+                } else {
+                    dict_lemma.to_string()
+                };
+            }
+        }
+
+        // OOV: try suffix stripping.
+        let stripped = strip_suffix(&form.to_lowercase(), upos);
+        if upos != "PROPN" {
+            stripped
+        } else {
+            // For PROPN, preserve original casing pattern if possible.
+            fst_baseform.to_string()
+        }
+    }
+
     /// Evaluate a single sentence using gold tokenization.
     ///
     /// Uses gold tokens from the CoNLL-U file (not MCE tokenizer) to
@@ -199,6 +229,7 @@ impl EvalPipeline {
         let mut words: Vec<String> = Vec::new();
         let mut word_analyses: Vec<Vec<Analysis>> = Vec::new();
         let mut has_analysis: Vec<bool> = Vec::new();
+        let mut is_oov: Vec<bool> = Vec::new();
 
         for token in &eval_tokens {
             let chars: Vec<char> = token.form.chars().collect();
@@ -219,8 +250,10 @@ impl EvalPipeline {
                 fallback.set(ATTR_BASEFORM, lower);
                 word_analyses.push(vec![fallback]);
                 has_analysis.push(true); // fallback analysis counts as a prediction
+                is_oov.push(true);
             } else {
                 has_analysis.push(true);
+                is_oov.push(false);
                 word_analyses.push(analyses);
             }
         }
@@ -291,7 +324,12 @@ impl EvalPipeline {
                     });
 
                 // Apply dictionary lookup + case normalization.
-                let pred_lemma = self.resolve_lemma(&token.form, &pred_upos, fst_baseform);
+                // For OOV words (no FST analysis), try suffix stripping as fallback.
+                let pred_lemma = if is_oov[i] {
+                    self.resolve_lemma_oov(&token.form, &pred_upos, fst_baseform)
+                } else {
+                    self.resolve_lemma(&token.form, &pred_upos, fst_baseform)
+                };
 
                 results.add(&TokenResult {
                     form: token.form.clone(),
@@ -323,7 +361,11 @@ impl EvalPipeline {
                 let analysis = &best[i];
                 let upos = mce_to_upos(analysis, &token.form);
                 let fst_baseform = analysis.get(ATTR_BASEFORM).unwrap_or("");
-                let lemma = self.resolve_lemma(&token.form, upos, fst_baseform);
+                let lemma = if is_oov[i] {
+                    self.resolve_lemma_oov(&token.form, upos, fst_baseform)
+                } else {
+                    self.resolve_lemma(&token.form, upos, fst_baseform)
+                };
                 (upos.to_string(), lemma)
             } else {
                 // No analysis available.

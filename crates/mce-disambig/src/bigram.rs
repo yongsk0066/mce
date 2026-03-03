@@ -485,7 +485,8 @@ impl EmissionScorer {
 /// lives here to avoid a circular dependency between `mce-disambig` and `mce-eval`.
 pub fn class_to_upos_category(class: &str) -> &'static str {
     match class {
-        "nimisana" | "nimisana_laatusana" | "lyhenne" => "NOUN",
+        "nimisana" | "lyhenne" => "NOUN",
+        "nimisana_laatusana" => "ADJ",
         "teonsana" => "VERB",
         "laatusana" => "ADJ",
         "seikkasana" => "ADV",
@@ -1148,7 +1149,7 @@ mod tests {
         assert_eq!(class_to_upos_category("suhdesana"), "ADP");
         assert_eq!(class_to_upos_category("sidesana"), "CCONJ");
         assert_eq!(class_to_upos_category("huudahdussana"), "INTJ");
-        assert_eq!(class_to_upos_category("nimisana_laatusana"), "NOUN");
+        assert_eq!(class_to_upos_category("nimisana_laatusana"), "ADJ");
         assert_eq!(class_to_upos_category("lyhenne"), "NOUN");
         assert_eq!(class_to_upos_category("unknown"), "X");
     }

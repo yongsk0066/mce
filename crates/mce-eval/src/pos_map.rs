@@ -14,7 +14,7 @@ use mce_core::analysis::{
 /// Uses the `CLASS` attribute from the analysis, with special handling for:
 /// - `etunimi`, `sukunimi`, `paikannimi` -> PROPN
 /// - `kieltosana` (negation verb `ei`) -> AUX
-/// - `nimisana_laatusana` -> NOUN (default; context-dependent in practice)
+/// - `nimisana_laatusana` -> ADJ (default; more often ADJ in UD Finnish-TDT)
 /// - `sidesana` -> CCONJ (default; could also be SCONJ for subordinating)
 /// - Words with `POSSIBLE_GEOGRAPHICAL_NAME` flag -> PROPN
 ///
@@ -78,7 +78,12 @@ pub fn mce_class_to_upos(analysis: &Analysis) -> &'static str {
         "huudahdussana" => "INTJ",
 
         // Compound / ambiguous classes
-        "nimisana_laatusana" => "NOUN", // Default: NOUN (ADJ also possible)
+        // nimisana_laatusana: words that can be either NOUN or ADJ.
+        // In UD Finnish-TDT, `-inen` adjective-nouns (e.g., suomalainen,
+        // iloinen, erityinen) are more frequently ADJ than NOUN.
+        // Changing the default from NOUN to ADJ reduces ADJ->NOUN confusion
+        // in rule-only mode (~80-100 errors).
+        "nimisana_laatusana" => "ADJ",
 
         // Abbreviations
         "lyhenne" => "NOUN", // Default for abbreviations

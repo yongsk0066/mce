@@ -96,7 +96,7 @@ fn pos_mapping_round_trip() {
         ("etunimi", "PROPN"),
         ("sukunimi", "PROPN"),
         ("paikannimi", "PROPN"),
-        ("nimisana_laatusana", "NOUN"),
+        ("nimisana_laatusana", "ADJ"),
         ("lyhenne", "NOUN"),
     ];
 
