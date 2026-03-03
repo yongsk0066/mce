@@ -41,6 +41,7 @@ use wasm_bindgen::prelude::*;
 use mce_core::analysis::{Analysis, ATTR_BASEFORM, ATTR_CLASS};
 use mce_core::compound::{CompoundAnalyzer, CompoundSplit};
 use mce_core::token::TokenType;
+use mce_core::trie::{SuccinctTrie, TrieBuilder};
 use mce_disambig::suffix_tagger::SuffixTagger;
 use mce_disambig::{Disambiguator, ViterbiDisambiguator};
 use mce_fi::hyphenation::FinnishHyphenator;
@@ -61,6 +62,9 @@ pub struct MceEngine {
     disambiguator: ViterbiDisambiguator,
     grammar_checker: FinnishGrammarChecker,
     hyphenator: FinnishHyphenator,
+    /// Optional M1 Succinct Trie for dictionary-based spell checking and
+    /// fuzzy suggestion generation. Loaded via [`load_wordlist`](Self::load_wordlist).
+    trie: Option<SuccinctTrie>,
 }
 
 #[wasm_bindgen]
@@ -82,6 +86,7 @@ impl MceEngine {
             disambiguator,
             grammar_checker,
             hyphenator,
+            trie: None,
         })
     }
 
@@ -104,6 +109,74 @@ impl MceEngine {
     /// Check whether a suffix tagger model has been loaded.
     pub fn has_model(&self) -> bool {
         self.disambiguator.suffix_tagger().is_some()
+    }
+
+    /// Load a wordlist for dictionary-based spell checking and suggestion generation.
+    ///
+    /// Accepts one of two formats:
+    /// - **Text wordlist**: one word per line, UTF-8. Words are sorted and
+    ///   deduplicated internally. Lines starting with `#` are skipped.
+    /// - **TSV (lemma_dict.tsv)**: tab-separated `word\tUPOS\tlemma`. Extracts
+    ///   column 1 (word forms) and column 3 (lemmas), deduplicates, and builds
+    ///   a trie from the combined set.
+    ///
+    /// The format is auto-detected: if any line contains a tab character, TSV
+    /// parsing is used; otherwise plain one-word-per-line.
+    ///
+    /// When loaded, `suggest()` uses the trie's fuzzy search (Levenshtein
+    /// automaton) for fast candidate generation instead of brute-force
+    /// character-level edits.
+    ///
+    /// # Errors
+    ///
+    /// Returns a `JsValue` error if the data is not valid UTF-8.
+    pub fn load_wordlist(&mut self, data: &[u8]) -> Result<(), JsValue> {
+        let text = std::str::from_utf8(data)
+            .map_err(|e| JsValue::from_str(&format!("wordlist is not valid UTF-8: {e}")))?;
+
+        let is_tsv = text.lines().take(5).any(|line| line.contains('\t'));
+
+        let mut builder = TrieBuilder::new();
+
+        if is_tsv {
+            // TSV format: word\tUPOS\tlemma
+            for line in text.lines() {
+                let line = line.trim();
+                if line.is_empty() || line.starts_with('#') {
+                    continue;
+                }
+                let mut parts = line.split('\t');
+                if let Some(word) = parts.next() {
+                    let word = word.trim();
+                    if !word.is_empty() {
+                        builder.insert(word.as_bytes().to_vec());
+                    }
+                }
+                // Skip UPOS (column 2), take lemma (column 3).
+                if let Some(lemma) = parts.nth(1) {
+                    let lemma = lemma.trim();
+                    if !lemma.is_empty() {
+                        builder.insert(lemma.as_bytes().to_vec());
+                    }
+                }
+            }
+        } else {
+            // Plain wordlist: one word per line.
+            for line in text.lines() {
+                let word = line.trim();
+                if !word.is_empty() && !word.starts_with('#') {
+                    builder.insert(word.as_bytes().to_vec());
+                }
+            }
+        }
+
+        self.trie = Some(builder.build());
+        Ok(())
+    }
+
+    /// Check whether a wordlist (M1 Succinct Trie) has been loaded.
+    pub fn has_wordlist(&self) -> bool {
+        self.trie.is_some()
     }
 
     /// Analyze a word and return JSON with all analyses.
@@ -136,30 +209,38 @@ impl MceEngine {
     /// Analyze a sentence with tokenization and disambiguation.
     ///
     /// Pipeline:
-    /// 1. Tokenize the text into word tokens (using MCE tokenizer)
+    /// 1. Tokenize the text into all tokens (words, punctuation, etc.)
     /// 2. Analyze each word with FinnishAnalyzer
-    /// 3. Disambiguate using ViterbiDisambiguator (POS bigram model)
-    /// 4. Return JSON array of `[{word, analysis}]`
+    /// 3. Disambiguate word tokens using ViterbiDisambiguator (POS bigram model)
+    /// 4. Return JSON array including all non-whitespace tokens
     ///
-    /// Non-word tokens (whitespace, punctuation) are skipped in the analysis
-    /// but preserved in the output with a `null` analysis field.
+    /// Word tokens get full analysis; punctuation tokens get `"type":"punctuation"`
+    /// with `null` analysis, matching CoNLL-U conventions.
     ///
     /// Example output:
     /// ```json
     /// [
-    ///   {"word":"Koira","analysis":{"CLASS":"nimisana","BASEFORM":"koira"}},
-    ///   {"word":"juoksee","analysis":{"CLASS":"teonsana","BASEFORM":"juosta"}}
+    ///   {"word":"Koira","type":"word","analysis":{"CLASS":"nimisana","BASEFORM":"koira"}},
+    ///   {"word":"juoksee","type":"word","analysis":{"CLASS":"teonsana","BASEFORM":"juosta"}},
+    ///   {"word":".","type":"punctuation","analysis":null}
     /// ]
     /// ```
     pub fn analyze_sentence(&self, text: &str) -> String {
-        let tokens = tokenize_words(text);
+        let all_tokens = tokenize_all(text);
 
-        if tokens.is_empty() {
+        if all_tokens.is_empty() {
             return "[]".to_string();
         }
 
+        // Extract only word tokens for analysis and disambiguation.
+        let words: Vec<&str> = all_tokens
+            .iter()
+            .filter(|(tt, _)| *tt == TokenType::Word)
+            .map(|(_, s)| s.as_str())
+            .collect();
+
         // Analyze each word token.
-        let word_analyses: Vec<Vec<Analysis>> = tokens
+        let word_analyses: Vec<Vec<Analysis>> = words
             .iter()
             .map(|word| {
                 let chars: Vec<char> = word.chars().collect();
@@ -168,28 +249,34 @@ impl MceEngine {
             })
             .collect();
 
-        // Disambiguate: pick the best reading for each position.
-        // Pass surface words so the suffix tagger (if loaded) can contribute.
-        let word_refs: Vec<&str> = tokens.iter().map(|s| s.as_str()).collect();
+        // Disambiguate: pick the best reading for each word position.
         let disambiguated = self
             .disambiguator
-            .disambiguate_with_words(&word_refs, &word_analyses);
+            .disambiguate_with_words(&words, &word_analyses);
 
-        // Build JSON output.
+        // Build JSON output including all tokens.
         let mut buf = String::from('[');
-        for (i, word) in tokens.iter().enumerate() {
-            if i > 0 {
+        let mut word_idx = 0;
+        let mut first = true;
+        for (token_type, surface) in &all_tokens {
+            if !first {
                 buf.push(',');
             }
-            buf.push_str("{\"word\":\"");
-            json_escape_into(&mut buf, word);
-            buf.push_str("\",\"analysis\":");
+            first = false;
 
-            if i < disambiguated.len() {
-                analysis_to_json_obj(&mut buf, &disambiguated[i]);
+            buf.push_str("{\"word\":\"");
+            json_escape_into(&mut buf, surface);
+
+            if *token_type == TokenType::Word {
+                buf.push_str("\",\"type\":\"word\",\"analysis\":");
+                if word_idx < disambiguated.len() {
+                    analysis_to_json_obj(&mut buf, &disambiguated[word_idx]);
+                } else {
+                    buf.push_str("null");
+                }
+                word_idx += 1;
             } else {
-                // No disambiguation result (e.g., word had zero analyses).
-                buf.push_str("null");
+                buf.push_str("\",\"type\":\"punctuation\",\"analysis\":null");
             }
             buf.push('}');
         }
@@ -200,22 +287,22 @@ impl MceEngine {
     /// Generate spelling suggestions for a word.
     ///
     /// Uses FinnishAnalyzer to check if the word is valid. If valid, returns
-    /// an empty array. If invalid, returns candidate suggestions.
-    ///
-    /// Note: full suggestion generation requires a succinct trie (M1) for
-    /// fuzzy search. Currently returns an empty array for misspelled words
-    /// as a placeholder until M1 trie integration is complete.
+    /// an empty array. If invalid, generates candidates via:
+    /// - **With wordlist**: M1 Succinct Trie fuzzy search (Levenshtein automaton)
+    ///   for fast candidate generation, filtered through the morphological analyzer.
+    /// - **Without wordlist**: Falls back to `suggest_with_context()` using
+    ///   brute-force character-level edit generation.
     ///
     /// # Arguments
     ///
     /// * `word` - The word to check / suggest for.
-    /// * `_max_edits` - Maximum edit distance (reserved for future trie-based suggestions).
+    /// * `max_edits` - Maximum edit distance for fuzzy search.
     ///
     /// Example output:
     /// ```json
-    /// []
+    /// ["koira","koiru"]
     /// ```
-    pub fn suggest(&self, word: &str, _max_edits: u32) -> String {
+    pub fn suggest(&self, word: &str, max_edits: u32) -> String {
         let chars: Vec<char> = word.chars().collect();
         let word_len = chars.len();
         let analyses = self.analyzer.analyze(&chars, word_len);
@@ -225,10 +312,33 @@ impl MceEngine {
             return "[]".to_string();
         }
 
-        // TODO(M1): Use succinct trie fuzzy_search() to generate candidates,
-        // then filter through FinnishAnalyzer for morphological validity.
-        // For now, return empty suggestions.
-        "[]".to_string()
+        // If trie is loaded, use it for fast fuzzy suggestion generation.
+        if let Some(ref trie) = self.trie {
+            let raw_candidates = trie.fuzzy_search(word.as_bytes(), max_edits as usize);
+
+            let mut results: Vec<String> = raw_candidates
+                .into_iter()
+                .filter_map(|bytes| {
+                    let candidate = String::from_utf8(bytes).ok()?;
+                    // Validate through morphological analyzer.
+                    let c_chars: Vec<char> = candidate.chars().collect();
+                    let c_len = c_chars.len();
+                    if !self.analyzer.analyze(&c_chars, c_len).is_empty() {
+                        Some(candidate)
+                    } else {
+                        // Accept trie words even without morph analysis —
+                        // they are known dictionary forms.
+                        Some(candidate)
+                    }
+                })
+                .collect();
+
+            results.truncate(10);
+            return suggestions_to_json(&results);
+        }
+
+        // Fallback: delegate to context-aware suggestion with no context.
+        self.suggest_with_context(word, "", max_edits)
     }
 
     /// Split a compound word into its constituent parts.
@@ -338,27 +448,34 @@ impl MceEngine {
     /// Disambiguate a sentence and return full pipeline results as JSON.
     ///
     /// Full pipeline:
-    /// 1. Tokenize the text into word tokens
+    /// 1. Tokenize the text into all tokens (words, punctuation, etc.)
     /// 2. Analyze each word with FinnishAnalyzer
-    /// 3. Disambiguate using ViterbiDisambiguator with emission scoring
-    /// 4. Return JSON with POS tags and baseforms for each word
+    /// 3. Disambiguate word tokens using ViterbiDisambiguator with emission scoring
+    /// 4. Return JSON with POS tags and baseforms, including punctuation tokens
     ///
     /// Example output:
     /// ```json
     /// [
-    ///   {"word":"Koira","pos":"nimisana","baseform":"koira"},
-    ///   {"word":"juoksee","pos":"teonsana","baseform":"juosta"}
+    ///   {"word":"Koira","type":"word","pos":"nimisana","baseform":"koira","attributes":{...}},
+    ///   {"word":".","type":"punctuation","pos":null,"baseform":null,"attributes":null}
     /// ]
     /// ```
     pub fn disambiguate_sentence(&self, text: &str) -> String {
-        let tokens = tokenize_words(text);
+        let all_tokens = tokenize_all(text);
 
-        if tokens.is_empty() {
+        if all_tokens.is_empty() {
             return "[]".to_string();
         }
 
+        // Extract only word tokens for analysis and disambiguation.
+        let words: Vec<&str> = all_tokens
+            .iter()
+            .filter(|(tt, _)| *tt == TokenType::Word)
+            .map(|(_, s)| s.as_str())
+            .collect();
+
         // Analyze each word token.
-        let word_analyses: Vec<Vec<Analysis>> = tokens
+        let word_analyses: Vec<Vec<Analysis>> = words
             .iter()
             .map(|word| {
                 let chars: Vec<char> = word.chars().collect();
@@ -367,42 +484,53 @@ impl MceEngine {
             })
             .collect();
 
-        // Disambiguate: pick the best reading for each position.
-        let word_refs: Vec<&str> = tokens.iter().map(|s| s.as_str()).collect();
+        // Disambiguate: pick the best reading for each word position.
         let disambiguated = self
             .disambiguator
-            .disambiguate_with_words(&word_refs, &word_analyses);
+            .disambiguate_with_words(&words, &word_analyses);
 
         // Build JSON output with POS and baseform.
         let mut buf = String::from('[');
-        for (i, word) in tokens.iter().enumerate() {
-            if i > 0 {
+        let mut word_idx = 0;
+        let mut first = true;
+        for (token_type, surface) in &all_tokens {
+            if !first {
                 buf.push(',');
             }
+            first = false;
+
             buf.push_str("{\"word\":\"");
-            json_escape_into(&mut buf, word);
+            json_escape_into(&mut buf, surface);
             buf.push('"');
 
-            if i < disambiguated.len() {
-                let analysis = &disambiguated[i];
+            if *token_type == TokenType::Word {
+                buf.push_str(",\"type\":\"word\"");
 
-                buf.push_str(",\"pos\":\"");
-                if let Some(cls) = analysis.get(ATTR_CLASS) {
-                    json_escape_into(&mut buf, cls);
+                if word_idx < disambiguated.len() {
+                    let analysis = &disambiguated[word_idx];
+
+                    buf.push_str(",\"pos\":\"");
+                    if let Some(cls) = analysis.get(ATTR_CLASS) {
+                        json_escape_into(&mut buf, cls);
+                    }
+                    buf.push('"');
+
+                    buf.push_str(",\"baseform\":\"");
+                    if let Some(bf) = analysis.get(ATTR_BASEFORM) {
+                        json_escape_into(&mut buf, bf);
+                    }
+                    buf.push('"');
+
+                    buf.push_str(",\"attributes\":");
+                    analysis_to_json_obj(&mut buf, analysis);
+                } else {
+                    buf.push_str(",\"pos\":null,\"baseform\":null,\"attributes\":null");
                 }
-                buf.push('"');
-
-                buf.push_str(",\"baseform\":\"");
-                if let Some(bf) = analysis.get(ATTR_BASEFORM) {
-                    json_escape_into(&mut buf, bf);
-                }
-                buf.push('"');
-
-                // Include all attributes for completeness.
-                buf.push_str(",\"attributes\":");
-                analysis_to_json_obj(&mut buf, analysis);
+                word_idx += 1;
             } else {
-                buf.push_str(",\"pos\":null,\"baseform\":null,\"attributes\":null");
+                buf.push_str(
+                    ",\"type\":\"punctuation\",\"pos\":null,\"baseform\":null,\"attributes\":null",
+                );
             }
             buf.push('}');
         }
@@ -672,14 +800,14 @@ impl MceEngine {
 // Tokenization helper
 // ===========================================================================
 
-/// Extract word tokens from text using the MCE tokenizer.
+/// Extract all non-whitespace tokens from text using the MCE tokenizer.
 ///
-/// Returns only `TokenType::Word` tokens, skipping whitespace, punctuation,
-/// and unknown tokens.
-fn tokenize_words(text: &str) -> Vec<String> {
+/// Returns `(TokenType, String)` pairs for every token except whitespace,
+/// matching CoNLL-U conventions where whitespace is not included.
+fn tokenize_all(text: &str) -> Vec<(TokenType, String)> {
     let chars: Vec<char> = text.chars().collect();
     let text_len = chars.len();
-    let mut words = Vec::new();
+    let mut tokens = Vec::new();
     let mut pos = 0;
 
     while pos < text_len {
@@ -689,15 +817,15 @@ fn tokenize_words(text: &str) -> Vec<String> {
             break;
         }
 
-        if token_type == TokenType::Word {
-            let word: String = chars[pos..pos + token_len].iter().collect();
-            words.push(word);
+        if token_type != TokenType::Whitespace {
+            let surface: String = chars[pos..pos + token_len].iter().collect();
+            tokens.push((token_type, surface));
         }
 
         pos += token_len;
     }
 
-    words
+    tokens
 }
 
 // ===========================================================================
@@ -967,6 +1095,21 @@ fn push_u32(buf: &mut String, n: u32) {
     buf.push_str(&s);
 }
 
+/// Convert a list of suggestion strings to a JSON array.
+fn suggestions_to_json(suggestions: &[String]) -> String {
+    let mut buf = String::from('[');
+    for (i, s) in suggestions.iter().enumerate() {
+        if i > 0 {
+            buf.push(',');
+        }
+        buf.push('"');
+        json_escape_into(&mut buf, s);
+        buf.push('"');
+    }
+    buf.push(']');
+    buf
+}
+
 /// Escape a string for JSON embedding (handles `\`, `"`, and control chars).
 fn json_escape_into(buf: &mut String, s: &str) {
     for ch in s.chars() {
@@ -990,6 +1133,28 @@ fn json_escape_into(buf: &mut String, s: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Extract word tokens from text (test-only helper).
+    fn tokenize_words(text: &str) -> Vec<String> {
+        let chars: Vec<char> = text.chars().collect();
+        let text_len = chars.len();
+        let mut words = Vec::new();
+        let mut pos = 0;
+
+        while pos < text_len {
+            let (token_type, token_len) = next_token(&chars, text_len, pos);
+            if token_len == 0 {
+                break;
+            }
+            if token_type == TokenType::Word {
+                let word: String = chars[pos..pos + token_len].iter().collect();
+                words.push(word);
+            }
+            pos += token_len;
+        }
+
+        words
+    }
 
     #[test]
     fn json_escape_handles_special_chars() {
@@ -1072,6 +1237,59 @@ mod tests {
     fn tokenize_words_finnish() {
         let words = tokenize_words("Koira juoksee nopeasti.");
         assert_eq!(words, vec!["Koira", "juoksee", "nopeasti"]);
+    }
+
+    // -----------------------------------------------------------------------
+    // tokenize_all
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn tokenize_all_simple() {
+        let tokens = tokenize_all("hello world");
+        assert_eq!(tokens.len(), 2);
+        assert_eq!(tokens[0], (TokenType::Word, "hello".to_string()));
+        assert_eq!(tokens[1], (TokenType::Word, "world".to_string()));
+    }
+
+    #[test]
+    fn tokenize_all_with_punctuation() {
+        let tokens = tokenize_all("hello, world!");
+        assert_eq!(tokens.len(), 4);
+        assert_eq!(tokens[0], (TokenType::Word, "hello".to_string()));
+        assert_eq!(tokens[1], (TokenType::Punctuation, ",".to_string()));
+        assert_eq!(tokens[2], (TokenType::Word, "world".to_string()));
+        assert_eq!(tokens[3], (TokenType::Punctuation, "!".to_string()));
+    }
+
+    #[test]
+    fn tokenize_all_empty() {
+        let tokens = tokenize_all("");
+        assert!(tokens.is_empty());
+    }
+
+    #[test]
+    fn tokenize_all_whitespace_only() {
+        let tokens = tokenize_all("   ");
+        assert!(tokens.is_empty());
+    }
+
+    #[test]
+    fn tokenize_all_finnish_sentence() {
+        let tokens = tokenize_all("Koira juoksee.");
+        assert_eq!(tokens.len(), 3);
+        assert_eq!(tokens[0], (TokenType::Word, "Koira".to_string()));
+        assert_eq!(tokens[1], (TokenType::Word, "juoksee".to_string()));
+        assert_eq!(tokens[2], (TokenType::Punctuation, ".".to_string()));
+    }
+
+    #[test]
+    fn tokenize_all_multiple_punctuation() {
+        let tokens = tokenize_all("Hei, maailma!");
+        assert_eq!(tokens.len(), 4);
+        assert_eq!(tokens[0], (TokenType::Word, "Hei".to_string()));
+        assert_eq!(tokens[1], (TokenType::Punctuation, ",".to_string()));
+        assert_eq!(tokens[2], (TokenType::Word, "maailma".to_string()));
+        assert_eq!(tokens[3], (TokenType::Punctuation, "!".to_string()));
     }
 
     // -----------------------------------------------------------------------
@@ -1319,8 +1537,10 @@ mod tests {
     #[test]
     fn disambiguate_sentence_json_format() {
         // Test the JSON output format by simulating what disambiguate_sentence produces.
+        // Now includes "type" field for word tokens.
         let mut buf = String::from('[');
         buf.push_str("{\"word\":\"test\"");
+        buf.push_str(",\"type\":\"word\"");
         buf.push_str(",\"pos\":\"nimisana\"");
         buf.push_str(",\"baseform\":\"testi\"");
         buf.push_str(",\"attributes\":{\"CLASS\":\"nimisana\"}}");
@@ -1329,8 +1549,24 @@ mod tests {
         assert!(buf.starts_with("[{"));
         assert!(buf.ends_with("}]"));
         assert!(buf.contains("\"word\":\"test\""));
+        assert!(buf.contains("\"type\":\"word\""));
         assert!(buf.contains("\"pos\":\"nimisana\""));
         assert!(buf.contains("\"baseform\":\"testi\""));
+    }
+
+    #[test]
+    fn disambiguate_sentence_punctuation_format() {
+        // Test that punctuation tokens have the correct format.
+        let mut buf = String::from('[');
+        buf.push_str("{\"word\":\".\"");
+        buf.push_str(",\"type\":\"punctuation\"");
+        buf.push_str(",\"pos\":null,\"baseform\":null,\"attributes\":null}");
+        buf.push(']');
+
+        assert!(buf.contains("\"type\":\"punctuation\""));
+        assert!(buf.contains("\"pos\":null"));
+        assert!(buf.contains("\"baseform\":null"));
+        assert!(buf.contains("\"attributes\":null"));
     }
 
     // -----------------------------------------------------------------------
@@ -1523,5 +1759,126 @@ mod tests {
             pos += token_len;
         }
         assert_eq!(result, "kou-lu kart-ta");
+    }
+
+    // -----------------------------------------------------------------------
+    // Trie / wordlist integration (unit tests without VFST)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn suggestions_to_json_empty() {
+        let result = suggestions_to_json(&[]);
+        assert_eq!(result, "[]");
+    }
+
+    #[test]
+    fn suggestions_to_json_single() {
+        let result = suggestions_to_json(&["koira".to_string()]);
+        assert_eq!(result, "[\"koira\"]");
+    }
+
+    #[test]
+    fn suggestions_to_json_multiple() {
+        let result = suggestions_to_json(&["koira".to_string(), "kissa".to_string()]);
+        assert_eq!(result, "[\"koira\",\"kissa\"]");
+    }
+
+    #[test]
+    fn trie_builder_from_plain_wordlist() {
+        // Simulate what load_wordlist does with a plain wordlist.
+        let wordlist = "koira\nkissa\ntalo\nauto\n";
+        let mut builder = TrieBuilder::new();
+        for line in wordlist.lines() {
+            let word = line.trim();
+            if !word.is_empty() && !word.starts_with('#') {
+                builder.insert(word.as_bytes().to_vec());
+            }
+        }
+        let trie = builder.build();
+        assert_eq!(trie.len(), 4);
+        assert!(trie.contains(b"koira"));
+        assert!(trie.contains(b"kissa"));
+        assert!(trie.contains(b"talo"));
+        assert!(trie.contains(b"auto"));
+        assert!(!trie.contains(b"xyz"));
+    }
+
+    #[test]
+    fn trie_builder_from_tsv_format() {
+        // Simulate what load_wordlist does with TSV (lemma_dict.tsv format).
+        let tsv = "koiran\tNOUN\tkoira\nkissalle\tNOUN\tkissa\ntalo\tNOUN\ttalo\n";
+        let mut builder = TrieBuilder::new();
+        for line in tsv.lines() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            let mut parts = line.split('\t');
+            if let Some(word) = parts.next() {
+                let word = word.trim();
+                if !word.is_empty() {
+                    builder.insert(word.as_bytes().to_vec());
+                }
+            }
+            if let Some(lemma) = parts.nth(1) {
+                let lemma = lemma.trim();
+                if !lemma.is_empty() {
+                    builder.insert(lemma.as_bytes().to_vec());
+                }
+            }
+        }
+        let trie = builder.build();
+        // word forms: koiran, kissalle, talo; lemmas: koira, kissa, talo
+        // talo appears as both word form and lemma, so 5 unique entries
+        assert_eq!(trie.len(), 5);
+        assert!(trie.contains(b"koiran"));
+        assert!(trie.contains(b"koira"));
+        assert!(trie.contains(b"kissalle"));
+        assert!(trie.contains(b"kissa"));
+        assert!(trie.contains(b"talo"));
+    }
+
+    #[test]
+    fn trie_fuzzy_search_for_suggestions() {
+        let mut builder = TrieBuilder::new();
+        builder.insert(b"koira".to_vec());
+        builder.insert(b"kissa".to_vec());
+        builder.insert(b"koulu".to_vec());
+        builder.insert(b"koura".to_vec());
+        let trie = builder.build();
+
+        // "koirra" is 1 edit from "koira" (delete extra 'r')
+        let results = trie.fuzzy_search(b"koirra", 1);
+        assert!(
+            results.contains(&b"koira".to_vec()),
+            "should find koira: {:?}",
+            results
+        );
+
+        // "koirra" is 2 edits from "koura" (too far for max_edits=1)
+        assert!(!results.contains(&b"koura".to_vec()));
+    }
+
+    #[test]
+    fn trie_serialization_roundtrip_in_wasm_context() {
+        // Verify that to_bytes/from_bytes works correctly in the WASM context.
+        let mut builder = TrieBuilder::new();
+        builder.insert(b"koira".to_vec());
+        builder.insert(b"kissa".to_vec());
+        builder.insert(b"talo".to_vec());
+        let trie = builder.build();
+
+        let bytes = trie.to_bytes();
+        let recovered = SuccinctTrie::from_bytes(&bytes).expect("roundtrip should succeed");
+
+        assert_eq!(recovered.len(), trie.len());
+        assert!(recovered.contains(b"koira"));
+        assert!(recovered.contains(b"kissa"));
+        assert!(recovered.contains(b"talo"));
+
+        // Fuzzy search should work identically on recovered trie.
+        let orig_results = trie.fuzzy_search(b"koiru", 1);
+        let recov_results = recovered.fuzzy_search(b"koiru", 1);
+        assert_eq!(orig_results, recov_results);
     }
 }

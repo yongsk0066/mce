@@ -167,6 +167,54 @@ impl SuccinctTrie {
         self.len() == 0
     }
 
+    /// Serialize this trie to a binary format.
+    ///
+    /// Format:
+    /// - Magic: `b"MCT1"` (4 bytes)
+    /// - `labels.len()` as u64 LE (8 bytes)
+    /// - `labels` raw bytes
+    /// - `tree` BitVec (serialized)
+    /// - `is_terminal` BitVec (serialized)
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut out = Vec::new();
+        out.extend_from_slice(b"MCT1");
+        out.extend_from_slice(&(self.labels.len() as u64).to_le_bytes());
+        out.extend_from_slice(&self.labels);
+        self.tree.to_bytes_into(&mut out);
+        self.is_terminal.to_bytes_into(&mut out);
+        out
+    }
+
+    /// Deserialize a trie from bytes produced by [`to_bytes`](Self::to_bytes).
+    ///
+    /// Returns `None` if the data is malformed or too short.
+    pub fn from_bytes(data: &[u8]) -> Option<Self> {
+        if data.len() < 12 {
+            return None;
+        }
+        if &data[0..4] != b"MCT1" {
+            return None;
+        }
+        let labels_len = u64::from_le_bytes(data[4..12].try_into().ok()?) as usize;
+        let mut offset = 12;
+        if data.len() < offset + labels_len {
+            return None;
+        }
+        let labels = data[offset..offset + labels_len].to_vec();
+        offset += labels_len;
+
+        let (tree, consumed) = BitVec::from_bytes(&data[offset..])?;
+        offset += consumed;
+
+        let (is_terminal, _consumed) = BitVec::from_bytes(&data[offset..])?;
+
+        Some(SuccinctTrie {
+            tree,
+            labels,
+            is_terminal,
+        })
+    }
+
     /// Approximate heap memory used by this trie in bytes.
     ///
     /// Includes the LOUDS bit vector, labels array, and terminal bit vector.
@@ -418,6 +466,62 @@ mod tests {
         let trie = TrieBuilder::new().build();
         let results = trie.fuzzy_search(b"abc", 2);
         assert!(results.is_empty());
+    }
+
+    // ── serialization tests ──────────────────────────────────────
+
+    #[test]
+    fn trie_to_bytes_from_bytes_roundtrip() {
+        let trie = build_test_trie(); // cat, car, card, dog
+        let bytes = trie.to_bytes();
+        let recovered = SuccinctTrie::from_bytes(&bytes).expect("deserialization should succeed");
+
+        assert!(recovered.contains(b"cat"));
+        assert!(recovered.contains(b"car"));
+        assert!(recovered.contains(b"card"));
+        assert!(recovered.contains(b"dog"));
+        assert!(!recovered.contains(b"ca"));
+        assert!(!recovered.contains(b"xyz"));
+        assert_eq!(recovered.len(), 4);
+    }
+
+    #[test]
+    fn trie_roundtrip_empty() {
+        let trie = TrieBuilder::new().build();
+        let bytes = trie.to_bytes();
+        let recovered = SuccinctTrie::from_bytes(&bytes).expect("empty trie roundtrip");
+        assert!(recovered.is_empty());
+        assert!(!recovered.contains(b"anything"));
+    }
+
+    #[test]
+    fn trie_roundtrip_single_key() {
+        let mut builder = TrieBuilder::new();
+        builder.insert(b"hello".to_vec());
+        let trie = builder.build();
+        let bytes = trie.to_bytes();
+        let recovered = SuccinctTrie::from_bytes(&bytes).unwrap();
+        assert!(recovered.contains(b"hello"));
+        assert!(!recovered.contains(b"hell"));
+        assert_eq!(recovered.len(), 1);
+    }
+
+    #[test]
+    fn trie_roundtrip_preserves_fuzzy_search() {
+        let trie = build_test_trie();
+        let bytes = trie.to_bytes();
+        let recovered = SuccinctTrie::from_bytes(&bytes).unwrap();
+
+        let original = trie.fuzzy_search(b"cot", 1);
+        let restored = recovered.fuzzy_search(b"cot", 1);
+        assert_eq!(original, restored);
+    }
+
+    #[test]
+    fn trie_from_bytes_rejects_garbage() {
+        assert!(SuccinctTrie::from_bytes(&[0, 0, 0, 0]).is_none());
+        assert!(SuccinctTrie::from_bytes(b"MCT1").is_none()); // too short
+        assert!(SuccinctTrie::from_bytes(&[]).is_none());
     }
 
     #[test]

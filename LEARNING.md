@@ -428,7 +428,7 @@ structs to JS objects.
 
 MCE's WASM binary is **225KB** after optimization. Combined with the FST dictionary
 and suffix tagger model, the total deployment size is approximately **9.1MB** (the
-model compresses to 1.03MB with gzip). The WASM module exposes 20 API methods
+model compresses to 1.03MB with gzip). The WASM module exposes 22 API methods
 including `load_model`, `has_model`, and `analyze_sentence`.
 
 ### Why it matters

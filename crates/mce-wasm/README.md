@@ -1,6 +1,6 @@
 # mce-wasm
 
-WebAssembly bindings for the MCE Finnish NLP engine. Exposes 20 API methods via `wasm-bindgen` for complete offline Finnish language processing in the browser.
+WebAssembly bindings for the MCE Finnish NLP engine. Exposes 22 API methods via `wasm-bindgen` for complete offline Finnish language processing in the browser.
 
 ## Features
 
@@ -10,13 +10,15 @@ WebAssembly bindings for the MCE Finnish NLP engine. Exposes 20 API methods via 
 - Compound word splitting, spelling suggestions, morphological generation
 - Fully offline -- no server dependency
 
-## API (20 methods)
+## API (22 methods)
 
 | Method | Description |
 |--------|-------------|
 | `load(dict)` | Create engine from VFST dictionary bytes |
 | `load_model(data)` | Load suffix tagger model (boosts UPOS 83% -> 95%) |
 | `has_model()` | Check if suffix tagger model is loaded |
+| `load_wordlist(data)` | Load wordlist for trie-based spelling suggestions |
+| `has_wordlist()` | Check if wordlist (suggestion trie) is loaded |
 | `analyze(word)` | Single-word morphological analysis (JSON) |
 | `spell_check(word)` | Check if word is correctly spelled |
 | `suggest(word, max)` | Spelling suggestions for misspelled words |

@@ -96,7 +96,7 @@ The workspace has 11 crates organized in four layers:
 
 **Language.** `mce-fi` is the Finnish integration point — it pulls together FST lookup, comonadic rules, spelling, and disambiguation into a coherent analysis pipeline. `mce-grammar` adds sentence-level error checking on top. If MCE were extended to Turkish or Hungarian, `mce-fi` would be replaced while the engine crates stay unchanged.
 
-**Interfaces.** `mce-wasm` exposes 20 JavaScript API methods via wasm-bindgen. `mce-cli` provides 11 command-line tools. `mce-eval` benchmarks accuracy against UD treebanks. Crucially, `mce-wasm` never depends on `mce-eval` — evaluation code with filesystem I/O never ships to the browser.
+**Interfaces.** `mce-wasm` exposes 22 JavaScript API methods via wasm-bindgen. `mce-cli` provides 11 command-line tools. `mce-eval` benchmarks accuracy against UD treebanks. Crucially, `mce-wasm` never depends on `mce-eval` — evaluation code with filesystem I/O never ships to the browser.
 
 ## Why This Structure
 

@@ -67,7 +67,7 @@ crates/
 ├── mce-fi/         # Finnish language module (analysis, generation, compounds, hyphenation)
 ├── mce-grammar/    # Grammar checking (21 rules)
 ├── mce-eval/       # UPOS/Lemma evaluation against UD treebanks
-├── mce-wasm/       # WASM bindings (20 API methods)
+├── mce-wasm/       # WASM bindings (22 API methods)
 └── mce-cli/        # CLI tools (11 subcommands)
 ```
 
@@ -83,7 +83,7 @@ crates/
 | Grammar rules | `mce-grammar/src/rules/` (21 rules) |
 | POS mapping | `mce-eval/src/pos_map.rs` |
 | Eval pipeline | `mce-eval/src/pipeline.rs` (CG + SuffixTagger + Viterbi) |
-| WASM API | `mce-wasm/src/lib.rs` (20 methods) |
+| WASM API | `mce-wasm/src/lib.rs` (22 methods) |
 | Trained model | `data/suffix_tagger.bin` (5.0MB, MCET format v1) |
 | Per-rule benchmarks | `mce-comonad/src/bench.rs` (25 coKleisli + 21 CG) |
 
@@ -104,12 +104,14 @@ cargo clippy --all-features -- -D warnings
 cargo audit
 ```
 
-## WASM API (20 methods)
+## WASM API (22 methods)
 
 ```plaintext
 MceEngine.load(dict)              # Load dictionary, create engine
 MceEngine.load_model(data)        # Load suffix tagger model
 MceEngine.has_model()             # Check if model is loaded
+MceEngine.load_wordlist(data)     # Load wordlist for spelling suggestions
+MceEngine.has_wordlist()          # Check if wordlist is loaded
 MceEngine.analyze(word)           # Single-word morphological analysis
 MceEngine.spell_check(word)       # Spell check
 MceEngine.suggest(word, max)      # Spelling suggestions

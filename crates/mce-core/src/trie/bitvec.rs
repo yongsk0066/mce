@@ -187,6 +187,72 @@ impl BitVec {
     }
 }
 
+impl BitVec {
+    /// Serialize this BitVec to a byte buffer.
+    ///
+    /// Format:
+    /// - `len` as u64 LE (8 bytes)
+    /// - `data.len()` as u64 LE (8 bytes)
+    /// - `data` as raw u64 LE words
+    /// - `rank_index` as raw u32 LE words (length is data.len() + 1)
+    pub fn to_bytes_into(&self, out: &mut Vec<u8>) {
+        out.extend_from_slice(&(self.len as u64).to_le_bytes());
+        out.extend_from_slice(&(self.data.len() as u64).to_le_bytes());
+        for &word in &self.data {
+            out.extend_from_slice(&word.to_le_bytes());
+        }
+        for &r in &self.rank_index {
+            out.extend_from_slice(&r.to_le_bytes());
+        }
+    }
+
+    /// Deserialize a BitVec from a byte slice, returning (bitvec, bytes_consumed).
+    ///
+    /// Returns `None` if the data is too short or malformed.
+    pub fn from_bytes(data: &[u8]) -> Option<(Self, usize)> {
+        if data.len() < 16 {
+            return None;
+        }
+        let len = u64::from_le_bytes(data[0..8].try_into().ok()?) as usize;
+        let data_len = u64::from_le_bytes(data[8..16].try_into().ok()?) as usize;
+
+        let words_bytes = data_len * 8;
+        let rank_count = data_len + 1;
+        let rank_bytes = rank_count * 4;
+        let total = 16 + words_bytes + rank_bytes;
+
+        if data.len() < total {
+            return None;
+        }
+
+        let mut offset = 16;
+        let mut words = Vec::with_capacity(data_len);
+        for _ in 0..data_len {
+            words.push(u64::from_le_bytes(
+                data[offset..offset + 8].try_into().ok()?,
+            ));
+            offset += 8;
+        }
+
+        let mut rank_index = Vec::with_capacity(rank_count);
+        for _ in 0..rank_count {
+            rank_index.push(u32::from_le_bytes(
+                data[offset..offset + 4].try_into().ok()?,
+            ));
+            offset += 4;
+        }
+
+        Some((
+            BitVec {
+                data: words,
+                len,
+                rank_index,
+            },
+            total,
+        ))
+    }
+}
+
 impl Default for BitVec {
     fn default() -> Self {
         Self::new()

@@ -312,7 +312,7 @@
                   <li><strong>CG rules</strong> &mdash; 62 active constraint grammar rules for context-sensitive disambiguation</li>
                   <li><strong>Morphological generation</strong> &mdash; Noun declension (11 cases) + verb conjugation (4 types)</li>
                   <li><strong>Grammar checking</strong> &mdash; 21 rules for common Finnish writing errors</li>
-                  <li><strong>20 WASM API methods</strong> &mdash; Complete JS/TS API with full TypeScript types</li>
+                  <li><strong>22 WASM API methods</strong> &mdash; Complete JS/TS API with full TypeScript types</li>
                 </ul>
 
                 <h2 class="cds--type-heading-03">Architecture: MCE v3 (4 Machines)</h2>
@@ -364,7 +364,7 @@
                   <li><strong>mce-fi</strong> &mdash; Finnish language module (analysis, compound splitting, hyphenation, generation)</li>
                   <li><strong>mce-grammar</strong> &mdash; Grammar checker (21 rules)</li>
                   <li><strong>mce-eval</strong> &mdash; UD evaluation and benchmarking</li>
-                  <li><strong>mce-wasm</strong> &mdash; WebAssembly bindings (20 methods)</li>
+                  <li><strong>mce-wasm</strong> &mdash; WebAssembly bindings (22 methods)</li>
                   <li><strong>mce-cli</strong> &mdash; Command-line interface</li>
                 </ul>
 
@@ -374,7 +374,7 @@
                   <li><strong>Education</strong> &mdash; interactive morphology explorer (11 noun cases), verb conjugation trainer, hover-to-analyze reading assistant</li>
                   <li><strong>Privacy-first NLP</strong> &mdash; GDPR-compliant by design: text never leaves the browser; works in air-gapped environments</li>
                   <li><strong>Research</strong> &mdash; corpus annotation at 95.56% UPOS, compound decomposition, Writer Comonad for morphophonological theory</li>
-                  <li><strong>Developer integration</strong> &mdash; npm package, Rust crate, CLI (11 commands), and WASM API (20 methods)</li>
+                  <li><strong>Developer integration</strong> &mdash; npm package, Rust crate, CLI (11 commands), and WASM API (22 methods)</li>
                   <li><strong>Only MCE</strong> &mdash; full Finnish NLP in a browser tab with no internet, complete paradigm generation client-side, all in under 9.1MB</li>
                 </ul>
               </div>
@@ -700,7 +700,7 @@ flowchart TD
             <div id="api-view" class="section-view">
               <div class="section-header">
                 <h1 class="cds--type-heading-05">API Reference</h1>
-                <p class="cds--type-body-compact-01">All 20 WASM-exported methods on <code>MceEngine</code>.</p>
+                <p class="cds--type-body-compact-01">All 22 WASM-exported methods on <code>MceEngine</code>.</p>
               </div>
 
               <div class="markdown">
@@ -720,6 +720,16 @@ flowchart TD
                 <div class="api-method">
                   <h3>engine.has_model(): boolean</h3>
                   <p>Check whether a suffix tagger model is loaded.</p>
+                </div>
+
+                <div class="api-method">
+                  <h3>engine.load_wordlist(data: Uint8Array): void</h3>
+                  <p>Load a wordlist for trie-based spelling suggestions. Accepts plain text (one word per line) or TSV format (lemma_dict.tsv). When loaded, <code>suggest()</code> uses fast fuzzy trie search instead of edit-distance fallback.</p>
+                </div>
+
+                <div class="api-method">
+                  <h3>engine.has_wordlist(): boolean</h3>
+                  <p>Check whether a wordlist (spelling suggestion trie) is loaded.</p>
                 </div>
 
                 <div class="api-method">
@@ -746,12 +756,12 @@ flowchart TD
 
                 <div class="api-method">
                   <h3>engine.is_valid_word(word: string): boolean</h3>
-                  <p>Extended word validation including OOV handling. More permissive than spell_check for proper nouns and abbreviations.</p>
+                  <p>Check if a word has a valid morphological analysis in the VFST dictionary. Pure linguistic check -- does not use spelling suggestion trie or cache.</p>
                 </div>
 
                 <div class="api-method">
                   <h3>engine.suggest(word: string, max_edits: number): string</h3>
-                  <p>Generate spelling suggestions for a misspelled word. Returns JSON array of suggestion strings, ranked by edit distance.</p>
+                  <p>Generate spelling suggestions using trie-based fuzzy search and morphological filtering. Requires wordlist loaded via <code>load_wordlist()</code>. Falls back to edit-distance candidates without wordlist. Returns JSON array of suggestion strings.</p>
                 </div>
 
                 <div class="api-method">
@@ -806,8 +816,8 @@ flowchart TD
                 </div>
 
                 <div class="api-method">
-                  <h3>engine.generate_verb_form(baseform: string, tense: string, person: string, number: string): string</h3>
-                  <p>Generate a specific verb form. Supports 4 tense types, 3 persons, 2 numbers.</p>
+                  <h3>engine.generate_verb_form(baseform: string, tense: string, person: string, polarity: string): string</h3>
+                  <p>Generate a specific verb form. Tense: "present", "past", "conditional", "imperative". Person includes number (e.g., "1sg", "2sg", "3sg", "1pl", "2pl", "3pl"). Polarity: "affirmative" or "negative".</p>
                 </div>
 
                 <div class="api-method">
@@ -881,6 +891,8 @@ flowchart TD
                     </cds-table-row>
                   </cds-table-body>
                 </cds-table>
+
+                <p class="cds--type-helper-text-01" style="margin-top:var(--cds-spacing-03)"><em>UPOS and lemma accuracy measured with gold tokenization from UD Finnish-TDT. End-to-end accuracy including MCE's own tokenizer may differ slightly.</em></p>
 
                 <h2 class="cds--type-heading-03">Deployment Size</h2>
                 <cds-table size="sm">
@@ -1143,7 +1155,7 @@ mce/
 │   ├── mce-fi/          # Finnish language module
 │   ├── mce-grammar/     # Grammar checker (21 rules)
 │   ├── mce-eval/        # UD evaluation and benchmarks
-│   ├── mce-wasm/        # WebAssembly bindings (20 methods)
+│   ├── mce-wasm/        # WebAssembly bindings (22 methods)
 │   └── mce-cli/         # Command-line interface
 ├── data/                # Dictionary data files
 ├── docs/                # This documentation site
@@ -1554,6 +1566,18 @@ mce/
           const res = await fetch(p);
           if (res.ok) {
             engine.load_model(new Uint8Array(await res.arrayBuffer()));
+            break;
+          }
+        } catch { continue; }
+      }
+
+      // Try to load wordlist for spelling suggestions
+      const wordlistPaths = ['./wordlist.txt'];
+      for (const p of wordlistPaths) {
+        try {
+          const res = await fetch(p);
+          if (res.ok) {
+            engine.load_wordlist(new Uint8Array(await res.arrayBuffer()));
             break;
           }
         } catch { continue; }

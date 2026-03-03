@@ -61,7 +61,7 @@ MCE occupies a unique position in the Finnish NLP landscape. No other system com
 - npm package (`@yongsk0066/mce`) -- drop-in for any JS/TS project
 - Rust crate -- native speed for server-side batch processing
 - CLI with 11 subcommands for scripting and automation
-- WASM API with 20 methods covering the full NLP pipeline
+- WASM API with 22 methods covering the full NLP pipeline
 
 ### What Only MCE Can Do
 - Run a complete Finnish NLP stack in a browser tab with no internet connection
@@ -106,11 +106,15 @@ engine.compound_split('rautatieasema');
 
 // Morphological generation
 engine.generate_form('koira', 'genetiivi', 'singular');
-engine.generate_verb_form('juosta', 'present', '3', 'singular');
+engine.generate_verb_form('juosta', 'present', '3sg', 'affirmative');
 
 // Load suffix tagger model for higher accuracy (95.56% UPOS)
 const modelBytes = await fetch('suffix_tagger.bin').then(r => r.arrayBuffer());
 engine.load_model(new Uint8Array(modelBytes));
+
+// Optional: load wordlist for spelling suggestions
+const wordlistBytes = await fetch('wordlist.txt').then(r => r.arrayBuffer());
+engine.load_wordlist(new Uint8Array(wordlistBytes));
 
 engine.free();
 ```
@@ -181,7 +185,7 @@ The Rust workspace contains 11 crates:
 | `mce-fi` | Finnish language module (analysis, generation, compounds, hyphenation) |
 | `mce-grammar` | Grammar checking (21 rules) |
 | `mce-eval` | UPOS/Lemma evaluation against UD treebanks |
-| `mce-wasm` | WebAssembly bindings (20 API methods) |
+| `mce-wasm` | WebAssembly bindings (22 API methods) |
 | `mce-cli` | Command-line tools (11 subcommands) |
 
 ## Performance
@@ -214,6 +218,8 @@ The Rust workspace contains 11 crates:
 | **Maintained** | Yes | Yes | Deprecated | Yes |
 
 MCE trades ~2-3pp of UPOS accuracy for a deployment that is orders of magnitude smaller and runs entirely in the browser with no network dependency.
+
+*UPOS and lemma accuracy measured with gold tokenization from UD Finnish-TDT. End-to-end accuracy including MCE's own tokenizer may differ slightly.*
 
 ## Architecture
 

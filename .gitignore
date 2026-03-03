@@ -8,3 +8,4 @@ Cargo.lock
 demo/pkg/
 demo/mor.vfst
 .env
+.npmrc
