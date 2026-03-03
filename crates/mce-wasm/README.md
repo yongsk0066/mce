@@ -20,7 +20,7 @@ WebAssembly bindings for the MCE Finnish NLP engine. Exposes 22 API methods via 
 | `load_wordlist(data)` | Load wordlist for trie-based spelling suggestions |
 | `has_wordlist()` | Check if wordlist (suggestion trie) is loaded |
 | `analyze(word)` | Single-word morphological analysis (JSON) |
-| `spell_check(word)` | Check if word is correctly spelled |
+| `spell_check(word)` | Check if word is correctly spelled (morph analysis + compound-aware) |
 | `suggest(word, max)` | Spelling suggestions for misspelled words |
 | `suggest_with_context(word, prev, max)` | Context-aware suggestions ranked by POS bigram |
 | `analyze_sentence(text)` | Sentence analysis with disambiguation (JSON) |
@@ -30,7 +30,7 @@ WebAssembly bindings for the MCE Finnish NLP engine. Exposes 22 API methods via 
 | `hyphenate(word)` | Single-word Finnish hyphenation |
 | `hyphenate_text(text)` | Full-text hyphenation preserving non-word tokens |
 | `get_baseform(word)` | Lemma lookup (disambiguated) |
-| `is_valid_word(word)` | Dictionary lookup (boolean) |
+| `is_valid_word(word)` | Pure morphological analysis check (boolean) |
 | `generate_form(base, case)` | Generate noun case form |
 | `generate_paradigm(base)` | Full noun paradigm (11 cases) |
 | `generate_verb_form(...)` | Generate verb conjugation |
@@ -100,6 +100,6 @@ wasm-pack build crates/mce-wasm --target web --release
 
 ## Dependencies
 
-Uses: `mce-core`, `mce-fst`, `mce-fi`, `mce-speller`, `mce-disambig`, `mce-comonad`, `mce-tokenizer`, `mce-grammar`, `wasm-bindgen`, `js-sys`, `serde`, `serde-wasm-bindgen`
+Uses: `mce-core`, `mce-fst`, `mce-fi`, `mce-disambig`, `mce-comonad`, `mce-tokenizer`, `mce-grammar`, `wasm-bindgen`, `js-sys`, `serde`, `serde-wasm-bindgen`
 
 Used by: JavaScript/browser consumers

@@ -197,13 +197,34 @@ impl MceEngine {
 
     /// Check spelling of a word.
     ///
-    /// Returns `true` if the VFST transducer produces at least one valid
-    /// morphological analysis for the word.
+    /// Returns `true` if the word is correctly spelled Finnish. Uses a
+    /// multi-stage pipeline:
+    /// 1. Morphological analysis via VFST (handles inflections, derivations)
+    /// 2. Compound-aware check (splits the word and validates each part)
+    ///
+    /// This is more permissive than [`is_valid_word`](Self::is_valid_word),
+    /// which only checks stage 1. For example, novel compound words that
+    /// the FST doesn't recognize as a single entry may still pass the
+    /// compound check.
     pub fn spell_check(&self, word: &str) -> bool {
         let chars: Vec<char> = word.chars().collect();
         let word_len = chars.len();
+
+        // Stage 1: direct morphological analysis.
         let analyses = self.analyzer.analyze(&chars, word_len);
-        !analyses.is_empty()
+        if !analyses.is_empty() {
+            return true;
+        }
+
+        // Stage 2: compound-aware check.
+        let analyzer = &self.analyzer;
+        let lookup = |candidate: &str| -> bool {
+            let c: Vec<char> = candidate.chars().collect();
+            !analyzer.analyze(&c, c.len()).is_empty()
+        };
+        let compound_analyzer = CompoundAnalyzer::new(lookup);
+        let splits = compound_analyzer.analyze(word);
+        splits.iter().any(|s| s.word_parts().len() >= 2)
     }
 
     /// Analyze a sentence with tokenization and disambiguation.
@@ -565,10 +586,11 @@ impl MceEngine {
             .to_string()
     }
 
-    /// Check if a word is valid Finnish (has at least one morphological analysis).
+    /// Check if a word has a valid morphological analysis in the VFST dictionary.
     ///
-    /// This is a lightweight spell check that uses the FST-based morphological
-    /// analyzer. Returns `true` if the word has at least one valid analysis.
+    /// Pure linguistic check: returns `true` only if the FST-based morphological
+    /// analyzer produces at least one analysis. Unlike [`spell_check`](Self::spell_check),
+    /// this does **not** attempt compound splitting or other recovery strategies.
     pub fn is_valid_word(&self, word: &str) -> bool {
         let chars: Vec<char> = word.chars().collect();
         let word_len = chars.len();

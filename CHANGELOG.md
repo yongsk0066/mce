@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Trie-based fuzzy spelling suggestions via `suggest()` when wordlist is loaded
 - Demo site now loads wordlist.txt for better spelling suggestions
 
+### Changed
+- Differentiate `spell_check()` (compound-aware) from `is_valid_word()` (pure morphological analysis)
+- Remove `mce-speller` dependency from `mce-wasm` (spell checking now handled by `mce-fi`; `mce-speller` still used by `mce-fi` and `mce-cli`)
+
 ### Fixed
 - `generate_verb_form()` API docs: corrected signature from `(baseform, tense, person, number)` to `(baseform, tense, person, polarity)`
 - `is_valid_word()` API docs: corrected description to reflect actual behavior (VFST dictionary check)

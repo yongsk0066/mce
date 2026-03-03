@@ -435,8 +435,8 @@ flowchart TD
   wasm --> fi
   wasm --> disambig
   wasm --> grammar
-  wasm --> speller
   cli --> fi
+  cli --> speller
   cli --> disambig
   eval --> fi
   eval --> disambig
@@ -536,7 +536,7 @@ flowchart TD
               <cds-tile data-action="spell" data-input="spellInput">
                 <div class="tile-header"><h2 class="cds--type-heading-compact-01">Spell Check</h2><cds-tag type="green">spell_check()</cds-tag></div>
                 <div class="tile-body">
-                  <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">Checks whether a word exists in the Finnish morphological dictionary. Returns <code>true</code> for any valid inflected form, compound, or derivation &mdash; not just dictionary headwords.</p>
+                  <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">Check if a word is correctly spelled. Uses morphological analysis and compound-aware checking &mdash; more permissive than <code>is_valid_word()</code> for compound words.</p>
                   <div class="example-presets" style="display:flex;gap:var(--cds-spacing-02);flex-wrap:wrap;margin-bottom:var(--cds-spacing-04)">
                     <cds-tag type="green" class="example-tag" data-value="koira" data-target="spellInput" data-hint="&check; Basic noun &lsquo;dog&rsquo; &mdash; should return true. The simplest positive case.">koira</cds-tag>
                     <cds-tag type="green" class="example-tag" data-value="rautatieasema" data-target="spellInput" data-hint="&check; Compound word &lsquo;train station&rsquo; (rauta+tie+asema). Tests compound recognition.">rautatieasema</cds-tag>
@@ -751,7 +751,7 @@ flowchart TD
 
                 <div class="api-method">
                   <h3>engine.spell_check(word: string): boolean</h3>
-                  <p>Check if a word is correctly spelled according to the VFST dictionary.</p>
+                  <p>Check if a word is correctly spelled. Uses morphological analysis and compound-aware checking &mdash; more permissive than <code>is_valid_word()</code> for compound words.</p>
                 </div>
 
                 <div class="api-method">
