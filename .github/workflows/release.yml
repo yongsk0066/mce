@@ -64,6 +64,9 @@ jobs:
   deploy-docs:
     needs: release
     runs-on: ubuntu-latest
+    concurrency:
+      group: pages
+      cancel-in-progress: true
     permissions:
       pages: write
       id-token: write
