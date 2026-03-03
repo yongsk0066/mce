@@ -16,6 +16,7 @@ use std::process;
 use std::time::Instant;
 
 use mce_eval::conllu::parse_conllu_file;
+use mce_eval::lemma_dict::LemmaDict;
 use mce_eval::pipeline::EvalPipeline;
 
 // ---------------------------------------------------------------------------
@@ -26,6 +27,7 @@ struct Args {
     dict_path: PathBuf,
     conllu_path: PathBuf,
     train_path: Option<PathBuf>,
+    lemma_dict_path: Option<PathBuf>,
     end_to_end: bool,
     include_punct: bool,
     max_sentences: Option<usize>,
@@ -41,6 +43,7 @@ fn parse_args() -> Args {
     let mut dict_path: Option<PathBuf> = None;
     let mut conllu_path: Option<PathBuf> = None;
     let mut train_path: Option<PathBuf> = None;
+    let mut lemma_dict_path: Option<PathBuf> = None;
     let mut end_to_end = false;
     let mut include_punct = false;
     let mut max_sentences: Option<usize> = None;
@@ -67,6 +70,14 @@ fn parse_args() -> Args {
                     process::exit(1);
                 }
                 conllu_path = Some(PathBuf::from(&args[i]));
+            }
+            "--lemma-dict" => {
+                i += 1;
+                if i >= args.len() {
+                    eprintln!("error: --lemma-dict requires a value.");
+                    process::exit(1);
+                }
+                lemma_dict_path = Some(PathBuf::from(&args[i]));
             }
             "--end-to-end" => {
                 end_to_end = true;
@@ -159,6 +170,7 @@ fn parse_args() -> Args {
         dict_path,
         conllu_path,
         train_path,
+        lemma_dict_path,
         end_to_end,
         include_punct,
         max_sentences,
@@ -180,6 +192,7 @@ fn print_usage() {
     eprintln!("    --dict-path <DIR>        Directory containing mor.vfst");
     eprintln!("                             (or set MCE_DICT_PATH env var)");
     eprintln!("    --train <FILE>           CoNLL-U training file for corpus bigrams");
+    eprintln!("    --lemma-dict <FILE>      TSV lemma dictionary (form<TAB>UPOS<TAB>lemma)");
     eprintln!("    --end-to-end             Use MCE tokenizer instead of gold tokens");
     eprintln!("    --include-punct          Include PUNCT/SYM tokens in evaluation");
     eprintln!("    --max-sentences <N>      Evaluate only the first N sentences");
@@ -259,6 +272,24 @@ fn main() {
         }
     };
 
+    // Load lemma dictionary if provided.
+    if let Some(ref lemma_dict_path) = args.lemma_dict_path {
+        eprintln!(
+            "Loading lemma dictionary from {} ...",
+            lemma_dict_path.display()
+        );
+        match LemmaDict::from_file(lemma_dict_path) {
+            Ok(dict) => {
+                eprintln!("Lemma dictionary loaded: {} entries.", dict.len());
+                pipeline.set_lemma_dict(dict);
+            }
+            Err(e) => {
+                eprintln!("error: cannot read {}: {}", lemma_dict_path.display(), e);
+                process::exit(1);
+            }
+        }
+    }
+
     // Enable Compressed Sensing scorer if requested.
     if args.enable_cs {
         eprintln!(
@@ -328,6 +359,11 @@ fn main() {
     );
     println!("Sentences:        {}", sentences.len(),);
     println!("Mode:             {}", mode);
+    if let Some(ref lemma_dict_path) = args.lemma_dict_path {
+        println!("Lemma dict:       {}", lemma_dict_path.display());
+    } else {
+        println!("Lemma dict:       disabled");
+    }
     if args.enable_cs {
         println!(
             "CS scorer:        enabled (m={}, lambda={}){}",

@@ -36,6 +36,7 @@
 //! ```
 
 pub mod conllu;
+pub mod lemma_dict;
 pub mod metrics;
 pub mod pipeline;
 pub mod pos_map;

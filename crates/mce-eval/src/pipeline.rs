@@ -23,6 +23,7 @@ use mce_fi::morphology::{Analyzer, FinnishAnalyzer};
 use mce_tokenizer::next_token;
 
 use crate::conllu::ConlluSentence;
+use crate::lemma_dict::LemmaDict;
 use crate::metrics::{EvalResults, TokenResult};
 use crate::pos_map::mce_to_upos;
 
@@ -31,6 +32,7 @@ pub struct EvalPipeline {
     analyzer: FinnishAnalyzer,
     disambiguator: ViterbiDisambiguator,
     cg_rules: Vec<Box<dyn CgRule>>,
+    lemma_dict: Option<LemmaDict>,
 }
 
 impl EvalPipeline {
@@ -43,6 +45,7 @@ impl EvalPipeline {
             analyzer,
             disambiguator,
             cg_rules,
+            lemma_dict: None,
         })
     }
 
@@ -76,6 +79,7 @@ impl EvalPipeline {
             analyzer,
             disambiguator,
             cg_rules,
+            lemma_dict: None,
         })
     }
 
@@ -96,6 +100,7 @@ impl EvalPipeline {
             analyzer,
             disambiguator,
             cg_rules,
+            lemma_dict: None,
         })
     }
 
@@ -105,6 +110,15 @@ impl EvalPipeline {
     /// added to each reading's emission score in the Viterbi lattice.
     pub fn set_suffix_tagger(&mut self, tagger: SuffixTagger) {
         self.disambiguator.set_suffix_tagger(tagger);
+    }
+
+    /// Set the lemma dictionary for dictionary-enhanced lemmatization.
+    ///
+    /// When present, the dictionary's (form, UPOS) -> lemma mapping is
+    /// preferred over the FST baseform. Case normalization is also applied:
+    /// non-PROPN lemmas are lowercased.
+    pub fn set_lemma_dict(&mut self, dict: LemmaDict) {
+        self.lemma_dict = Some(dict);
     }
 
     /// Enable the Compressed Sensing (FISTA) scorer on this pipeline.
@@ -135,6 +149,23 @@ impl EvalPipeline {
         }
 
         results
+    }
+
+    /// Resolve the best lemma for a token, applying dictionary lookup and
+    /// case normalization.
+    ///
+    /// Priority:
+    /// 1. Dictionary (form, UPOS) -> lemma (if dict is loaded and has entry)
+    /// 2. FST baseform (from analysis)
+    /// 3. Lowercased surface form (last resort)
+    ///
+    /// Case normalization: if UPOS is not PROPN, lowercase the lemma.
+    fn resolve_lemma(&self, form: &str, upos: &str, fst_baseform: &str) -> String {
+        if let Some(ref dict) = self.lemma_dict {
+            dict.resolve_lemma(form, upos, fst_baseform)
+        } else {
+            fst_baseform.to_string()
+        }
     }
 
     /// Evaluate a single sentence using gold tokenization.
@@ -242,8 +273,8 @@ impl EvalPipeline {
                 let pred_upos = classes[best_idx].clone();
 
                 // Find the best FST analysis whose UPOS matches the suffix tagger
-                // prediction. Use its lemma.
-                let pred_lemma = word_analyses[i]
+                // prediction. Use its lemma as fallback for the dictionary.
+                let fst_baseform = word_analyses[i]
                     .iter()
                     .find(|a| {
                         let mapped = mce_to_upos(a, &token.form);
@@ -257,8 +288,10 @@ impl EvalPipeline {
                             .first()
                             .and_then(|a| a.get(ATTR_BASEFORM))
                             .unwrap_or(&token.form)
-                    })
-                    .to_string();
+                    });
+
+                // Apply dictionary lookup + case normalization.
+                let pred_lemma = self.resolve_lemma(&token.form, &pred_upos, fst_baseform);
 
                 results.add(&TokenResult {
                     form: token.form.clone(),
@@ -289,7 +322,8 @@ impl EvalPipeline {
             let (pred_upos, pred_lemma) = if i < best.len() && has_analysis[i] {
                 let analysis = &best[i];
                 let upos = mce_to_upos(analysis, &token.form);
-                let lemma = analysis.get(ATTR_BASEFORM).unwrap_or("").to_string();
+                let fst_baseform = analysis.get(ATTR_BASEFORM).unwrap_or("");
+                let lemma = self.resolve_lemma(&token.form, upos, fst_baseform);
                 (upos.to_string(), lemma)
             } else {
                 // No analysis available.
@@ -374,7 +408,8 @@ impl EvalPipeline {
                     let (pred_upos, pred_lemma) = if mce_idx < best.len() {
                         let analysis = &best[mce_idx];
                         let upos = mce_to_upos(analysis, mce_word);
-                        let lemma = analysis.get(ATTR_BASEFORM).unwrap_or("").to_string();
+                        let fst_baseform = analysis.get(ATTR_BASEFORM).unwrap_or("");
+                        let lemma = self.resolve_lemma(mce_word, upos, fst_baseform);
                         (upos.to_string(), lemma)
                     } else {
                         ("X".to_string(), String::new())
