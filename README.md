@@ -4,6 +4,20 @@ Browser-first Finnish NLP engine -- morphological analysis, POS tagging, spell c
 
 MCE uses a mathematically grounded architecture: a Writer Comonad for morphophonological rules, Constraint Grammar for disambiguation, and a suffix-based statistical tagger -- achieving 95.56% UPOS accuracy in 225KB of WASM with no server required.
 
+## Why MCE?
+
+MCE occupies a unique position in the Finnish NLP landscape. No other system combines all five of these properties:
+
+**Browser-first, no server.** MCE compiles to a 225KB WASM module. The dictionary and model are fetched once from a CDN (~3-4MB gzip) and cached in IndexedDB. After first load, everything runs offline with zero network dependency. No other Finnish NLP tool runs in the browser.
+
+**Mathematical foundation.** Morphophonological rules (consonant gradation, vowel harmony, boundary effects) are expressed as coKleisli arrows over a Writer Comonad with a DeletionSet monoid. This is the first production NLP system to use comonadic composition for morphophonology, ensuring that rules compose purely without mutation or sentinel characters.
+
+**95.56% UPOS in 9.1MB.** MCE achieves near-neural accuracy through a hybrid pipeline: 62 Constraint Grammar rules prune impossible readings, a suffix-based statistical tagger provides emission scores, and Viterbi decoding selects the optimal POS sequence. Neural systems (TurkuNLP, Trankit) score 2-3pp higher but require 100-1000x more storage and a GPU server.
+
+**Complete writer-tools stack.** MCE is not just a POS tagger. A single 9.1MB deployment provides spell checking, spelling suggestions, grammar checking (21 rules), hyphenation, compound word analysis, and morphological generation (11 noun cases, 4 verb conjugation types). No competitor offers all of these in one package that runs client-side.
+
+**Offline-first, privacy-preserving.** No text ever leaves the user's device. All computation happens locally in the browser or native runtime. This makes MCE suitable for sensitive documents, air-gapped environments, and privacy-conscious applications.
+
 ## Features
 
 - **Morphological analysis** with full inflection details and POS disambiguation

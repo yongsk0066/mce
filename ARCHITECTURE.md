@@ -2,6 +2,117 @@
 
 MCE (Morphological Computation Engine) is a Rust workspace of 11 crates that implements Finnish morphological analysis, spell checking, grammar checking, hyphenation, and disambiguation. It compiles to a ~225KB WASM module that runs entirely in the browser with no server, targeting <5ms per sentence at 95.56% UPOS accuracy.
 
+## Design Rationale
+
+### Why 11 Crates?
+
+The 11-crate structure follows from five principles that are each independently necessary. Collapsing to fewer crates violates at least one of them.
+
+**1. Compilation target isolation.** The WASM build (`mce-wasm`) pulls only the crates that ship to the browser. The evaluation harness (`mce-eval`) and CLI (`mce-cli`) depend on `std::fs`, test data loading, and reporting logic that must never appear in a WASM binary. Separate crates enforce this at the type level -- a `use mce_eval::*` in `mce-wasm` is a compile error, not a runtime oversight.
+
+**2. Zero-dependency foundation.** `mce-core` has no internal MCE dependencies and only one external dependency (`thiserror`). Every other crate depends on it. This means core types (`Analysis`, `Token`, `CaseType`, LOUDS trie) can be trusted to compile anywhere without pulling in FST parsers, WASM bindings, or statistical models.
+
+**3. One NLP capability per crate.** Each crate maps to a single NLP concern: `mce-speller` does spell checking, `mce-grammar` does grammar checking, `mce-tokenizer` does tokenization, and so on. This makes it possible to understand, test, and review each capability in isolation. Grammar rule changes never risk breaking the speller; tokenizer refactors never touch disambiguation.
+
+**4. Mathematical boundary.** The comonadic engine (`mce-comonad`) encapsulates all Writer Comonad machinery -- Zipper, WriterZipper, DeletionSet, coKleisli arrows, and CG rules. The statistical engine (`mce-disambig`) encapsulates Viterbi decoding, emission priors, and the suffix tagger. These are fundamentally different computational models (algebraic vs. probabilistic), and mixing them in one module would obscure the architecture's mathematical structure.
+
+**5. Cherry-pick alignment.** Roughly 25% of MCE code was cherry-picked from corevoikko. The crate boundaries align with the source boundaries: `voikko-core` maps to `mce-core`, `voikko-fst` maps to `mce-fst`, `voikko-fi/tokenizer` maps to `mce-tokenizer`, and `voikko-fi/speller+suggestion` maps to `mce-speller`. Code that was written from scratch (`mce-comonad`, `mce-disambig`, `mce-grammar`, `mce-eval`) occupies separate crates with no corevoikko ancestry, keeping provenance clear.
+
+### Why This Dependency Graph
+
+Each dependency edge exists for a specific architectural reason:
+
+| Edge | Why it exists |
+|------|---------------|
+| `mce-fst` -> `mce-core` | FST traversal produces `Analysis` structs and uses `Token` types defined in core. |
+| `mce-tokenizer` -> `mce-core` | Tokenizer emits `Token` and `Sentence` types from core. |
+| `mce-comonad` -> `mce-core` | coKleisli arrows operate on `Analysis` and character types from core. CG rules filter `Analysis` readings. |
+| `mce-disambig` -> `mce-core` | Viterbi decoder and suffix tagger score `Analysis` candidates from core. |
+| `mce-speller` -> `mce-core`, `mce-fst` | Spell checking needs dictionary lookup (FST traversal) and returns `SpellResult` types (core). |
+| `mce-fi` -> `mce-core`, `mce-fst`, `mce-speller`, `mce-disambig`, `mce-comonad` | The Finnish module orchestrates all engines: FST for word lookup, comonad for morphophonological rules, speller for spelling, and disambig for POS tagging. This is the integration point for Finnish-specific logic. |
+| `mce-grammar` -> `mce-core`, `mce-fst`, `mce-fi`, `mce-tokenizer`, `mce-disambig` | Grammar checking needs tokenized sentences (tokenizer), analyzed words (fi), disambiguated POS tags (disambig), and dictionary access (fst). |
+| `mce-eval` -> `mce-core`, `mce-fst`, `mce-fi`, `mce-disambig`, `mce-comonad`, `mce-tokenizer` | Evaluation runs the full analysis pipeline against UD treebank gold data. Needs every analysis-stage crate. |
+| `mce-wasm` -> (7 crates) | WASM bindings expose all user-facing features: analysis, spelling, grammar, hyphenation, disambiguation, generation. |
+| `mce-cli` -> (all crates) | CLI provides interactive access to every feature plus evaluation. |
+
+Note the edges that do *not* exist:
+
+- `mce-comonad` does not depend on `mce-fst`. Morphophonological rules are pure character-level transformations independent of FST format.
+- `mce-disambig` does not depend on `mce-fst` or `mce-comonad`. Disambiguation is format-agnostic and works on any `Analysis` input.
+- `mce-speller` does not depend on `mce-comonad` or `mce-disambig`. Spell checking is a dictionary-only operation.
+- `mce-wasm` does not depend on `mce-eval`. Evaluation code never ships to the browser.
+
+### What Each Crate Does and Why It Is Separate
+
+**`mce-core`** (~3,000 LOC) -- Shared types (`Analysis`, `Token`, `CaseType`), Unicode character classification, and the LOUDS succinct trie (Machine M1). Cannot be merged into any other crate because every crate depends on it; it must remain dependency-free to avoid cycles.
+
+**`mce-fst`** (~1,700 LOC) -- VFST binary format parser, DFS transducer traversal, and flag diacritic evaluation. Separated from `mce-core` because it introduces external dependencies (`bytemuck`, `hashbrown`) for zero-copy parsing, and not all consumers need FST machinery (e.g., `mce-disambig` and `mce-tokenizer` do not).
+
+**`mce-tokenizer`** (~1,400 LOC) -- Splits raw text into word, punctuation, URL, email, and sentence boundary tokens. Separated because tokenization has no dependency on FST, morphology, or disambiguation -- it is a pure text-processing stage.
+
+**`mce-comonad`** (~8,400 LOC) -- Writer Comonad engine: `Zipper`, `WriterZipper`, `DeletionSet`, coKleisli arrows for consonant gradation (11 patterns) and vowel harmony, plus 62 active CG rules. This is the mathematical core of the project. It cannot merge into `mce-fi` because it contains language-agnostic comonadic abstractions and CG rule types that could serve other agglutinative languages. It cannot merge into `mce-disambig` because it implements algebraic (deterministic) reasoning, not statistical inference.
+
+**`mce-disambig`** (~5,800 LOC) -- Viterbi decoder with POS bigram transitions, emission priors, suffix-based statistical tagger (95.56% UPOS), and CG-lite integration. Cannot merge into `mce-comonad` because it is inherently probabilistic (trained model, feature weights), while the comonad is algebraic (laws, composition). Cannot merge into `mce-fi` because disambiguation logic is language-independent.
+
+**`mce-speller`** (~1,900 LOC) -- Spell checking and suggestion generation with edit-distance ranking and priority-queue candidate collection. Separated from `mce-fi` because spelling is a self-contained feature with its own FST traversal patterns (fuzzy matching), distinct from morphological analysis.
+
+**`mce-fi`** (~7,100 LOC) -- Finnish language module: morphological analyzer wrapping FST output, compound word analysis with 6 linking morphemes, hyphenation, and morphological generation (11 noun cases, 4 verb types). This is the only language-specific crate; all others are language-agnostic in principle. It cannot absorb `mce-comonad` or `mce-disambig` because those contain reusable abstractions.
+
+**`mce-grammar`** (~6,400 LOC) -- 21 grammar rules for Finnish writing errors (repeated words, case agreement, punctuation, etc.) with context-sensitive paragraph analysis. Separated from `mce-fi` because grammar checking requires sentence-level context (tokenizer + disambiguator) while `mce-fi` operates at the word level.
+
+**`mce-eval`** (~2,700 LOC) -- Evaluation harness for UPOS and lemma accuracy against UD treebanks (Finnish-TDT). Must be separate because it depends on filesystem I/O and test data loading that must never compile into WASM.
+
+**`mce-wasm`** (~2,000 LOC) -- 20 JavaScript API methods via `wasm-bindgen`. Thin binding layer that translates between JS types and Rust types. Must be separate because it is the only `cdylib` crate and depends on `wasm-bindgen`, `js-sys`, and `serde-wasm-bindgen` -- dependencies irrelevant to native builds.
+
+**`mce-cli`** (~1,500 LOC) -- 11 CLI subcommands for interactive analysis, evaluation, and debugging. Separated because it depends on all other crates (including `mce-eval`) and is a native-only binary target.
+
+### Data Flow: Tracing "Koirat juoksevat nopeasti."
+
+A complete sentence analysis passes through all four machines, handled by specific crates at each step:
+
+```plaintext
+Input: "Koirat juoksevat nopeasti."
+
+Step 1: TOKENIZATION (mce-tokenizer)
+  Split into tokens: ["Koirat", "juoksevat", "nopeasti", "."]
+  Identify sentence boundary at "."
+
+Step 2: FST TRAVERSAL per token (mce-fst, mce-fi)
+  "Koirat"     -> mce-fst runs VFST transducer
+                -> mce-fi wraps results into Analysis structs:
+                   [{CLASS=nimisana, BASEFORM=koira, NUMBER=plural, SIJAMUOTO=nimento},
+                    {CLASS=nimisana, BASEFORM=koira, NUMBER=singular, SIJAMUOTO=kohdanto},
+                    ...]
+  "juoksevat"  -> [{CLASS=teonsana, BASEFORM=juosta, PERSON=3, NUMBER=plural, AIKAMUOTO=present},
+                    ...]
+  "nopeasti"   -> [{CLASS=seikkasana, BASEFORM=nopeasti}, ...]
+  "."          -> [{CLASS=merkki}]
+
+Step 3: COMONADIC RULES (mce-comonad)
+  For generation and morphophonological validation:
+  - WriterZipper wraps each morpheme sequence
+  - coKleisli arrows apply consonant gradation, vowel harmony
+  - DeletionSet accumulates position-stable deletion marks
+  - extend(gradation) . extend(harmony) composes without intermediate materialization
+  For CG disambiguation:
+  - 62 active CG rules prune impossible readings based on context
+  - e.g., if token[i-1] is a preposition, remove ADV reading from token[i]
+  - "Koirat": CG selects NOM.PL over ACC.SG (sentence-initial, no governing verb)
+
+Step 4: DISAMBIGUATION (mce-disambig)
+  Input: remaining candidate readings after CG pruning
+  Suffix tagger computes P(UPOS | word_suffix) emission scores
+  Viterbi decoder finds optimal POS sequence using bigram transitions:
+    "Koirat"=NOUN  "juoksevat"=VERB  "nopeasti"=ADV  "."=PUNCT
+  Result: 1-best analysis per token (95.56% UPOS accuracy with suffix tagger)
+
+Step 5: GRAMMAR CHECK (mce-grammar, optional)
+  Scans disambiguated sentence for errors using 21 rules
+  No errors found in this sentence
+
+Output: Structured JSON with disambiguated POS, lemma, morphological features
+```
+
 ## Crate Map
 
 ```mermaid
@@ -87,7 +198,7 @@ graph TD
 | `mce-wasm` | WASM bindings: 20 JavaScript API methods via `wasm-bindgen` | ~2,000 | `mce-core`, `mce-fst`, `mce-fi`, `mce-speller`, `mce-disambig`, `mce-comonad`, `mce-tokenizer`, `mce-grammar` |
 | `mce-cli` | CLI tools for interactive analysis, evaluation, and debugging | ~1,500 | all crates |
 
-Total: ~41,800 lines of Rust, 1,365 tests.
+Total: ~41,800 lines of Rust, 1,365 tests passed.
 
 ## Pipeline Architecture (MCE v3)
 
@@ -133,7 +244,7 @@ flowchart LR
 | **M1: Succinct Trie** | `mce-core` (trie module) | LOUDS encoding | Dictionary lookup, spell checking. O(n) lookup, O(k) fuzzy match. |
 | **M2': Comonadic Engine** | `mce-comonad` | Writer Comonad (`extend`/`extract`) | Morphophonological rules as composable coKleisli arrows. Consonant gradation (11 patterns), vowel harmony, allomorph selection, CG-lite rules. |
 | **M3: PDT** | `mce-fst` | Pushdown Transducer | Compound word structure analysis. Context-free decomposition of Finnish compounds (e.g., `rautatieasema` -> `rauta+tie+asema`). |
-| **M4': Weighted Lattice** | `mce-disambig` | Viterbi + Emission Priors | 1-best disambiguation. POS bigram model + suffix tagger emissions. Rule-only: 82.71% UPOS; with suffix tagger: 95.56% UPOS. |
+| **M4': Weighted Lattice** | `mce-disambig` | Viterbi + Emission Priors | 1-best disambiguation. POS bigram model + suffix tagger emissions. CG-lite (62 active rules) pre-filters candidates. Rule-only: 82.71% UPOS; with suffix tagger: 95.56% UPOS. |
 
 ## Data Flow
 
@@ -293,7 +404,7 @@ pipeline = extend(gradation)
 | CG rules | 62 active / 85 total | coKleisli arrows in `mce-comonad` |
 | Grammar rules | 21 | Context-sensitive paragraph rules |
 | Morphological generation | 11 noun cases + 4 verb types | coKleisli composition |
-| Test count | 805 | `cargo test --all-features` |
+| Test count | 1,365 | `cargo test --all-features` |
 
 Build profile (`Cargo.toml`):
 ```toml
@@ -352,7 +463,7 @@ For terminal environments where mermaid rendering is unavailable, here are ASCII
  │                  │   │                        │   │           │   │                  │
  │  LOUDS encoding  │   │  Zipper + extend       │   │  Pushdown │   │  Viterbi +       │
  │  Dictionary O(n) │   │  coKleisli arrows      │   │  Stack    │   │  Suffix Tagger   │
- │  Fuzzy O(k)      │   │  Writer(DeletionSet)   │   │  O(n*k)   │   │  CG-lite (57)    │
+ │  Fuzzy O(k)      │   │  Writer(DeletionSet)   │   │  O(n*k)   │   │  CG-lite (62)    │
  └─────────────────┘   └──────────────────────┘   └──────────┘   └─────────────────┘
 ```
 
