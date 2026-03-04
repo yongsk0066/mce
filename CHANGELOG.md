@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-03-05
+
+### Added
+- JS integration test suite: 375 tests via Vitest + bun in `tests/integration-js/`
+- Rust consumer tests: 55 tests (npm_consumer_tests + kpt_gradation_tests)
+- Release candidate workflow: `release-candidate.yml` runs Rust CI + WASM build + JS integration on PRs
+- Cache API dynamic versioning via `MceEngine.version()` (no hardcoded version)
+
+### Fixed
+- Demo `engine.version()` → `MceEngine.version()` (static method)
+
+### Changed
+- Total tests: Rust 1,596 + JS 375 = 1,971
+
 ## [0.3.1] - 2026-03-05
 
 ### Added
@@ -111,7 +125,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - npm package: @yongsk0066/mce@0.1.0
 - 1,365 tests, ~41,800 LOC Rust
 
-[Unreleased]: https://github.com/yongsk0066/mce/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/yongsk0066/mce/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/yongsk0066/mce/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/yongsk0066/mce/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/yongsk0066/mce/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/yongsk0066/mce/compare/v0.1.0...v0.2.0
