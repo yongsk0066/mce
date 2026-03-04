@@ -21,11 +21,12 @@ mce-grammar.workspace = true
 wasm-bindgen.workspace = true
 js-sys.workspace = true
 serde.workspace = true
-serde-wasm-bindgen.workspace = true
 
 [package.metadata.wasm-pack.profile.release]
-# wasm-opt disabled: system wasm-opt (binaryen 126) doesn't support
-# bulk-memory/nontrapping-fptoint features emitted by Rust 1.93+.
-# Re-enable after upgrading binaryen to v119+ with feature support,
-# or install wasm-pack 0.14+ which bundles a compatible wasm-opt.
+# wasm-opt disabled: while raw binary shrinks ~10% (365->327KB),
+# gzip-compressed size increases ~3% (140->145KB) because wasm-opt's
+# code transforms reduce redundancy that gzip exploits.
+# Additionally, wasm-pack doesn't pass --enable-bulk-memory to wasm-opt,
+# causing feature mismatch with Rust 1.93+ output.
+# Re-enable if wasm-pack adds feature flag passthrough.
 wasm-opt = false

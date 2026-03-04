@@ -1554,71 +1554,111 @@ mce/
       if (btn && !btn.hasAttribute('disabled')) btn.click();
     });
 
-    // Init MCE WASM
+    // -- Cache API helper (persistent across visits) --
+    // Version derived from engine.version() after first load.
+    // Pre-load phase: search all existing mce-* caches for hits.
+    // Post-load phase: migrate resources to mce-{version} cache, prune old.
+    const CACHE_PREFIX = 'mce-';
+    let resolvedCacheName = null;
+
+    async function cachedFetch(url) {
+      try {
+        if (typeof caches === 'undefined') return fetch(url);
+        // Try existing mce-* caches (version unknown before engine loads)
+        const names = await caches.keys();
+        for (const name of names.filter(n => n.startsWith(CACHE_PREFIX))) {
+          const c = await caches.open(name);
+          const hit = await c.match(url);
+          if (hit) return hit;
+        }
+        // Cache miss — fetch from network, store after version is known
+        return fetch(url);
+      } catch { return fetch(url); }
+    }
+
+    async function finalizeCaches(version, urls) {
+      try {
+        if (typeof caches === 'undefined') return;
+        resolvedCacheName = CACHE_PREFIX + version;
+        const cache = await caches.open(resolvedCacheName);
+        // Store resources that aren't cached yet
+        for (const url of urls) {
+          if (!(await cache.match(url))) {
+            const resp = await fetch(url);
+            if (resp.ok) cache.put(url, resp);
+          }
+        }
+        // Prune old version caches
+        const names = await caches.keys();
+        for (const name of names) {
+          if (name.startsWith(CACHE_PREFIX) && name !== resolvedCacheName) {
+            await caches.delete(name);
+          }
+        }
+      } catch { /* cache cleanup failed, non-critical */ }
+    }
+
+    // -- Init MCE WASM (parallel fetch + progressive loading) --
     const loadingEl = $('#loading-indicator');
+
+    function updateStatus(msg) {
+      if (loadingEl) loadingEl.textContent = msg;
+    }
+
     try {
-      // Try to load from local build first, then from a CDN path
-      const wasmPaths = ['./mce_wasm.js'];
-      let wasmModule = null;
-      for (const p of wasmPaths) {
-        try {
-          wasmModule = await import(p);
-          break;
-        } catch { continue; }
-      }
+      updateStatus('Loading WASM + resources...');
+
+      // Phase 1: WASM init + all resource fetches in parallel
+      const [wasmModule, dictResp, modelResp, wordlistResp] = await Promise.all([
+        import('./mce_wasm.js').catch(() => null),
+        cachedFetch('./mor.vfst'),
+        cachedFetch('./suffix_tagger.bin').catch(() => null),
+        cachedFetch('./wordlist.txt').catch(() => null),
+      ]);
 
       if (!wasmModule) throw new Error('WASM module not found. Run: wasm-pack build crates/mce-wasm --target web');
 
       const { default: init, MceEngine } = wasmModule;
       await init();
 
-      // Try to load dictionary
-      const dictPaths = ['./mor.vfst'];
-      let dictBytes = null;
-      for (const p of dictPaths) {
-        try {
-          const res = await fetch(p);
-          if (res.ok) { dictBytes = new Uint8Array(await res.arrayBuffer()); break; }
-        } catch { continue; }
-      }
-
-      if (!dictBytes) throw new Error('Dictionary not found. Ensure mor.vfst is accessible.');
+      // Phase 2: dict load -> engine creation -> UI activation
+      if (!dictResp?.ok) throw new Error('Dictionary not found. Ensure mor.vfst is accessible.');
 
       const t0 = performance.now();
+      const dictBytes = new Uint8Array(await dictResp.arrayBuffer());
       engine = MceEngine.load(dictBytes);
 
-      // Try to load suffix tagger model
-      const modelPaths = ['./suffix_tagger.bin'];
-      for (const p of modelPaths) {
+      // UI immediately usable (rule-only mode)
+      demoView.querySelectorAll('cds-button[disabled]').forEach(b => b.removeAttribute('disabled'));
+
+      const dictMs = Math.round(performance.now() - t0);
+      updateStatus(`Ready (rule-only mode, loading model...)`);
+
+      // Phase 3: model load (background)
+      if (modelResp?.ok) {
         try {
-          const res = await fetch(p);
-          if (res.ok) {
-            engine.load_model(new Uint8Array(await res.arrayBuffer()));
-            break;
-          }
-        } catch { continue; }
+          engine.load_model(new Uint8Array(await modelResp.arrayBuffer()));
+        } catch { /* model load failed, continue in rule-only mode */ }
       }
 
-      // Try to load wordlist for spelling suggestions
-      const wordlistPaths = ['./wordlist.txt'];
-      for (const p of wordlistPaths) {
+      // Phase 4: wordlist load (background)
+      if (wordlistResp?.ok) {
         try {
-          const res = await fetch(p);
-          if (res.ok) {
-            engine.load_wordlist(new Uint8Array(await res.arrayBuffer()));
-            break;
-          }
-        } catch { continue; }
+          engine.load_wordlist(new Uint8Array(await wordlistResp.arrayBuffer()));
+        } catch { /* wordlist load failed, suggestions still work via trie */ }
       }
 
-      const ms = Math.round(performance.now() - t0);
+      const totalMs = Math.round(performance.now() - t0);
       const hasModel = engine.has_model();
+
+      // Finalize cache with engine version (async, non-blocking)
+      finalizeCaches(engine.version(), ['./mce_wasm_bg.wasm', './mor.vfst', './suffix_tagger.bin', './wordlist.txt']);
+
       loadingEl?.setAttribute('status', 'finished');
       setTimeout(() => {
         $('#status-area').innerHTML =
-          `<cds-inline-notification kind="success" title="Ready" subtitle="Loaded in ${ms}ms${hasModel ? ' (with suffix tagger)' : ' (rule-only mode)'}" hide-close-button low-contrast></cds-inline-notification>`;
+          `<cds-inline-notification kind="success" title="Ready" subtitle="Loaded in ${totalMs}ms${hasModel ? ' (with suffix tagger)' : ' (rule-only mode)'}" hide-close-button low-contrast></cds-inline-notification>`;
       }, 600);
-      demoView.querySelectorAll('cds-button[disabled]').forEach(b => b.removeAttribute('disabled'));
     } catch (e) {
       loadingEl?.setAttribute('status', 'error');
       setTimeout(() => {

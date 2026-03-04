@@ -27,16 +27,6 @@ fn load_mor() -> UnweightedTransducer {
         .unwrap_or_else(|e| panic!("Failed to load mor.vfst: {e}"))
 }
 
-/// Loads `autocorr.vfst` as an `UnweightedTransducer`.
-fn load_autocorr() -> UnweightedTransducer {
-    let path = dict_path().expect("Set MCE_DICT_PATH to run integration tests");
-    let ac_path = path.join("autocorr.vfst");
-    let data = std::fs::read(&ac_path)
-        .unwrap_or_else(|e| panic!("Failed to read {}: {e}", ac_path.display()));
-    UnweightedTransducer::from_bytes(&data)
-        .unwrap_or_else(|e| panic!("Failed to load autocorr.vfst: {e}"))
-}
-
 /// Collects all FST outputs for a given input word.
 fn analyze(transducer: &UnweightedTransducer, word: &str) -> Vec<String> {
     let chars: Vec<char> = word.chars().collect();
@@ -170,19 +160,5 @@ fn analyze_compound_word() {
     );
 }
 
-// ---------------------------------------------------------------------------
-// Test: Load autocorr.vfst — verify it loads successfully
-// ---------------------------------------------------------------------------
-#[test]
-#[ignore]
-fn load_autocorr_vfst() {
-    let t = load_autocorr();
-    let symbols = t.symbols();
-
-    // autocorr.vfst is ~11KB, should have some symbols
-    assert!(
-        symbols.symbol_strings.len() > 10,
-        "Expected >10 symbols in autocorr.vfst, got {}",
-        symbols.symbol_strings.len()
-    );
-}
+// NOTE: autocorr.vfst test removed — MCE does not ship autocorr.vfst.
+// The autocorrect transducer is a corevoikko feature not ported to MCE.
