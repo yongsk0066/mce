@@ -128,7 +128,7 @@ engine.free();
 
 ```bash
 cd crates
-cargo test --all-features     # 1,553 tests
+cargo test --all-features     # 1,579 tests
 cargo clippy --all-features -- -D warnings
 ```
 
@@ -207,7 +207,7 @@ The Rust workspace contains 11 crates:
 | Deploy size (gzip) | ~2-3MB |
 | CG rules | 62 active (85 total) |
 | Grammar rules | 21 |
-| Tests | 1,553 passed |
+| Tests | 1,579 passed |
 | Lines of code | ~45,600 Rust |
 
 ### Comparison with Other Finnish NLP Tools

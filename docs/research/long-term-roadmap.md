@@ -46,7 +46,7 @@ relates-to:
 | Deploy size | <15MB | **~9.2MB** (gzip ~2-3MB) |
 | CG rules | 50-100 | **62 active** (85 total) |
 | Crates | -- | **11 crates**, ~45,600 LOC |
-| Tests | -- | **1,553** |
+| Tests | -- | **1,579** |
 | npm | v0.3 | **@yongsk0066/mce@0.3.0** |
 | CI/CD | -- | GitHub Actions pipeline |
 | Papers | 0 | Paper-3 SCiL submission ready, Paper-2 ~85% |

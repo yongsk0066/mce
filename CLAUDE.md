@@ -23,7 +23,7 @@ Browser-first Finnish NLP engine. Runs entirely offline in WebAssembly with no s
 | CG rules | 62 active (85 total), 24 rule types, 23 phases |
 | Grammar rules | 21 (258 tests) |
 | Generation | Nouns: 22 forms (11 sg + 11 pl), Verbs: 4 conjugation types |
-| Tests | 1,553 passed |
+| Tests | 1,579 passed |
 | LOC | ~45,600 Rust |
 
 ## Architecture: MCE v3 (4 Machines)

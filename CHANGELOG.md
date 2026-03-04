@@ -14,7 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `gradate_stem()` -- stem-only consonant gradation for generation (fixes kaupunki -> kauvunki false positive)
 
 ### Changed
-- Tests: 1,532 -> 1,553
+- Tests: 1,553 -> 1,579
+- Verb generation accuracy: 47.7% -> 69.9% (improved stem classification and gradation)
+- Code deduplication: `is_finnish_vowel` and `levenshtein_distance` consolidated to single canonical locations
 - Noun plural generation: improved consonant gradation accuracy via `gradate_stem()`
 
 ### Fixed
