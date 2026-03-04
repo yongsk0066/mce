@@ -1555,7 +1555,7 @@ mce/
     });
 
     // -- Cache API helper (persistent across visits) --
-    // Version derived from engine.version() after first load.
+    // Version derived from MceEngine.version() (static method) after first load.
     // Pre-load phase: search all existing mce-* caches for hits.
     // Post-load phase: migrate resources to mce-{version} cache, prune old.
     const CACHE_PREFIX = 'mce-';
@@ -1652,7 +1652,7 @@ mce/
       const hasModel = engine.has_model();
 
       // Finalize cache with engine version (async, non-blocking)
-      finalizeCaches(engine.version(), ['./mce_wasm_bg.wasm', './mor.vfst', './suffix_tagger.bin', './wordlist.txt']);
+      finalizeCaches(MceEngine.version(), ['./mce_wasm_bg.wasm', './mor.vfst', './suffix_tagger.bin', './wordlist.txt']);
 
       loadingEl?.setAttribute('status', 'finished');
       setTimeout(() => {
