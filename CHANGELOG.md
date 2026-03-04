@@ -7,20 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-03-05
+
 ### Added
-- Research docs: irregular verb generation analysis, consonant gradation in generation, suggest algorithm gap, analysis-generation symmetry, verb generation verification
-- `docs/research/INDEX.md` -- research document registry with dependency map and update checklist
-- Metadata headers on all research documents (status, created, relates-to)
-- `gradate_stem()` -- stem-only consonant gradation for generation (fixes kaupunki -> kauvunki false positive)
+- Verb paradigm interactive demo tile (Beta) with 5 example verbs
+- `gradate_stem()` — stem-only consonant gradation for generation
+- `is_finnish_vowel()` canonical in mce-core, `levenshtein_distance()` in mce-core/string_utils
+- Research docs (6): irregular verbs, consonant gradation, suggest gap, analysis-generation symmetry, FST verification, architecture audit
+- `docs/research/INDEX.md` — document registry with dependency map and update checklists
+- Cache API persistent caching for WASM resources (auto-versioned via engine.version())
+- Promise.all parallel fetch with progressive loading (UI active before model loads)
 
 ### Changed
-- Tests: 1,553 -> 1,579
-- Verb generation accuracy: 47.7% -> 69.9% (improved stem classification and gradation)
-- Code deduplication: `is_finnish_vowel` and `levenshtein_distance` consolidated to single canonical locations
-- Noun plural generation: improved consonant gradation accuracy via `gradate_stem()`
+- Verb generation FST-verified accuracy: 47.7% → 69.9% (6 bugs fixed)
+- Noun plural consonant gradation fixed via `gradate_stem()`
+- Tests: 1,532 → 1,579 (+47)
+- Demo tile descriptions enriched with use-case context and Finnish linguistics
+- Example tag selection: CSS class-based (no more dismiss on X button)
 
 ### Fixed
-- Stale documentation sweep across README.md, CLAUDE.md, crate READMEs, docs/index.html (test counts, generation form counts, label formats, removed file references)
+- Verb past tense stem vowel changes (a→o, ä drop) for ~1,500 Type 1 verbs
+- Type 3 stem extraction with `reverse_weak_gradation()` (ajatella→ajattele)
+- Type 4 stem gradation (tavata→tapaa)
+- Type 2 -oida past tense double -i- (ahkeroida→ahkeroi)
+- UTF-8 byte vs char length in `classify_verb()` (88 verbs)
+- `gradate()` scope: no longer applies to all consonant clusters in word
+- 2 ignored integration tests fixed (grammar whitespace, dead autocorr test removed)
+- Stale docs sweep: test counts, LOC, form counts, verb Beta annotation across all docs
+
+### Removed
+- `serde-wasm-bindgen` unused dependency from workspace and mce-wasm
 
 ## [0.3.0] - 2026-03-04
 
@@ -95,7 +111,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - npm package: @yongsk0066/mce@0.1.0
 - 1,365 tests, ~41,800 LOC Rust
 
-[Unreleased]: https://github.com/yongsk0066/mce/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/yongsk0066/mce/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/yongsk0066/mce/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/yongsk0066/mce/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/yongsk0066/mce/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/yongsk0066/mce/releases/tag/v0.1.0
