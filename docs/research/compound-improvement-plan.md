@@ -1,3 +1,13 @@
+---
+title: Compound Analyzer Improvement Plan
+created: 2026-03-04
+commit: 37462bf
+status: active
+relates-to:
+  - long-term-roadmap.md
+  - kotus-integration-plan.md
+---
+
 # Compound Analyzer Improvement Plan
 
 **Date**: 2026-03-04

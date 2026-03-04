@@ -177,6 +177,7 @@ pub const FINNISH_PARTICLES: &[&str] = &[
 ///
 /// If evaluating against a treebank that uses PART, re-enable this list in
 /// the `mce_to_upos` function's ADV arm.
+// Reserved: re-enable when evaluating PART tag separation from ADV
 #[allow(dead_code)]
 const FINNISH_PARTICLE_BASEFORMS: &[&str] = &[
     "myös", "vain", "jo", "edes", "kyllä", "nyt", "ihan", "aivan", "vasta", "asti", "saakka",

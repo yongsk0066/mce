@@ -72,7 +72,7 @@ mce-cli hyphenate-text "Koira juoksee nopeasti."
 ### generate -- morphological generation (nouns and verbs)
 
 ```bash
-# Noun paradigm (11 cases)
+# Noun paradigm (22 forms: 11 sg + 11 pl)
 mce-cli generate koira --all
 
 # Single noun case

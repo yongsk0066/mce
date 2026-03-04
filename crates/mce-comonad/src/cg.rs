@@ -536,6 +536,7 @@ impl CgRule for RemoveByBaseformList {
 // ---------------------------------------------------------------------------
 
 /// Returns `true` if any analysis in `readings` has `ATTR_BASEFORM` matching any in the list.
+// Phase 2 CG expansion: baseform/attribute-based disambiguation rules
 #[allow(dead_code)]
 fn has_baseform_in(readings: &[Analysis], baseforms: &[String]) -> bool {
     readings.iter().any(|a| {
@@ -548,6 +549,7 @@ fn has_baseform_in(readings: &[Analysis], baseforms: &[String]) -> bool {
 }
 
 /// Returns `true` if any analysis has the given attribute with the given value.
+// Phase 2 CG expansion: baseform/attribute-based disambiguation rules
 #[allow(dead_code)]
 fn has_attr(readings: &[Analysis], attr: &str, value: &str) -> bool {
     readings.iter().any(|a| a.get(attr) == Some(value))

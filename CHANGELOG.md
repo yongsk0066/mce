@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Research docs: irregular verb generation analysis, consonant gradation in generation, suggest algorithm gap, analysis-generation symmetry, verb generation verification
+- `docs/research/INDEX.md` -- research document registry with dependency map and update checklist
+- Metadata headers on all research documents (status, created, relates-to)
+- `gradate_stem()` -- stem-only consonant gradation for generation (fixes kaupunki -> kauvunki false positive)
+
+### Changed
+- Tests: 1,532 -> 1,553
+- Noun plural generation: improved consonant gradation accuracy via `gradate_stem()`
+
+### Fixed
+- Stale documentation sweep across README.md, CLAUDE.md, crate READMEs, docs/index.html (test counts, generation form counts, label formats, removed file references)
+
+## [0.3.0] - 2026-03-04
+
+### Added
 - UD Finnish-OOD and UD Finnish-PUD as git submodules for broader lemma coverage
 - Multi-source lemma dictionary extraction (`scripts/extract_lemma_dict.py -o` flag)
 - THIRD_PARTY_NOTICES.md with CC-BY-SA 4.0 attribution for UD treebanks

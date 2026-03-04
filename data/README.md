@@ -10,8 +10,6 @@ Runtime data files used by the MCE engine.
 
 - **`lemma_dict.tsv`** (1.2 MB) — Lemma dictionary extracted from UD Finnish treebanks (TDT all splits + OOD + PUD). TSV format: `form<TAB>UPOS<TAB>lemma`. 48K entries (production). For each unique (lowercase form, UPOS) pair, contains the most frequent lemma with TDT priority on conflicts. Used by `mce-eval::lemma_dict` for lemmatization. Note: accuracy (88.44%) is measured with a 42K-entry evaluation dictionary (TDT train + OOD + PUD, evaluation splits excluded).
 
-- **`suffix_tagger.bin.bak`** — Backup of a previous suffix tagger model version.
-
 ## Licenses
 
 | File | License | Source |

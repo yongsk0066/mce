@@ -283,23 +283,10 @@ impl<M: MorphValidator> SpellChecker<M> {
 }
 
 /// Compute the Levenshtein edit distance between two byte sequences.
+///
+/// Thin wrapper around [`mce_core::string_utils::levenshtein_distance`].
 fn edit_distance(a: &[u8], b: &[u8]) -> usize {
-    let n = a.len();
-    let m = b.len();
-
-    let mut prev: Vec<usize> = (0..=m).collect();
-    let mut curr = vec![0usize; m + 1];
-
-    for i in 1..=n {
-        curr[0] = i;
-        for j in 1..=m {
-            let cost = if a[i - 1] == b[j - 1] { 0 } else { 1 };
-            curr[j] = (prev[j] + 1).min(curr[j - 1] + 1).min(prev[j - 1] + cost);
-        }
-        std::mem::swap(&mut prev, &mut curr);
-    }
-
-    prev[m]
+    mce_core::string_utils::levenshtein_distance(a, b)
 }
 
 /// Implement the existing `Speller` trait so that `SpellChecker` can be

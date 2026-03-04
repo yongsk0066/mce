@@ -1,3 +1,13 @@
+---
+title: Kotus Word List Integration Plan
+created: 2026-03-04
+commit: 37462bf
+status: active
+relates-to:
+  - compound-improvement-plan.md
+  - long-term-roadmap.md
+---
+
 # Kotus Word List Integration Plan
 
 > **Date**: 2026-03-04

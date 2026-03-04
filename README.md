@@ -32,7 +32,7 @@ MCE occupies an unusual position in the Finnish NLP landscape. To our knowledge,
 - **Grammar checking** with 21 rule-based checks
 - **Hyphenation** with compound-aware syllable splitting
 - **Compound word analysis** with 6 linking morpheme types
-- **Morphological generation** for nouns (22 forms: 11 singular + 11 plural) and verbs (4 conjugation types)
+- **Morphological generation** for nouns (22 forms: 11 singular + 11 plural) and verbs (4 conjugation types, beta -- irregular verbs may produce incorrect forms)
 - **Sentence-level disambiguation** via Viterbi + Constraint Grammar + Suffix Tagger
 - **Writer Comonad** pipeline for morphophonological rules (consonant gradation, vowel harmony)
 
@@ -45,7 +45,7 @@ MCE occupies an unusual position in the Finnish NLP landscape. To our knowledge,
 - Offline-capable PWA for Finnish writers working without internet
 
 ### Education & Language Learning
-- Interactive morphology explorer showing all 11 noun cases for any Finnish word
+- Interactive morphology explorer showing all 22 noun forms (11 cases x singular/plural) for any Finnish word
 - Verb conjugation trainer that generates paradigms and quizzes learners
 - Reading assistant: hover over any word to see its lemma, POS tag, and case
 - L2 Finnish error correction with explanations of grammar mistakes
@@ -128,7 +128,7 @@ engine.free();
 
 ```bash
 cd crates
-cargo test --all-features     # 1,365 tests
+cargo test --all-features     # 1,553 tests
 cargo clippy --all-features -- -D warnings
 ```
 
@@ -207,8 +207,8 @@ The Rust workspace contains 11 crates:
 | Deploy size (gzip) | ~2-3MB |
 | CG rules | 62 active (85 total) |
 | Grammar rules | 21 |
-| Tests | 1,365 passed |
-| Lines of code | ~41,800 Rust |
+| Tests | 1,553 passed |
+| Lines of code | ~45,600 Rust |
 
 ### Comparison with Other Finnish NLP Tools
 

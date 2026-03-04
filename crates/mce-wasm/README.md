@@ -33,8 +33,8 @@ WebAssembly bindings for the MCE Finnish NLP engine. Exposes 22 API methods via 
 | `is_valid_word(word)` | Pure morphological analysis check (boolean) |
 | `generate_form(base, case, number)` | Generate noun case form (singular or plural) |
 | `generate_paradigm(base)` | Full noun paradigm (22 forms: 11 singular + 11 plural) |
-| `generate_verb_form(...)` | Generate verb conjugation |
-| `generate_verb_paradigm(inf)` | Full verb paradigm |
+| `generate_verb_form(...)` | Generate verb conjugation (beta) |
+| `generate_verb_paradigm(inf)` | Full verb paradigm (beta) |
 | `version()` | Engine version string |
 
 ## Usage

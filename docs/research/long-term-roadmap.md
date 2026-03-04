@@ -1,3 +1,14 @@
+---
+title: MCE Long-Term Roadmap
+created: 2026-03-04
+commit: 37462bf
+status: active
+relates-to:
+  - compound-improvement-plan.md
+  - kotus-integration-plan.md
+  - analysis-generation-symmetry.md
+---
+
 # MCE Long-Term Roadmap
 
 > **Date**: 2026-03-04
@@ -34,9 +45,9 @@
 | WASM binary | <500KB | **365KB** |
 | Deploy size | <15MB | **~9.2MB** (gzip ~2-3MB) |
 | CG rules | 50-100 | **62 active** (85 total) |
-| Crates | -- | **11 crates**, ~41,800 LOC |
-| Tests | -- | **1,496+** |
-| npm | v0.2 | **@yongsk0066/mce@0.2.0** |
+| Crates | -- | **11 crates**, ~45,600 LOC |
+| Tests | -- | **1,553** |
+| npm | v0.3 | **@yongsk0066/mce@0.3.0** |
 | CI/CD | -- | GitHub Actions pipeline |
 | Papers | 0 | Paper-3 SCiL submission ready, Paper-2 ~85% |
 

@@ -188,11 +188,10 @@ const PATTERNS: &[GradationPattern] = &[
 // ---------------------------------------------------------------------------
 
 /// Check if a character is a Finnish vowel (lowercase).
+///
+/// Delegates to [`mce_core::character::is_finnish_vowel`].
 fn is_vowel(c: char) -> bool {
-    matches!(
-        c,
-        'a' | 'e' | 'i' | 'o' | 'u' | 'y' | '\u{00E4}' | '\u{00F6}'
-    )
+    mce_core::character::is_finnish_vowel(c)
 }
 
 /// Find the gradation pattern that matches the focus character at position 1,

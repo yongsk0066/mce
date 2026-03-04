@@ -13,7 +13,9 @@ splitting, rule-based hyphenation, spell checking, and phonological constants
   baseforms, POS tags, case, number, person, mood, tense, and more.
 - **Morphological generation** -- coKleisli pipeline (consonant gradation,
   vowel harmony, possessive suffix) generates inflected forms from baseforms.
-  Covers 11 singular noun cases and 4 verb conjugation types.
+  Covers 22 noun forms (11 singular + 11 plural cases) and 4 verb conjugation types.
+  Verb generation is beta-quality: regular verbs work correctly but irregular
+  verbs (e.g., olla, syoda, juosta) produce incorrect forms.
 - **Compound analysis** -- pushdown-transducer-based splitter with 6 Finnish
   linking morphemes (`-en-`, `-n-`, `-s-`, `-i-`, `-o-`, `-u-`, and zero).
   Includes nen-stem reconstruction (e.g., `hevosenkenkä` -> `hevonen + kenkä`).
@@ -37,11 +39,13 @@ splitting, rule-based hyphenation, spell checking, and phonological constants
 | `generator::VerbPerson` | First / Second / Third |
 | `generator::VerbNumber` | Singular / Plural |
 
-## Noun Cases (11 singular)
+## Noun Cases (22 forms: 11 singular + 11 plural)
 Nominative, genitive, partitive, inessive, elative, illative, adessive,
-ablative, allative, essive, and translative. Each case carries a suffix
-pattern with archiphonemic characters (`A` -> `a`/`ä`, `V` -> vowel copy)
-and a consonant gradation grade (strong or weak).
+ablative, allative, essive, and translative -- each in both singular and
+plural. Labels use the format "nominative sg", "genitive pl", etc.
+Each case carries a suffix pattern with archiphonemic characters
+(`A` -> `a`/`ä`, `V` -> vowel copy) and a consonant gradation grade
+(strong or weak).
 
 ## Verb Conjugation Types (4)
 
@@ -68,9 +72,11 @@ let gen = MorphGenerator::new();
 let form = gen.generate("kaappi", &[("SIJAMUOTO", "omanto")]);
 assert_eq!(form, Some("kaapin".to_string()));
 
-// Full noun paradigm
+// Full noun paradigm (22 forms: 11 sg + 11 pl)
 let paradigm = gen.generate_paradigm("talo");
-assert!(paradigm.iter().any(|(case, form)| case == "genitive" && form == "talon"));
+assert_eq!(paradigm.len(), 22);
+assert!(paradigm.iter().any(|(case, form)| case == "genitive sg" && form == "talon"));
+assert!(paradigm.iter().any(|(case, form)| case == "nominative pl" && form == "talot"));
 ```
 
 ## Dependencies

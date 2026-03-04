@@ -434,25 +434,10 @@ impl FinnishSpellChecker {
 }
 
 /// Compute the Levenshtein edit distance between two strings.
+///
+/// Delegates to [`mce_core::string_utils::levenshtein_distance`] on byte slices.
 fn edit_distance_str(a: &str, b: &str) -> usize {
-    let a = a.as_bytes();
-    let b = b.as_bytes();
-    let n = a.len();
-    let m = b.len();
-
-    let mut prev: Vec<usize> = (0..=m).collect();
-    let mut curr = vec![0usize; m + 1];
-
-    for i in 1..=n {
-        curr[0] = i;
-        for j in 1..=m {
-            let cost = if a[i - 1] == b[j - 1] { 0 } else { 1 };
-            curr[j] = (prev[j] + 1).min(curr[j - 1] + 1).min(prev[j - 1] + cost);
-        }
-        std::mem::swap(&mut prev, &mut curr);
-    }
-
-    prev[m]
+    mce_core::string_utils::levenshtein_distance(a.as_bytes(), b.as_bytes())
 }
 
 /// Build a [`SuccinctTrie`] from the VFST symbol table.

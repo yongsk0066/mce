@@ -106,6 +106,17 @@ pub fn is_whitespace(c: char) -> bool {
         || cp == 0x3000
 }
 
+/// Check if a character is a Finnish vowel (lowercase only: a, e, i, o, u, y, ä, ö).
+///
+/// This is the canonical vowel test shared across all MCE crates.
+/// Callers handling mixed-case input should lowercase first via [`simple_lower`].
+pub fn is_finnish_vowel(c: char) -> bool {
+    matches!(
+        c,
+        'a' | 'e' | 'i' | 'o' | 'u' | 'y' | '\u{00E4}' | '\u{00F6}'
+    )
+}
+
 pub fn equals_ignore_case(a: &[char], b: &[char]) -> bool {
     if a.len() != b.len() {
         return false;
@@ -205,5 +216,20 @@ mod tests {
         let a: Vec<char> = "abc".chars().collect();
         let b: Vec<char> = "abd".chars().collect();
         assert!(!equals_ignore_case(&a, &b));
+    }
+
+    #[test]
+    fn is_finnish_vowel_accepts_all_eight() {
+        for v in ['a', 'e', 'i', 'o', 'u', 'y', '\u{00E4}', '\u{00F6}'] {
+            assert!(is_finnish_vowel(v), "expected vowel: {v}");
+        }
+    }
+
+    #[test]
+    fn is_finnish_vowel_rejects_consonants_and_uppercase() {
+        assert!(!is_finnish_vowel('k'));
+        assert!(!is_finnish_vowel('t'));
+        assert!(!is_finnish_vowel('A')); // uppercase — callers must lowercase first
+        assert!(!is_finnish_vowel('\u{00C4}')); // Ä uppercase
     }
 }
