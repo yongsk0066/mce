@@ -22,8 +22,8 @@ Browser-first Finnish NLP engine. Runs entirely offline in WebAssembly with no s
 | Deploy (total) | ~9.2MB (gzip: ~2-3MB) |
 | CG rules | 62 active (85 total), 24 rule types, 23 phases |
 | Grammar rules | 21 (258 tests) |
-| Generation | Nouns: 11 cases, Verbs: 4 conjugation types |
-| Tests | 1,365 passed |
+| Generation | Nouns: 22 forms (11 sg + 11 pl), Verbs: 4 conjugation types |
+| Tests | 1,532 passed |
 | LOC | ~41,800 Rust |
 
 ## Architecture: MCE v3 (4 Machines)
@@ -79,7 +79,7 @@ crates/
 | CG-lite rules | `mce-comonad/src/cg.rs` (62 active / 85 total) |
 | Suffix Tagger | `mce-disambig/src/suffix_tagger.rs` (1,480 LOC) |
 | Finnish morphophonology | `mce-comonad/src/finnish.rs` (Writer pipeline default) |
-| Morphological generation | `mce-fi/src/generator.rs` (nouns 11 cases + verbs 4 types) |
+| Morphological generation | `mce-fi/src/generator.rs` (nouns 22 forms + verbs 4 types) |
 | Grammar rules | `mce-grammar/src/rules/` (21 rules) |
 | POS mapping | `mce-eval/src/pos_map.rs` |
 | Eval pipeline | `mce-eval/src/pipeline.rs` (CG + SuffixTagger + Viterbi) |

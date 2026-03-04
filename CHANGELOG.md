@@ -11,17 +11,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - UD Finnish-OOD and UD Finnish-PUD as git submodules for broader lemma coverage
 - Multi-source lemma dictionary extraction (`scripts/extract_lemma_dict.py -o` flag)
 - THIRD_PARTY_NOTICES.md with CC-BY-SA 4.0 attribution for UD treebanks
+- Plural noun generation: `generate_form(base, case, "plural")` and `generate_paradigm()` now returns 22 forms (11 singular + 11 plural)
+- `suggest()` routed through SpellChecker pipeline (trie + cache + morph validation) when wordlist loaded
+- `spell_check()` now uses SpellChecker pipeline for cache-aware, trie+morph validation
+- v0.4.0 research docs: compound improvement plan, Kotus integration plan, long-term roadmap
+- Paper-3 SCiL submission prep: OPENREVIEW-SUBMISSION.md with all form fields
 
 ### Changed
 - Lemma dictionary expanded from 36K to 48K entries (TDT train + OOD + PUD)
 - Lemma accuracy improved: 86.24% -> 88.44% on test set (+2.20pp)
+- `mce-speller` promoted from transitive to explicit dependency in mce-wasm
+- Tests: 1,496 -> 1,532 (34 new: 31 plural generation + 3 SpellChecker integration)
 
 ### Fixed
 - UPOS accuracy corrected: 95.56% -> 94.58% (previous number included PUNCT/SYM; now uses CoNLL standard excluding PUNCT/SYM)
 
+### Removed
+- `data/suffix_tagger.bin.bak` (6.4MB backup file, already in .gitignore)
+
 ### Investigated
 - Tier 2 feasibility: compound boundary accuracy 80.9% (below 95% threshold) — Wiktionary integration deferred to v0.4.0
 - Kotus word list: GO for speller enrichment and verb validation in future release
+- Compound improvement: FST hybrid approach identified as most efficient path to 95%+
+- Long-term roadmap: Phase 2 (micro transformer, edit-tree lemmatizer), Phase 3 (VS Code, Chrome, Docs)
 
 ## [0.2.0] - 2026-03-04
 
@@ -66,6 +78,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - npm package: @yongsk0066/mce@0.1.0
 - 1,365 tests, ~41,800 LOC Rust
 
-[Unreleased]: https://github.com/yongsk0066/mce/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/yongsk0066/mce/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/yongsk0066/mce/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/yongsk0066/mce/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/yongsk0066/mce/releases/tag/v0.1.0

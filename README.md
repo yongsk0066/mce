@@ -32,7 +32,7 @@ MCE occupies an unusual position in the Finnish NLP landscape. To our knowledge,
 - **Grammar checking** with 21 rule-based checks
 - **Hyphenation** with compound-aware syllable splitting
 - **Compound word analysis** with 6 linking morpheme types
-- **Morphological generation** for nouns (11 cases) and verbs (4 conjugation types)
+- **Morphological generation** for nouns (22 forms: 11 singular + 11 plural) and verbs (4 conjugation types)
 - **Sentence-level disambiguation** via Viterbi + Constraint Grammar + Suffix Tagger
 - **Writer Comonad** pipeline for morphophonological rules (consonant gradation, vowel harmony)
 
@@ -71,7 +71,7 @@ MCE occupies an unusual position in the Finnish NLP landscape. To our knowledge,
 ### What Only MCE Can Do
 - Run a complete Finnish NLP stack in a browser tab with no internet connection
 - Apply category theory (comonads) to morphophonological rule composition
-- Generate full noun paradigms (11 singular cases) and verb conjugations client-side
+- Generate full noun paradigms (22 forms: 11 singular + 11 plural) and verb conjugations client-side
 - Analyze Finnish compounds of arbitrary depth (*lentokonesuihkuturbiinimoottori*)
 - Deliver spell check + grammar check + hyphenation + POS tagging in under 9.2MB
 

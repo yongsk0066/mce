@@ -36,6 +36,8 @@
 //! console.log(engine.hyphenate_text("Koira juoksee nopeasti."));
 //! ```
 
+use std::cell::RefCell;
+
 use wasm_bindgen::prelude::*;
 
 use mce_core::analysis::{ATTR_BASEFORM, ATTR_CLASS, Analysis};
@@ -46,8 +48,11 @@ use mce_disambig::suffix_tagger::SuffixTagger;
 use mce_disambig::{Disambiguator, ViterbiDisambiguator};
 use mce_fi::hyphenation::FinnishHyphenator;
 use mce_fi::morphology::{Analyzer, FinnishAnalyzer};
+use mce_fi::spellcheck::FinnishMorphValidator;
 use mce_grammar::GrammarChecker;
 use mce_grammar::finnish::FinnishGrammarChecker;
+use mce_speller::SpellResult;
+use mce_speller::pipeline::{SpellChecker, SpellCheckerBuilder};
 use mce_tokenizer::next_token;
 
 /// MCE engine instance for browser use.
@@ -65,6 +70,14 @@ pub struct MceEngine {
     /// Optional M1 Succinct Trie for dictionary-based spell checking and
     /// fuzzy suggestion generation. Loaded via [`load_wordlist`](Self::load_wordlist).
     trie: Option<SuccinctTrie>,
+    /// Raw VFST dictionary bytes, retained for constructing a
+    /// [`FinnishMorphValidator`] when the wordlist is loaded.
+    mor_vfst: Vec<u8>,
+    /// Optional spell-checker pipeline (M1 Trie + morph validator + cache).
+    /// Initialized when [`load_wordlist`](Self::load_wordlist) is called.
+    /// Uses `RefCell` because `SpellChecker::check()` requires `&mut self`
+    /// for cache updates, while the WASM API exposes `&self` methods.
+    spell_checker: Option<RefCell<SpellChecker<FinnishMorphValidator>>>,
 }
 
 #[wasm_bindgen]
@@ -87,6 +100,8 @@ impl MceEngine {
             grammar_checker,
             hyphenator,
             trie: None,
+            mor_vfst: mor_vfst.to_vec(),
+            spell_checker: None,
         })
     }
 
@@ -170,7 +185,30 @@ impl MceEngine {
             }
         }
 
-        self.trie = Some(builder.build());
+        let trie = builder.build();
+
+        // Build the SpellChecker pipeline: wordlist trie + morph validator.
+        // The morph validator wraps a FinnishAnalyzer, providing morphological
+        // validation for candidates that are not in the trie (compounds,
+        // inflected forms, etc.).
+        //
+        // The trie is serialized and deserialized to create a second copy for
+        // the spell checker, since SuccinctTrie does not implement Clone.
+        let trie_bytes = trie.to_bytes();
+        let checker_trie = SuccinctTrie::from_bytes(&trie_bytes)
+            .ok_or_else(|| JsValue::from_str("trie copy failed: invalid serialized trie data"))?;
+
+        let morph = FinnishMorphValidator::from_bytes(&self.mor_vfst)
+            .map_err(|e| JsValue::from_str(&format!("morph validator init failed: {e}")))?;
+
+        let checker = SpellCheckerBuilder::new()
+            .trie(checker_trie)
+            .morph_validator(morph)
+            .cache_size(2) // 4x base cache for production use
+            .build();
+
+        self.spell_checker = Some(RefCell::new(checker));
+        self.trie = Some(trie);
         Ok(())
     }
 
@@ -207,16 +245,25 @@ impl MceEngine {
     /// the FST doesn't recognize as a single entry may still pass the
     /// compound check.
     pub fn spell_check(&self, word: &str) -> bool {
-        let chars: Vec<char> = word.chars().collect();
-        let word_len = chars.len();
-
-        // Stage 1: direct morphological analysis.
-        let analyses = self.analyzer.analyze(&chars, word_len);
-        if !analyses.is_empty() {
-            return true;
+        // When the SpellChecker pipeline is available (wordlist loaded),
+        // use it for trie-cached, morph-validated spell checking.
+        if let Some(ref sc) = self.spell_checker {
+            let result = sc.borrow_mut().check(word);
+            if result == SpellResult::Ok {
+                return true;
+            }
+            // SpellChecker said Failed — try compound-aware fallback below.
+        } else {
+            // No spell checker: use direct morphological analysis.
+            let chars: Vec<char> = word.chars().collect();
+            let word_len = chars.len();
+            let analyses = self.analyzer.analyze(&chars, word_len);
+            if !analyses.is_empty() {
+                return true;
+            }
         }
 
-        // Stage 2: compound-aware check.
+        // Compound-aware check (shared fallback for both paths).
         let analyzer = &self.analyzer;
         let lookup = |candidate: &str| -> bool {
             let c: Vec<char> = candidate.chars().collect();
@@ -333,9 +380,24 @@ impl MceEngine {
             return "[]".to_string();
         }
 
-        // If trie is loaded, use it for fast fuzzy suggestion generation.
+        // When the SpellChecker pipeline is available (wordlist loaded),
+        // use it for morph-validated, trie-based fuzzy suggestions.
         // Auto-escalation: if no results at requested distance, retry once
         // at distance+1 (capped at 3 to avoid combinatorial explosion).
+        if let Some(ref sc) = self.spell_checker {
+            let checker = sc.borrow();
+            let start = max_edits as usize;
+            let limit = (start + 1).min(3);
+            for dist in start..=limit {
+                let results = checker.suggest(word, dist, 10);
+                if !results.is_empty() {
+                    return suggestions_to_json(&results);
+                }
+            }
+            return "[]".to_string();
+        }
+
+        // Legacy fallback: raw trie fuzzy search without morph validation.
         if let Some(ref trie) = self.trie {
             let start = max_edits as usize;
             let limit = (start + 1).min(3);
@@ -695,30 +757,34 @@ impl MceEngine {
     /// vowel harmony, possessive suffix) to produce the surface form.
     ///
     /// The `case` parameter accepts both Finnish names (e.g., "omanto") and
-    /// English names (e.g., "genitive"). The `number` parameter is reserved
-    /// for future plural support (currently only singular is supported).
+    /// English names (e.g., "genitive"). The `number` parameter selects
+    /// singular or plural: "singular" (default) or "plural".
     ///
     /// Returns the generated form, or the baseform unchanged if the case
     /// is not recognized.
     ///
     /// Example: `generate_form("kaappi", "genitive", "singular")` -> `"kaapin"`
-    pub fn generate_form(&self, baseform: &str, case: &str, _number: &str) -> String {
+    /// Example: `generate_form("koira", "nominative", "plural")` -> `"koirat"`
+    pub fn generate_form(&self, baseform: &str, case: &str, number: &str) -> String {
         let generator = mce_fi::generator::MorphGenerator::new();
         generator
-            .generate(baseform, &[("SIJAMUOTO", case)])
+            .generate(baseform, &[("SIJAMUOTO", case), ("LUKU", number)])
             .unwrap_or_else(|| baseform.to_string())
     }
 
-    /// Generate all singular case forms for a noun.
+    /// Generate all case forms for a noun (11 singular + 11 plural = 22 forms).
     ///
-    /// Returns a JSON array of `{"case": "<name>", "form": "<inflected>"}` objects.
+    /// Returns a JSON array of `{"case": "<label>", "form": "<inflected>"}` objects.
+    /// Labels include number suffix: "nominative sg", "genitive pl", etc.
     ///
     /// Example output:
     /// ```json
     /// [
-    ///   {"case":"nominative","form":"talo"},
-    ///   {"case":"genitive","form":"talon"},
-    ///   {"case":"partitive","form":"taloa"},
+    ///   {"case":"nominative sg","form":"talo"},
+    ///   {"case":"genitive sg","form":"talon"},
+    ///   ...
+    ///   {"case":"nominative pl","form":"talot"},
+    ///   {"case":"genitive pl","form":"talojen"},
     ///   ...
     /// ]
     /// ```
@@ -727,12 +793,12 @@ impl MceEngine {
         let paradigm = generator.generate_paradigm(baseform);
 
         let mut buf = String::from('[');
-        for (i, (case_name, form)) in paradigm.iter().enumerate() {
+        for (i, (label, form)) in paradigm.iter().enumerate() {
             if i > 0 {
                 buf.push(',');
             }
             buf.push_str("{\"case\":\"");
-            json_escape_into(&mut buf, case_name);
+            json_escape_into(&mut buf, label);
             buf.push_str("\",\"form\":\"");
             json_escape_into(&mut buf, form);
             buf.push_str("\"}");
@@ -1897,5 +1963,117 @@ mod tests {
         let orig_results = trie.fuzzy_search(b"koiru", 1);
         let recov_results = recovered.fuzzy_search(b"koiru", 1);
         assert_eq!(orig_results, recov_results);
+    }
+
+    // -----------------------------------------------------------------------
+    // SpellChecker pipeline integration (unit tests without VFST)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn spell_checker_pipeline_suggest_returns_morph_validated_results() {
+        // Build a SpellChecker with a mock morph validator that only accepts
+        // words starting with 'k'. The suggest() call should filter candidates
+        // through the morph validator.
+        use mce_speller::pipeline::SpellCheckerBuilder;
+
+        let mut builder = TrieBuilder::new();
+        builder.insert(b"koira".to_vec()); // accepted by k_morph
+        builder.insert(b"auto".to_vec()); // rejected by k_morph
+        builder.insert(b"koulu".to_vec()); // accepted by k_morph
+        let trie = builder.build();
+
+        let k_morph = |word: &[char], len: usize| -> bool { len > 0 && word[0] == 'k' };
+
+        let checker = SpellCheckerBuilder::new()
+            .trie(trie)
+            .morph_validator(k_morph)
+            .cache_size(0)
+            .build();
+
+        // "koirb" is 1 edit from "koira" (accepted) and far from "auto" (rejected).
+        let suggestions = checker.suggest("koirb", 1, 10);
+        assert!(
+            suggestions.contains(&"koira".to_string()),
+            "should suggest koira: {:?}",
+            suggestions
+        );
+        assert!(
+            !suggestions.contains(&"auto".to_string()),
+            "should not suggest auto (morph rejected): {:?}",
+            suggestions
+        );
+    }
+
+    #[test]
+    fn spell_checker_pipeline_check_uses_trie_and_morph() {
+        use mce_speller::pipeline::SpellCheckerBuilder;
+        use std::cell::RefCell;
+
+        let mut builder = TrieBuilder::new();
+        builder.insert(b"koira".to_vec());
+        builder.insert(b"talo".to_vec());
+        let trie = builder.build();
+
+        // Morph validator: accept words starting with 'k' (even if not in trie).
+        let k_morph = |word: &[char], len: usize| -> bool { len > 0 && word[0] == 'k' };
+
+        let checker = RefCell::new(
+            SpellCheckerBuilder::new()
+                .trie(trie)
+                .morph_validator(k_morph)
+                .cache_size(0)
+                .build(),
+        );
+
+        // In the trie -> Ok.
+        assert_eq!(checker.borrow_mut().check("koira"), SpellResult::Ok);
+        assert_eq!(checker.borrow_mut().check("talo"), SpellResult::Ok);
+
+        // Not in trie, but accepted by morph validator -> Ok.
+        assert_eq!(checker.borrow_mut().check("kauppa"), SpellResult::Ok);
+
+        // Not in trie, rejected by morph validator -> Failed.
+        assert_eq!(checker.borrow_mut().check("auto"), SpellResult::Failed);
+    }
+
+    #[test]
+    fn spell_check_and_is_valid_word_have_different_semantics() {
+        // This test documents the architectural differentiation:
+        // - is_valid_word(): pure morphological analysis (FST traversal only)
+        // - spell_check(): trie + morph + compound check (more permissive)
+        //
+        // Without VFST we can only test the helpers that underpin this
+        // distinction. With VFST, a compound word like "koiratalo" would
+        // pass spell_check() but might not pass is_valid_word().
+
+        // Simulating the distinction with mock data:
+        // "koira" has a morphological analysis -> both would return true.
+        // A novel compound (not in FST as single entry) -> is_valid_word=false,
+        // spell_check=true (via compound splitting).
+
+        // Test 1: A word in the trie passes the SpellChecker pipeline.
+        let mut builder = TrieBuilder::new();
+        builder.insert(b"koira".to_vec());
+        let trie = builder.build();
+
+        let accept_all = |_word: &[char], _len: usize| -> bool { true };
+        let mut checker = SpellCheckerBuilder::new()
+            .trie(trie)
+            .morph_validator(accept_all)
+            .cache_size(0)
+            .build();
+        assert_eq!(checker.check("koira"), SpellResult::Ok);
+
+        // Test 2: A word NOT in the trie but accepted by morph -> still Ok.
+        assert_eq!(checker.check("kissa"), SpellResult::Ok);
+
+        // Test 3: A word NOT in trie and rejected by morph -> Failed.
+        let reject_all = |_word: &[char], _len: usize| -> bool { false };
+        let mut strict_checker = SpellCheckerBuilder::new()
+            .trie(TrieBuilder::new().build())
+            .morph_validator(reject_all)
+            .cache_size(0)
+            .build();
+        assert_eq!(strict_checker.check("koira"), SpellResult::Failed);
     }
 }

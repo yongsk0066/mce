@@ -386,7 +386,7 @@ dependencies = [
 
 [[package]]
 name = "mce-wasm"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "js-sys",
  "mce-comonad",
@@ -395,6 +395,7 @@ dependencies = [
  "mce-fi",
  "mce-fst",
  "mce-grammar",
+ "mce-speller",
  "mce-tokenizer",
  "serde",
  "serde-wasm-bindgen",
