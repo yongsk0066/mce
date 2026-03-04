@@ -24,7 +24,7 @@ mce-cli eval --conllu fi_tdt-ud-dev.conllu
 # With corpus-trained bigram model
 mce-cli eval --conllu fi_tdt-ud-dev.conllu --train fi_tdt-ud-train.conllu
 
-# With suffix tagger model (UPOS 82.71% -> 95.56%)
+# With suffix tagger model (UPOS 82.71% -> 94.58%)
 mce-cli eval --conllu fi_tdt-ud-dev.conllu --model data/suffix_tagger.bin
 
 # JSON output for automated processing

@@ -94,7 +94,7 @@ impl MceEngine {
     ///
     /// The model is a binary MCET file (~5MB) trained offline. When loaded,
     /// `analyze_sentence()` and `disambiguate_sentence()` use it for
-    /// emission scoring, boosting UPOS accuracy from 82.71% to 95.56%.
+    /// emission scoring, boosting UPOS accuracy from 82.71% to 94.58%.
     ///
     /// # Errors
     ///

@@ -15,7 +15,7 @@ WebAssembly bindings for the MCE Finnish NLP engine. Exposes 22 API methods via 
 | Method | Description |
 |--------|-------------|
 | `load(dict)` | Create engine from VFST dictionary bytes |
-| `load_model(data)` | Load suffix tagger model (boosts UPOS 82.71% -> 95.56%) |
+| `load_model(data)` | Load suffix tagger model (boosts UPOS 82.71% -> 94.58%) |
 | `has_model()` | Check if suffix tagger model is loaded |
 | `load_wordlist(data)` | Load wordlist for trie-based spelling suggestions |
 | `has_wordlist()` | Check if wordlist (suggestion trie) is loaded |

@@ -6,16 +6,16 @@ Browser-first Finnish NLP engine. Runs entirely offline in WebAssembly with no s
 
 - Deploy size: ~9.2MB (WASM 365KB + dictionary 3.8MB + model 5.0MB)
 - Latency: <5ms per sentence (actual: ~1.35ms)
-- Accuracy: UPOS 95%+ (actual: 95.56%)
+- Accuracy: UPOS 94%+ (actual: 94.58%)
 - Environment: WASM browser (fully offline)
 
 ## Current Metrics
 
 | Metric | Value |
 |--------|-------|
-| UPOS (CG + Suffix Tagger) | **95.56%** |
+| UPOS (CG + Suffix Tagger) | **94.58%** |
 | UPOS (rule-only) | 82.71% |
-| Lemma | 86.24% |
+| Lemma | 88.44% |
 | Coverage | 99.64% |
 | Speed | 42,090 tokens/sec (~1.35ms/sentence) |
 | WASM binary | 365KB |
@@ -52,7 +52,7 @@ Statistical POS tagger using logistic regression on suffix features. Trained on 
 - Model: 5.0MB binary (MCET format v1)
 - Implementation: `mce-disambig/src/suffix_tagger.rs` (1,480 LOC)
 - Pipeline: CG-lite -> Suffix Tagger -> Viterbi
-- Accuracy boost: 82.71% -> 95.56% (+12.85pp)
+- Accuracy boost: 82.71% -> 94.58% (+11.87pp)
 
 ## Crate Structure
 

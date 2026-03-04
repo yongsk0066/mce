@@ -288,8 +288,8 @@
               </div>
 
               <div class="badge-row">
-                <cds-tag type="green">UPOS 95.56%</cds-tag>
-                <cds-tag type="blue">Lemma 86.24%</cds-tag>
+                <cds-tag type="green">UPOS 94.58%</cds-tag>
+                <cds-tag type="blue">Lemma 88.44%</cds-tag>
                 <cds-tag type="teal">Coverage 99.64%</cds-tag>
                 <cds-tag type="purple">42K tok/s</cds-tag>
                 <cds-tag type="cyan">365KB WASM</cds-tag>
@@ -308,7 +308,7 @@
                   <li><strong>Complete offline operation</strong> &mdash; WASM + dictionary loaded once, works without network</li>
                   <li><strong>VFST dictionary format</strong> &mdash; Succinct trie with LOUDS encoding for compact storage</li>
                   <li><strong>Comonadic architecture</strong> &mdash; Writer comonad for composable morphophonological rules</li>
-                  <li><strong>Viterbi disambiguation</strong> &mdash; Weighted lattice + suffix tagger for 95.56% UPOS accuracy</li>
+                  <li><strong>Viterbi disambiguation</strong> &mdash; Weighted lattice + suffix tagger for 94.58% UPOS accuracy</li>
                   <li><strong>CG rules</strong> &mdash; 62 active constraint grammar rules for context-sensitive disambiguation</li>
                   <li><strong>Morphological generation</strong> &mdash; Noun declension (11 cases) + verb conjugation (4 types)</li>
                   <li><strong>Grammar checking</strong> &mdash; 21 rules for common Finnish writing errors</li>
@@ -373,7 +373,7 @@
                   <li><strong>Browser writing tools</strong> &mdash; spell check, grammar check, and hyphenation running entirely client-side with no server</li>
                   <li><strong>Education</strong> &mdash; interactive morphology explorer (11 noun cases), verb conjugation trainer, hover-to-analyze reading assistant</li>
                   <li><strong>Privacy-first NLP</strong> &mdash; GDPR-compliant by design: text never leaves the browser; works in air-gapped environments</li>
-                  <li><strong>Research</strong> &mdash; corpus annotation at 95.56% UPOS, compound decomposition, Writer Comonad for morphophonological theory</li>
+                  <li><strong>Research</strong> &mdash; corpus annotation at 94.58% UPOS, compound decomposition, Writer Comonad for morphophonological theory</li>
                   <li><strong>Developer integration</strong> &mdash; npm package, Rust crate, CLI (11 commands), and WASM API (22 methods)</li>
                   <li><strong>Only MCE</strong> &mdash; full Finnish NLP in a browser tab with no internet, complete paradigm generation client-side, all in under 9.2MB</li>
                 </ul>
@@ -577,7 +577,7 @@ flowchart TD
               <cds-tile data-action="pos" data-input="posInput">
                 <div class="tile-header"><h2 class="cds--type-heading-compact-01">POS Tagging</h2><cds-tag type="blue">analyze_sentence()</cds-tag></div>
                 <div class="tile-body">
-                  <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">Full pipeline: tokenize &rarr; FST analysis &rarr; CG disambiguation &rarr; suffix tagger &rarr; Viterbi. Returns tokenized analysis with morphological features including word class and base form. Accuracy: 95.56% UPOS with suffix tagger model.</p>
+                  <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">Full pipeline: tokenize &rarr; FST analysis &rarr; CG disambiguation &rarr; suffix tagger &rarr; Viterbi. Returns tokenized analysis with morphological features including word class and base form. Accuracy: 94.58% UPOS with suffix tagger model.</p>
                   <div class="example-presets" style="display:flex;gap:var(--cds-spacing-02);flex-wrap:wrap;margin-bottom:var(--cds-spacing-04)">
                     <cds-tag type="green" class="example-tag" data-value="Koira juoksee nopeasti." data-target="posInput" data-hint="Simple SVO: NOUN + VERB + ADV. The baseline test &mdash; all three tags should be correct.">Simple SVO</cds-tag>
                     <cds-tag type="purple" class="example-tag" data-value="Tulen kotiin huomenna." data-target="posInput" data-hint="Ambiguous &lsquo;tulen&rsquo;: could be &lsquo;I come&rsquo; (VERB) or genitive of &lsquo;tuli&rsquo;/fire (NOUN). Context should disambiguate to VERB here. Tests CG + tagger interaction.">Ambiguous verb</cds-tag>
@@ -714,7 +714,7 @@ flowchart TD
 
                 <div class="api-method">
                   <h3>engine.load_model(data: Uint8Array): void</h3>
-                  <p>Load a suffix tagger model for POS disambiguation. Improves UPOS from 82.71% to 95.56%. Throws if <code>data</code> is not a valid MCET model.</p>
+                  <p>Load a suffix tagger model for POS disambiguation. Improves UPOS from 82.71% to 94.58%. Throws if <code>data</code> is not a valid MCET model.</p>
                 </div>
 
                 <div class="api-method">
@@ -856,15 +856,15 @@ flowchart TD
                   <cds-table-body>
                     <cds-table-row>
                       <cds-table-cell><strong>MCE (CG + Suffix)</strong></cds-table-cell>
-                      <cds-table-cell><strong>95.56%</strong></cds-table-cell>
-                      <cds-table-cell>86.24%</cds-table-cell>
+                      <cds-table-cell><strong>94.58%</strong></cds-table-cell>
+                      <cds-table-cell>88.44%</cds-table-cell>
                       <cds-table-cell>99.64%</cds-table-cell>
                       <cds-table-cell>Browser (WASM)</cds-table-cell>
                     </cds-table-row>
                     <cds-table-row>
                       <cds-table-cell>MCE (rule-only)</cds-table-cell>
                       <cds-table-cell>82.71%</cds-table-cell>
-                      <cds-table-cell>86.24%</cds-table-cell>
+                      <cds-table-cell>88.44%</cds-table-cell>
                       <cds-table-cell>99.64%</cds-table-cell>
                       <cds-table-cell>Browser (WASM)</cds-table-cell>
                     </cds-table-row>
@@ -1012,7 +1012,7 @@ flowchart TD
                     </cds-table-row>
                     <cds-table-row>
                       <cds-table-cell>POS tagging</cds-table-cell>
-                      <cds-table-cell>Yes (95.56%)</cds-table-cell>
+                      <cds-table-cell>Yes (94.58%)</cds-table-cell>
                       <cds-table-cell>Yes (83.88%)</cds-table-cell>
                       <cds-table-cell>Yes (97.80%)</cds-table-cell>
                       <cds-table-cell>Yes (98.48%)</cds-table-cell>

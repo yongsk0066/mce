@@ -10,7 +10,7 @@ Disambiguation runs as a three-stage pipeline:
 2. **Suffix Tagger** -- logistic regression emission scoring based on character suffix/prefix features.
 3. **Viterbi decoder** -- bigram-based dynamic programming over a weighted lattice to find the best global sequence.
 
-This pipeline lifts UPOS accuracy from 82.71% (rule-only) to **95.56%** (CG + Suffix Tagger + Viterbi).
+This pipeline lifts UPOS accuracy from 82.71% (rule-only) to **94.58%** (CG + Suffix Tagger + Viterbi).
 
 ## Suffix Tagger
 
@@ -18,7 +18,7 @@ A lightweight logistic regression POS tagger trained on UD Finnish-TDT. It does 
 
 | Property | Value |
 |----------|-------|
-| Standalone accuracy | 95.56% UPOS |
+| Standalone accuracy | 94.58% UPOS |
 | Model format | MCET v1 (magic `b"MCET"`, INT8 quantized weights) |
 | Model size | 5.0 MB |
 | Features per word | ~20-30 sparse (suffixes 1-8, prefixes 1-5, word shape, context) |
@@ -55,7 +55,7 @@ use mce_disambig::suffix_tagger::SuffixTagger;
 // 1. Set up disambiguator with Finnish POS bigram defaults
 let mut disambiguator = ViterbiDisambiguator::with_finnish_defaults();
 
-// 2. Load suffix tagger model (optional but recommended for 95%+ accuracy)
+// 2. Load suffix tagger model (optional but recommended for 94%+ accuracy)
 let model_bytes = std::fs::read("data/suffix_tagger.bin").unwrap();
 let tagger = SuffixTagger::from_bytes(&model_bytes).unwrap();
 disambiguator.set_suffix_tagger(tagger);

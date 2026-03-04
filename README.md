@@ -7,7 +7,7 @@
 
 Browser-first Finnish NLP engine -- morphological analysis, POS tagging, spell checking, grammar checking, hyphenation, compound analysis, and morphological generation, all running offline in WebAssembly.
 
-MCE uses a mathematically grounded architecture: a Writer Comonad for morphophonological rules, Constraint Grammar for disambiguation, and a suffix-based statistical tagger -- achieving 95.56% UPOS accuracy in 365KB of WASM with no server required.
+MCE uses a mathematically grounded architecture: a Writer Comonad for morphophonological rules, Constraint Grammar for disambiguation, and a suffix-based statistical tagger -- achieving 94.58% UPOS accuracy in 365KB of WASM with no server required.
 
 ## Why MCE?
 
@@ -17,7 +17,7 @@ MCE occupies an unusual position in the Finnish NLP landscape. To our knowledge,
 
 **Mathematical foundation.** Morphophonological rules (consonant gradation, vowel harmony, boundary effects) are expressed as coKleisli arrows over a Writer Comonad with a DeletionSet monoid. To our knowledge, this is the first production NLP system to use comonadic composition for morphophonology, ensuring that rules compose purely without mutation or sentinel characters.
 
-**95.56% UPOS in 9.2MB.** MCE achieves near-neural accuracy through a hybrid pipeline: 62 Constraint Grammar rules prune impossible readings, a suffix-based statistical tagger provides emission scores, and Viterbi decoding selects the optimal POS sequence. Neural systems (TurkuNLP, Trankit) score 2-3pp higher but require 100-1000x more storage and a GPU server.
+**94.58% UPOS in 9.2MB.** MCE achieves near-neural accuracy through a hybrid pipeline: 62 Constraint Grammar rules prune impossible readings, a suffix-based statistical tagger provides emission scores, and Viterbi decoding selects the optimal POS sequence. Neural systems (TurkuNLP, Trankit) score 3-4pp higher but require 100-1000x more storage and a GPU server.
 
 **Complete writer-tools stack.** MCE is not just a POS tagger. A single 9.2MB deployment provides spell checking, spelling suggestions, grammar checking (21 rules), hyphenation, compound word analysis, and morphological generation (11 noun cases, 4 verb conjugation types). To our knowledge, no other tool offers all of these in one package that runs client-side.
 
@@ -26,7 +26,7 @@ MCE occupies an unusual position in the Finnish NLP landscape. To our knowledge,
 ## Features
 
 - **Morphological analysis** with full inflection details and POS disambiguation
-- **POS tagging** at 95.56% UPOS accuracy (CG + Suffix Tagger)
+- **POS tagging** at 94.58% UPOS accuracy (CG + Suffix Tagger)
 - **Spell checking** with compound word and derivation support
 - **Spelling suggestions** with context-aware ranking
 - **Grammar checking** with 21 rule-based checks
@@ -57,7 +57,7 @@ MCE occupies an unusual position in the Finnish NLP landscape. To our knowledge,
 - 9.2MB total footprint fits on IoT, edge, and mobile devices
 
 ### Research & NLP Pipelines
-- Morphological annotation of Finnish corpora at 95.56% UPOS accuracy
+- Morphological annotation of Finnish corpora at 94.58% UPOS accuracy
 - Lemmatization for information retrieval and search indexing
 - Compound word decomposition for machine translation preprocessing
 - Writer Comonad as a research tool for studying morphophonological theory
@@ -113,7 +113,7 @@ engine.compound_split('rautatieasema');
 engine.generate_form('koira', 'genitive', 'singular');
 engine.generate_verb_form('juosta', 'present', '3sg', 'affirmative');
 
-// Load suffix tagger model for higher accuracy (95.56% UPOS)
+// Load suffix tagger model for higher accuracy (94.58% UPOS)
 const modelBytes = await fetch('suffix_tagger.bin').then(r => r.arrayBuffer());
 engine.load_model(new Uint8Array(modelBytes));
 
@@ -197,9 +197,9 @@ The Rust workspace contains 11 crates:
 
 | Metric | Value |
 |--------|-------|
-| UPOS accuracy (CG + Suffix Tagger) | **95.56%** |
+| UPOS accuracy (CG + Suffix Tagger) | **94.58%** |
 | UPOS accuracy (rule-only) | 82.71% |
-| Lemma accuracy | 86.24% |
+| Lemma accuracy | 88.44% |
 | Coverage | 99.64% |
 | Speed | 42,090 tokens/sec (~1.35ms per sentence) |
 | WASM binary | 365KB |
@@ -214,7 +214,7 @@ The Rust workspace contains 11 crates:
 
 | | MCE | Omorfi | TurkuNLP (TNPP) | Trankit |
 |--|-----|--------|-----------------|---------|
-| **UPOS** | 95.56% | 83.88% | 97.80% | 98.48% |
+| **UPOS** | 94.58% | 83.88% | 97.80% | 98.48% |
 | **Environment** | Browser (WASM) | CLI / HFST | GPU server | GPU server |
 | **Offline** | Yes (fully) | Yes | No | No |
 | **Deploy size** | 9.2MB | ~50MB+ | ~1GB+ | ~1GB+ |
@@ -222,9 +222,9 @@ The Rust workspace contains 11 crates:
 | **Writer tools** | Yes | No | No | No |
 | **Maintained** | Yes | Yes | Deprecated | Yes |
 
-MCE trades ~2-3pp of UPOS accuracy for a deployment that is orders of magnitude smaller and runs entirely in the browser with no network dependency.
+MCE trades ~3-4pp of UPOS accuracy for a deployment that is orders of magnitude smaller and runs entirely in the browser with no network dependency.
 
-*UPOS and lemma accuracy measured with gold tokenization from UD Finnish-TDT. End-to-end accuracy including MCE's own tokenizer may differ slightly.*
+*UPOS and lemma accuracy measured with gold tokenization from UD Finnish-TDT test set. Lemma accuracy measured with 42K-entry evaluation dictionary (evaluation splits excluded); production dictionary includes 48K entries for broader coverage. End-to-end accuracy including MCE's own tokenizer may differ slightly.*
 
 ## Architecture
 

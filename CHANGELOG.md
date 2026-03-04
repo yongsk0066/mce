@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- UD Finnish-OOD and UD Finnish-PUD as git submodules for broader lemma coverage
+- Multi-source lemma dictionary extraction (`scripts/extract_lemma_dict.py -o` flag)
+- THIRD_PARTY_NOTICES.md with CC-BY-SA 4.0 attribution for UD treebanks
+
+### Changed
+- Lemma dictionary expanded from 36K to 48K entries (TDT train + OOD + PUD)
+- Lemma accuracy improved: 86.24% -> 88.44% on test set (+2.20pp)
+
+### Fixed
+- UPOS accuracy corrected: 95.56% -> 94.58% (previous number included PUNCT/SYM; now uses CoNLL standard excluding PUNCT/SYM)
+
+### Investigated
+- Tier 2 feasibility: compound boundary accuracy 80.9% (below 95% threshold) — Wiktionary integration deferred to v0.4.0
+- Kotus word list: GO for speller enrichment and verb validation in future release
+
 ## [0.2.0] - 2026-03-04
 
 ### Added
@@ -37,7 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Writer Comonad morphophonological pipeline with DeletionMonoid
 - 11 consonant gradation patterns as coKleisli arrows
 - CG-lite disambiguation: 62 active rules, 24 rule types, 23 phases
-- Suffix Tagger (logistic regression on suffix features): UPOS 95.56%
+- Suffix Tagger (logistic regression on suffix features): UPOS 95.56% (later corrected to 94.58% excl. PUNCT/SYM)
 - Dictionary-enhanced lemmatization: 86.24% accuracy (36K entries)
 - Spell checking and suggestion engine
 - Grammar checking: 21 rules (258 tests)

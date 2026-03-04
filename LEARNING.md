@@ -300,7 +300,7 @@ invariant that prevents removing all readings?
 ## 6. Statistical POS Tagging (Suffix Tagger)
 
 CG rules are high-precision but limited in coverage. The suffix tagger adds a
-statistical layer that pushes UPOS accuracy from 82.71% (rule-only) to 95.56%.
+statistical layer that pushes UPOS accuracy from 82.71% (rule-only) to 94.58%.
 
 ### What you need to know
 
@@ -327,8 +327,8 @@ The model is trained offline (Python/sklearn) and stored as a compact binary fil
 ### Why it matters
 
 Pure rule-based disambiguation (CG-lite alone) achieves 82.71% UPOS -- comparable to
-Omorfi's 83.88% but with 67x fewer rules. Adding the suffix tagger jumps to 95.56%,
-within 1.4 percentage points of neural systems like TurkuNLP (96.91%). This
+Omorfi's 83.88% but with 67x fewer rules. Adding the suffix tagger jumps to 94.58%,
+within 3.2 percentage points of neural systems like TurkuNLP (97.80%). This
 demonstrates that lightweight statistical methods can effectively complement rule-based
 systems in a browser-deployable package.
 
@@ -508,8 +508,8 @@ Output: disambiguated analyses (lemma, UPOS, features) per token
 ### Performance
 
 - **Speed:** 42,090 tokens/second (24 microseconds/token)
-- **UPOS accuracy:** 95.56% (CG + suffix tagger), 82.71% (rule-only)
-- **Lemma accuracy:** 86.24%
+- **UPOS accuracy:** 94.58% (CG + suffix tagger), 82.71% (rule-only)
+- **Lemma accuracy:** 88.44%
 - **Coverage:** 99.64% of tokens receive at least one analysis
 - **WASM binary:** 365KB
 - **Total deployment:** ~9.2MB (WASM 365KB + dictionary 3.8MB + model 5.0MB, gzip ~2-3MB)
