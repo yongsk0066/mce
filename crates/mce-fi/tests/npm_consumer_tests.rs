@@ -12,7 +12,7 @@
 //   MCE_DICT_PATH=data cargo test -p mce-fi --test npm_consumer_tests -- --ignored --nocapture
 
 use mce_core::analysis::{
-    Analysis, ATTR_BASEFORM, ATTR_CLASS, ATTR_NUMBER, ATTR_SIJAMUOTO, ATTR_STRUCTURE,
+    ATTR_BASEFORM, ATTR_CLASS, ATTR_NUMBER, ATTR_SIJAMUOTO, ATTR_STRUCTURE, Analysis,
 };
 use mce_disambig::{Disambiguator, ViterbiDisambiguator};
 use mce_fi::compound::FinnishCompoundAnalyzer;
@@ -20,8 +20,8 @@ use mce_fi::generator::{MorphGenerator, VerbNumber, VerbPerson, VerbPolarity, Ve
 use mce_fi::hyphenation::FinnishHyphenator;
 use mce_fi::morphology::{Analyzer, FinnishAnalyzer};
 use mce_fi::spellcheck::FinnishSpellChecker;
-use mce_grammar::finnish::FinnishGrammarChecker;
 use mce_grammar::GrammarChecker;
+use mce_grammar::finnish::FinnishGrammarChecker;
 use mce_speller::SpellResult;
 
 // ===========================================================================
@@ -112,21 +112,21 @@ const COMPOUND_EXTENDED: &[(&str, usize)] = &[
 
 // Inflected word -> expected baseform (lemma) pairs from real text
 const BASEFORM_PAIRS: &[(&str, &str)] = &[
-    ("kaupunki", "kaupunki"),       // nominative
-    ("kaupungin", "kaupunki"),      // genitive
-    ("kaupunkia", "kaupunki"),      // partitive
-    ("kaupungissa", "kaupunki"),    // inessive
-    ("rakennuksen", "rakennus"),    // genitive
-    ("rakennuksesta", "rakennus"),  // elative
+    ("kaupunki", "kaupunki"),         // nominative
+    ("kaupungin", "kaupunki"),        // genitive
+    ("kaupunkia", "kaupunki"),        // partitive
+    ("kaupungissa", "kaupunki"),      // inessive
+    ("rakennuksen", "rakennus"),      // genitive
+    ("rakennuksesta", "rakennus"),    // elative
     ("vuokralaisen", "vuokralainen"), // genitive
-    ("poliisien", "poliisi"),       // genitive plural
-    ("kiinteistöjen", "kiinteistö"), // genitive plural
-    ("kustannuksia", "kustannus"),  // partitive plural
-    ("suunnittelee", "suunnitella"), // 3sg present
-    ("ylitti", "ylittää"),          // 3sg past
-    ("kasvoivat", "kasvaa"),        // 3pl past
-    ("järjestettiin", "järjestää"), // passive past
-    ("löytäminen", "löytää"),       // verbal noun -> base verb
+    ("poliisien", "poliisi"),         // genitive plural
+    ("kiinteistöjen", "kiinteistö"),  // genitive plural
+    ("kustannuksia", "kustannus"),    // partitive plural
+    ("suunnittelee", "suunnitella"),  // 3sg present
+    ("ylitti", "ylittää"),            // 3sg past
+    ("kasvoivat", "kasvaa"),          // 3pl past
+    ("järjestettiin", "järjestää"),   // passive past
+    ("löytäminen", "löytää"),         // verbal noun -> base verb
 ];
 
 // POS tag expectations for individual words
@@ -146,8 +146,8 @@ const HYPHEN_EXACT: &[(&str, &str)] = &[
     ("kirjakauppa", "kir-ja-kaup-pa"),
     ("jalkapallo", "jal-ka-pal-lo"),
     ("aamupala", "aa-mu-pa-la"),
-    ("\u{00E4}iti", "\u{00E4}i-ti"),       // äiti
-    ("\u{00F6}ljy", "\u{00F6}l-jy"),       // öljy
+    ("\u{00E4}iti", "\u{00E4}i-ti"), // äiti
+    ("\u{00F6}ljy", "\u{00F6}l-jy"), // öljy
 ];
 
 // Words that should produce hyphenation containing "-"
@@ -235,35 +235,196 @@ struct VerbFormCase {
 
 const VERB_FORM_CASES: &[VerbFormCase] = &[
     // puhua (type 1: -ua/-uä)
-    VerbFormCase { inf: "puhua", tense: VerbTense::Present, person: VerbPerson::First, number: VerbNumber::Singular, polarity: VerbPolarity::Affirmative, expected: "puhun" },
-    VerbFormCase { inf: "puhua", tense: VerbTense::Present, person: VerbPerson::Second, number: VerbNumber::Singular, polarity: VerbPolarity::Affirmative, expected: "puhut" },
-    VerbFormCase { inf: "puhua", tense: VerbTense::Present, person: VerbPerson::Third, number: VerbNumber::Singular, polarity: VerbPolarity::Affirmative, expected: "puhuu" },
-    VerbFormCase { inf: "puhua", tense: VerbTense::Present, person: VerbPerson::First, number: VerbNumber::Plural, polarity: VerbPolarity::Affirmative, expected: "puhumme" },
-    VerbFormCase { inf: "puhua", tense: VerbTense::Present, person: VerbPerson::Second, number: VerbNumber::Plural, polarity: VerbPolarity::Affirmative, expected: "puhutte" },
-    VerbFormCase { inf: "puhua", tense: VerbTense::Present, person: VerbPerson::Third, number: VerbNumber::Plural, polarity: VerbPolarity::Affirmative, expected: "puhuvat" },
-    VerbFormCase { inf: "puhua", tense: VerbTense::Past, person: VerbPerson::First, number: VerbNumber::Singular, polarity: VerbPolarity::Affirmative, expected: "puhuin" },
-    VerbFormCase { inf: "puhua", tense: VerbTense::Past, person: VerbPerson::Third, number: VerbNumber::Singular, polarity: VerbPolarity::Affirmative, expected: "puhui" },
-    VerbFormCase { inf: "puhua", tense: VerbTense::Past, person: VerbPerson::Third, number: VerbNumber::Plural, polarity: VerbPolarity::Affirmative, expected: "puhuivat" },
-    VerbFormCase { inf: "puhua", tense: VerbTense::Conditional, person: VerbPerson::First, number: VerbNumber::Singular, polarity: VerbPolarity::Affirmative, expected: "puhuisin" },
-    VerbFormCase { inf: "puhua", tense: VerbTense::Conditional, person: VerbPerson::Third, number: VerbNumber::Singular, polarity: VerbPolarity::Affirmative, expected: "puhuisi" },
+    VerbFormCase {
+        inf: "puhua",
+        tense: VerbTense::Present,
+        person: VerbPerson::First,
+        number: VerbNumber::Singular,
+        polarity: VerbPolarity::Affirmative,
+        expected: "puhun",
+    },
+    VerbFormCase {
+        inf: "puhua",
+        tense: VerbTense::Present,
+        person: VerbPerson::Second,
+        number: VerbNumber::Singular,
+        polarity: VerbPolarity::Affirmative,
+        expected: "puhut",
+    },
+    VerbFormCase {
+        inf: "puhua",
+        tense: VerbTense::Present,
+        person: VerbPerson::Third,
+        number: VerbNumber::Singular,
+        polarity: VerbPolarity::Affirmative,
+        expected: "puhuu",
+    },
+    VerbFormCase {
+        inf: "puhua",
+        tense: VerbTense::Present,
+        person: VerbPerson::First,
+        number: VerbNumber::Plural,
+        polarity: VerbPolarity::Affirmative,
+        expected: "puhumme",
+    },
+    VerbFormCase {
+        inf: "puhua",
+        tense: VerbTense::Present,
+        person: VerbPerson::Second,
+        number: VerbNumber::Plural,
+        polarity: VerbPolarity::Affirmative,
+        expected: "puhutte",
+    },
+    VerbFormCase {
+        inf: "puhua",
+        tense: VerbTense::Present,
+        person: VerbPerson::Third,
+        number: VerbNumber::Plural,
+        polarity: VerbPolarity::Affirmative,
+        expected: "puhuvat",
+    },
+    VerbFormCase {
+        inf: "puhua",
+        tense: VerbTense::Past,
+        person: VerbPerson::First,
+        number: VerbNumber::Singular,
+        polarity: VerbPolarity::Affirmative,
+        expected: "puhuin",
+    },
+    VerbFormCase {
+        inf: "puhua",
+        tense: VerbTense::Past,
+        person: VerbPerson::Third,
+        number: VerbNumber::Singular,
+        polarity: VerbPolarity::Affirmative,
+        expected: "puhui",
+    },
+    VerbFormCase {
+        inf: "puhua",
+        tense: VerbTense::Past,
+        person: VerbPerson::Third,
+        number: VerbNumber::Plural,
+        polarity: VerbPolarity::Affirmative,
+        expected: "puhuivat",
+    },
+    VerbFormCase {
+        inf: "puhua",
+        tense: VerbTense::Conditional,
+        person: VerbPerson::First,
+        number: VerbNumber::Singular,
+        polarity: VerbPolarity::Affirmative,
+        expected: "puhuisin",
+    },
+    VerbFormCase {
+        inf: "puhua",
+        tense: VerbTense::Conditional,
+        person: VerbPerson::Third,
+        number: VerbNumber::Singular,
+        polarity: VerbPolarity::Affirmative,
+        expected: "puhuisi",
+    },
     // negative
-    VerbFormCase { inf: "puhua", tense: VerbTense::Present, person: VerbPerson::First, number: VerbNumber::Singular, polarity: VerbPolarity::Negative, expected: "en puhu" },
-    VerbFormCase { inf: "puhua", tense: VerbTense::Present, person: VerbPerson::Third, number: VerbNumber::Singular, polarity: VerbPolarity::Negative, expected: "ei puhu" },
+    VerbFormCase {
+        inf: "puhua",
+        tense: VerbTense::Present,
+        person: VerbPerson::First,
+        number: VerbNumber::Singular,
+        polarity: VerbPolarity::Negative,
+        expected: "en puhu",
+    },
+    VerbFormCase {
+        inf: "puhua",
+        tense: VerbTense::Present,
+        person: VerbPerson::Third,
+        number: VerbNumber::Singular,
+        polarity: VerbPolarity::Negative,
+        expected: "ei puhu",
+    },
     // syödä (type 2: -dä)
-    VerbFormCase { inf: "syödä", tense: VerbTense::Present, person: VerbPerson::First, number: VerbNumber::Singular, polarity: VerbPolarity::Affirmative, expected: "syön" },
-    VerbFormCase { inf: "syödä", tense: VerbTense::Present, person: VerbPerson::Third, number: VerbNumber::Singular, polarity: VerbPolarity::Affirmative, expected: "syöö" },
-    VerbFormCase { inf: "syödä", tense: VerbTense::Past, person: VerbPerson::First, number: VerbNumber::Singular, polarity: VerbPolarity::Affirmative, expected: "syöin" },
-    VerbFormCase { inf: "syödä", tense: VerbTense::Past, person: VerbPerson::Third, number: VerbNumber::Singular, polarity: VerbPolarity::Affirmative, expected: "syöi" },
+    VerbFormCase {
+        inf: "syödä",
+        tense: VerbTense::Present,
+        person: VerbPerson::First,
+        number: VerbNumber::Singular,
+        polarity: VerbPolarity::Affirmative,
+        expected: "syön",
+    },
+    VerbFormCase {
+        inf: "syödä",
+        tense: VerbTense::Present,
+        person: VerbPerson::Third,
+        number: VerbNumber::Singular,
+        polarity: VerbPolarity::Affirmative,
+        expected: "syöö",
+    },
+    VerbFormCase {
+        inf: "syödä",
+        tense: VerbTense::Past,
+        person: VerbPerson::First,
+        number: VerbNumber::Singular,
+        polarity: VerbPolarity::Affirmative,
+        expected: "syöin",
+    },
+    VerbFormCase {
+        inf: "syödä",
+        tense: VerbTense::Past,
+        person: VerbPerson::Third,
+        number: VerbNumber::Singular,
+        polarity: VerbPolarity::Affirmative,
+        expected: "syöi",
+    },
     // tulla (type 3: -lla)
-    VerbFormCase { inf: "tulla", tense: VerbTense::Present, person: VerbPerson::First, number: VerbNumber::Singular, polarity: VerbPolarity::Affirmative, expected: "tulen" },
-    VerbFormCase { inf: "tulla", tense: VerbTense::Present, person: VerbPerson::Third, number: VerbNumber::Singular, polarity: VerbPolarity::Affirmative, expected: "tulee" },
-    VerbFormCase { inf: "tulla", tense: VerbTense::Past, person: VerbPerson::Third, number: VerbNumber::Singular, polarity: VerbPolarity::Affirmative, expected: "tuli" },
+    VerbFormCase {
+        inf: "tulla",
+        tense: VerbTense::Present,
+        person: VerbPerson::First,
+        number: VerbNumber::Singular,
+        polarity: VerbPolarity::Affirmative,
+        expected: "tulen",
+    },
+    VerbFormCase {
+        inf: "tulla",
+        tense: VerbTense::Present,
+        person: VerbPerson::Third,
+        number: VerbNumber::Singular,
+        polarity: VerbPolarity::Affirmative,
+        expected: "tulee",
+    },
+    VerbFormCase {
+        inf: "tulla",
+        tense: VerbTense::Past,
+        person: VerbPerson::Third,
+        number: VerbNumber::Singular,
+        polarity: VerbPolarity::Affirmative,
+        expected: "tuli",
+    },
     // haluta (type 4: -ta with consonant gradation)
-    VerbFormCase { inf: "haluta", tense: VerbTense::Present, person: VerbPerson::First, number: VerbNumber::Singular, polarity: VerbPolarity::Affirmative, expected: "haluan" },
-    VerbFormCase { inf: "haluta", tense: VerbTense::Present, person: VerbPerson::Third, number: VerbNumber::Singular, polarity: VerbPolarity::Affirmative, expected: "haluaa" },
+    VerbFormCase {
+        inf: "haluta",
+        tense: VerbTense::Present,
+        person: VerbPerson::First,
+        number: VerbNumber::Singular,
+        polarity: VerbPolarity::Affirmative,
+        expected: "haluan",
+    },
+    VerbFormCase {
+        inf: "haluta",
+        tense: VerbTense::Present,
+        person: VerbPerson::Third,
+        number: VerbNumber::Singular,
+        polarity: VerbPolarity::Affirmative,
+        expected: "haluaa",
+    },
     // juosta (type 3: -sta, irregular stem juoks-)
     // NOTE: Generator produces regular form "juosee" instead of "juoksee"
-    VerbFormCase { inf: "juosta", tense: VerbTense::Present, person: VerbPerson::Third, number: VerbNumber::Singular, polarity: VerbPolarity::Affirmative, expected: "juosee" },
+    VerbFormCase {
+        inf: "juosta",
+        tense: VerbTense::Present,
+        person: VerbPerson::Third,
+        number: VerbNumber::Singular,
+        polarity: VerbPolarity::Affirmative,
+        expected: "juosee",
+    },
 ];
 
 // Verb baseform extraction pairs
@@ -324,21 +485,53 @@ const DISAMBIG_CASES: &[(&str, &str, &str)] = &[
 // Extended vocabulary for coverage testing
 const EXTRA_VOCAB: &[&str] = &[
     // Government & politics
-    "eduskunta", "perustuslaki", "lainsäädäntö", "oikeusministeriö",
-    "valtiovarainministeriö", "kansanedustaja",
+    "eduskunta",
+    "perustuslaki",
+    "lainsäädäntö",
+    "oikeusministeriö",
+    "valtiovarainministeriö",
+    "kansanedustaja",
     // Nature
-    "järvi", "metsä", "vuori", "joki", "saari", "niemi",
+    "järvi",
+    "metsä",
+    "vuori",
+    "joki",
+    "saari",
+    "niemi",
     // Daily life
-    "ruoka", "juoma", "leipä", "maito", "kahvi", "vesi",
+    "ruoka",
+    "juoma",
+    "leipä",
+    "maito",
+    "kahvi",
+    "vesi",
     // Professions
-    "opettaja", "lääkäri", "insinööri", "tuomari", "poliisi",
+    "opettaja",
+    "lääkäri",
+    "insinööri",
+    "tuomari",
+    "poliisi",
     // Days of the week
-    "maanantai", "tiistai", "keskiviikko", "torstai", "perjantai",
-    "lauantai", "sunnuntai",
+    "maanantai",
+    "tiistai",
+    "keskiviikko",
+    "torstai",
+    "perjantai",
+    "lauantai",
+    "sunnuntai",
     // Months
-    "tammikuu", "helmikuu", "maaliskuu", "huhtikuu", "toukokuu",
-    "kesäkuu", "heinäkuu", "elokuu", "syyskuu", "lokakuu",
-    "marraskuu", "joulukuu",
+    "tammikuu",
+    "helmikuu",
+    "maaliskuu",
+    "huhtikuu",
+    "toukokuu",
+    "kesäkuu",
+    "heinäkuu",
+    "elokuu",
+    "syyskuu",
+    "lokakuu",
+    "marraskuu",
+    "joulukuu",
 ];
 
 // Spelling suggestion cases: (misspelled, expected_suggestion, max_edits)
@@ -412,14 +605,15 @@ fn disambiguate_sentence(sentence: &str) -> Vec<(String, Analysis)> {
     let raw_tokens: Vec<&str> = sentence.split_whitespace().collect();
     let words: Vec<String> = raw_tokens
         .iter()
-        .map(|w| w.trim_matches(|c: char| c.is_ascii_punctuation()).to_string())
+        .map(|w| {
+            w.trim_matches(|c: char| c.is_ascii_punctuation())
+                .to_string()
+        })
         .filter(|w| !w.is_empty())
         .collect();
 
-    let sentence_analyses: Vec<Vec<Analysis>> = words
-        .iter()
-        .map(|w| analyze_word(&analyzer, w))
-        .collect();
+    let sentence_analyses: Vec<Vec<Analysis>> =
+        words.iter().map(|w| analyze_word(&analyzer, w)).collect();
 
     // Filter out words with no analysis before disambiguating
     let (analyzed_words, analyzed): (Vec<_>, Vec<_>) = words
@@ -543,10 +737,7 @@ fn pos_classification() {
     let analyzer = load_analyzer();
     for (word, expected_class) in POS_EXPECTATIONS {
         let analyses = analyze_word(&analyzer, word);
-        let classes: Vec<&str> = analyses
-            .iter()
-            .filter_map(|a| a.get(ATTR_CLASS))
-            .collect();
+        let classes: Vec<&str> = analyses.iter().filter_map(|a| a.get(ATTR_CLASS)).collect();
         assert!(
             classes.contains(expected_class),
             "\"{}\" CLASS should include \"{}\", got {:?}",
@@ -636,7 +827,8 @@ fn disambiguation_pos_accuracy() {
         assert!(
             found.is_some(),
             "\"{}\" should be found in disambiguation of \"{}\"",
-            target_word, sentence
+            target_word,
+            sentence
         );
         let (_, analysis) = found.unwrap();
         let pos = analysis.get(ATTR_CLASS).unwrap_or("?");
@@ -719,7 +911,8 @@ fn grammar_real_news_no_critical_errors() {
         assert!(
             critical.is_empty(),
             "\"{}\" should have no critical grammar errors, got {:?}",
-            s, critical
+            s,
+            critical
         );
     }
 }
@@ -796,7 +989,11 @@ fn compound_splitting() {
         let splits = analyzer.analyze(word);
         if !splits.is_empty() {
             let best = &splits[0];
-            let parts: Vec<&str> = best.word_parts().iter().map(|p| p.surface.as_str()).collect();
+            let parts: Vec<&str> = best
+                .word_parts()
+                .iter()
+                .map(|p| p.surface.as_str())
+                .collect();
             assert!(
                 parts.len() >= *min_parts,
                 "compound_split(\"{}\") should have >= {} parts, got {} ({:?})",
@@ -829,7 +1026,11 @@ fn compound_extended() {
         let splits = analyzer.analyze(word);
         if !splits.is_empty() {
             let best = &splits[0];
-            let parts: Vec<&str> = best.word_parts().iter().map(|p| p.surface.as_str()).collect();
+            let parts: Vec<&str> = best
+                .word_parts()
+                .iter()
+                .map(|p| p.surface.as_str())
+                .collect();
             assert!(
                 parts.len() >= *min_parts,
                 "compound_split(\"{}\") extended: expected >= {} parts, got {} ({:?})",
@@ -867,7 +1068,8 @@ fn hyphenation_contains_dash() {
         assert!(
             result.contains('-'),
             "hyphenate(\"{}\") = \"{}\" should contain a hyphen",
-            word, result
+            word,
+            result
         );
     }
 }
@@ -890,7 +1092,11 @@ fn hyphenation_single_char_unchanged() {
 fn paradigm_talo_singular() {
     let generator = MorphGenerator::new();
     let paradigm = generator.generate_paradigm("talo");
-    assert_eq!(paradigm.len(), 22, "\"talo\" should have 22 forms (11 sg + 11 pl)");
+    assert_eq!(
+        paradigm.len(),
+        22,
+        "\"talo\" should have 22 forms (11 sg + 11 pl)"
+    );
 
     for (case_label, expected_form) in TALO_PARADIGM_SG {
         let found = paradigm.iter().find(|(label, _)| label == case_label);
@@ -1059,7 +1265,13 @@ fn verb_conjugation() {
     let generator = MorphGenerator::new();
     for case in VERB_FORM_CASES {
         let result = generator
-            .generate_verb(case.inf, case.tense, case.person, case.number, case.polarity)
+            .generate_verb(
+                case.inf,
+                case.tense,
+                case.person,
+                case.number,
+                case.polarity,
+            )
             .unwrap_or_default();
         assert_eq!(
             result, case.expected,
@@ -1107,7 +1319,11 @@ fn verb_paradigm_olla() {
 
     for (label, expected) in OLLA_EXPECTED {
         let found = paradigm.iter().find(|(l, _)| l == label);
-        assert!(found.is_some(), "olla paradigm should contain \"{}\"", label);
+        assert!(
+            found.is_some(),
+            "olla paradigm should contain \"{}\"",
+            label
+        );
         let (_, form) = found.unwrap();
         assert_eq!(
             form, expected,

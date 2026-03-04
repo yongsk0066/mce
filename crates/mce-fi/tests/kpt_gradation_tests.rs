@@ -17,7 +17,7 @@
 // Run with:
 //   MCE_DICT_PATH=data cargo test -p mce-fi --test kpt_gradation_tests -- --ignored --nocapture
 
-use mce_core::analysis::{Analysis, ATTR_BASEFORM, ATTR_CLASS, ATTR_SIJAMUOTO};
+use mce_core::analysis::{ATTR_BASEFORM, ATTR_CLASS, ATTR_SIJAMUOTO, Analysis};
 use mce_disambig::{Disambiguator, ViterbiDisambiguator};
 use mce_fi::generator::MorphGenerator;
 use mce_fi::morphology::{Analyzer, FinnishAnalyzer};
@@ -39,80 +39,260 @@ struct NounKptEntry {
 
 // Quantitative: pp -> p
 const KPT_PP_P: &[NounKptEntry] = &[
-    NounKptEntry { nom: "kaappi", geni: "kaapin", part: "kaappia", ine: "kaapissa" },
-    NounKptEntry { nom: "kuppi", geni: "kupin", part: "kuppia", ine: "kupissa" },
-    NounKptEntry { nom: "nappi", geni: "napin", part: "nappia", ine: "napissa" },
-    NounKptEntry { nom: "soppa", geni: "sopan", part: "soppaa", ine: "sopassa" },
-    NounKptEntry { nom: "lepp\u{00E4}", geni: "lep\u{00E4}n", part: "lepp\u{00E4}\u{00E4}", ine: "lep\u{00E4}ss\u{00E4}" },
+    NounKptEntry {
+        nom: "kaappi",
+        geni: "kaapin",
+        part: "kaappia",
+        ine: "kaapissa",
+    },
+    NounKptEntry {
+        nom: "kuppi",
+        geni: "kupin",
+        part: "kuppia",
+        ine: "kupissa",
+    },
+    NounKptEntry {
+        nom: "nappi",
+        geni: "napin",
+        part: "nappia",
+        ine: "napissa",
+    },
+    NounKptEntry {
+        nom: "soppa",
+        geni: "sopan",
+        part: "soppaa",
+        ine: "sopassa",
+    },
+    NounKptEntry {
+        nom: "lepp\u{00E4}",
+        geni: "lep\u{00E4}n",
+        part: "lepp\u{00E4}\u{00E4}",
+        ine: "lep\u{00E4}ss\u{00E4}",
+    },
 ];
 
 // Quantitative: tt -> t
 const KPT_TT_T: &[NounKptEntry] = &[
-    NounKptEntry { nom: "matto", geni: "maton", part: "mattoa", ine: "matossa" },
-    NounKptEntry { nom: "hattu", geni: "hatun", part: "hattua", ine: "hatussa" },
-    NounKptEntry { nom: "katto", geni: "katon", part: "kattoa", ine: "katossa" },
-    NounKptEntry { nom: "latte", geni: "latten", part: "lattea", ine: "latteessa" },
-    NounKptEntry { nom: "kentt\u{00E4}", geni: "kent\u{00E4}n", part: "kentt\u{00E4}\u{00E4}", ine: "kent\u{00E4}ss\u{00E4}" },
+    NounKptEntry {
+        nom: "matto",
+        geni: "maton",
+        part: "mattoa",
+        ine: "matossa",
+    },
+    NounKptEntry {
+        nom: "hattu",
+        geni: "hatun",
+        part: "hattua",
+        ine: "hatussa",
+    },
+    NounKptEntry {
+        nom: "katto",
+        geni: "katon",
+        part: "kattoa",
+        ine: "katossa",
+    },
+    NounKptEntry {
+        nom: "latte",
+        geni: "latten",
+        part: "lattea",
+        ine: "latteessa",
+    },
+    NounKptEntry {
+        nom: "kentt\u{00E4}",
+        geni: "kent\u{00E4}n",
+        part: "kentt\u{00E4}\u{00E4}",
+        ine: "kent\u{00E4}ss\u{00E4}",
+    },
 ];
 
 // Quantitative: kk -> k
 const KPT_KK_K: &[NounKptEntry] = &[
-    NounKptEntry { nom: "kukka", geni: "kukan", part: "kukkaa", ine: "kukassa" },
-    NounKptEntry { nom: "takki", geni: "takin", part: "takkia", ine: "takissa" },
-    NounKptEntry { nom: "nukke", geni: "nuken", part: "nukkea", ine: "nukessa" },
-    NounKptEntry { nom: "verkko", geni: "verkon", part: "verkkoa", ine: "verkossa" },
-    NounKptEntry { nom: "lakki", geni: "lakin", part: "lakkia", ine: "lakissa" },
+    NounKptEntry {
+        nom: "kukka",
+        geni: "kukan",
+        part: "kukkaa",
+        ine: "kukassa",
+    },
+    NounKptEntry {
+        nom: "takki",
+        geni: "takin",
+        part: "takkia",
+        ine: "takissa",
+    },
+    NounKptEntry {
+        nom: "nukke",
+        geni: "nuken",
+        part: "nukkea",
+        ine: "nukessa",
+    },
+    NounKptEntry {
+        nom: "verkko",
+        geni: "verkon",
+        part: "verkkoa",
+        ine: "verkossa",
+    },
+    NounKptEntry {
+        nom: "lakki",
+        geni: "lakin",
+        part: "lakkia",
+        ine: "lakissa",
+    },
 ];
 
 // Qualitative: p -> v
 const KPT_P_V: &[NounKptEntry] = &[
-    NounKptEntry { nom: "tupa", geni: "tuvan", part: "tupaa", ine: "tuvassa" },
-    NounKptEntry { nom: "repo", geni: "revon", part: "repoa", ine: "revossa" },
-    NounKptEntry { nom: "apu", geni: "avun", part: "apua", ine: "avussa" },
+    NounKptEntry {
+        nom: "tupa",
+        geni: "tuvan",
+        part: "tupaa",
+        ine: "tuvassa",
+    },
+    NounKptEntry {
+        nom: "repo",
+        geni: "revon",
+        part: "repoa",
+        ine: "revossa",
+    },
+    NounKptEntry {
+        nom: "apu",
+        geni: "avun",
+        part: "apua",
+        ine: "avussa",
+    },
 ];
 
 // Qualitative: t -> d
 // NOTE: "kadun" is ambiguous: genitive of "katu" (street) OR 1sg of "katua"
 // (to regret). Disambiguator may pick either reading without context.
 const KPT_T_D: &[NounKptEntry] = &[
-    NounKptEntry { nom: "pata", geni: "padan", part: "pataa", ine: "padassa" },
-    NounKptEntry { nom: "satu", geni: "sadun", part: "satua", ine: "sadussa" },
-    NounKptEntry { nom: "p\u{00F6}yt\u{00E4}", geni: "p\u{00F6}yd\u{00E4}n", part: "p\u{00F6}yt\u{00E4}\u{00E4}", ine: "p\u{00F6}yd\u{00E4}ss\u{00E4}" },
+    NounKptEntry {
+        nom: "pata",
+        geni: "padan",
+        part: "pataa",
+        ine: "padassa",
+    },
+    NounKptEntry {
+        nom: "satu",
+        geni: "sadun",
+        part: "satua",
+        ine: "sadussa",
+    },
+    NounKptEntry {
+        nom: "p\u{00F6}yt\u{00E4}",
+        geni: "p\u{00F6}yd\u{00E4}n",
+        part: "p\u{00F6}yt\u{00E4}\u{00E4}",
+        ine: "p\u{00F6}yd\u{00E4}ss\u{00E4}",
+    },
 ];
 
 // Cluster: mp -> mm
 const KPT_MP_MM: &[NounKptEntry] = &[
-    NounKptEntry { nom: "kampa", geni: "kamman", part: "kampaa", ine: "kammassa" },
-    NounKptEntry { nom: "lampi", geni: "lammin", part: "lampea", ine: "lammissa" },
+    NounKptEntry {
+        nom: "kampa",
+        geni: "kamman",
+        part: "kampaa",
+        ine: "kammassa",
+    },
+    NounKptEntry {
+        nom: "lampi",
+        geni: "lammin",
+        part: "lampea",
+        ine: "lammissa",
+    },
 ];
 
 // Cluster: nt -> nn
 const KPT_NT_NN: &[NounKptEntry] = &[
-    NounKptEntry { nom: "ranta", geni: "rannan", part: "rantaa", ine: "rannassa" },
-    NounKptEntry { nom: "kunta", geni: "kunnan", part: "kuntaa", ine: "kunnassa" },
-    NounKptEntry { nom: "lintu", geni: "linnun", part: "lintua", ine: "linnussa" },
-    NounKptEntry { nom: "s\u{00E4}nky", geni: "s\u{00E4}ngyn", part: "s\u{00E4}nky\u{00E4}", ine: "s\u{00E4}ngyss\u{00E4}" },
+    NounKptEntry {
+        nom: "ranta",
+        geni: "rannan",
+        part: "rantaa",
+        ine: "rannassa",
+    },
+    NounKptEntry {
+        nom: "kunta",
+        geni: "kunnan",
+        part: "kuntaa",
+        ine: "kunnassa",
+    },
+    NounKptEntry {
+        nom: "lintu",
+        geni: "linnun",
+        part: "lintua",
+        ine: "linnussa",
+    },
+    NounKptEntry {
+        nom: "s\u{00E4}nky",
+        geni: "s\u{00E4}ngyn",
+        part: "s\u{00E4}nky\u{00E4}",
+        ine: "s\u{00E4}ngyss\u{00E4}",
+    },
 ];
 
 // Cluster: nk -> ng
 const KPT_NK_NG: &[NounKptEntry] = &[
-    NounKptEntry { nom: "kaupunki", geni: "kaupungin", part: "kaupunkia", ine: "kaupungissa" },
-    NounKptEntry { nom: "Helsinki", geni: "Helsingin", part: "Helsinki\u{00E4}", ine: "Helsingiss\u{00E4}" },
-    NounKptEntry { nom: "kenk\u{00E4}", geni: "keng\u{00E4}n", part: "kenk\u{00E4}\u{00E4}", ine: "keng\u{00E4}ss\u{00E4}" },
-    NounKptEntry { nom: "kanki", geni: "kangin", part: "kankea", ine: "kangissa" },
+    NounKptEntry {
+        nom: "kaupunki",
+        geni: "kaupungin",
+        part: "kaupunkia",
+        ine: "kaupungissa",
+    },
+    NounKptEntry {
+        nom: "Helsinki",
+        geni: "Helsingin",
+        part: "Helsinki\u{00E4}",
+        ine: "Helsingiss\u{00E4}",
+    },
+    NounKptEntry {
+        nom: "kenk\u{00E4}",
+        geni: "keng\u{00E4}n",
+        part: "kenk\u{00E4}\u{00E4}",
+        ine: "keng\u{00E4}ss\u{00E4}",
+    },
+    NounKptEntry {
+        nom: "kanki",
+        geni: "kangin",
+        part: "kankea",
+        ine: "kangissa",
+    },
 ];
 
 // Cluster: lt -> ll
 const KPT_LT_LL: &[NounKptEntry] = &[
-    NounKptEntry { nom: "kulta", geni: "kullan", part: "kultaa", ine: "kullassa" },
-    NounKptEntry { nom: "silta", geni: "sillan", part: "siltaa", ine: "sillassa" },
-    NounKptEntry { nom: "ilta", geni: "illan", part: "iltaa", ine: "illassa" },
+    NounKptEntry {
+        nom: "kulta",
+        geni: "kullan",
+        part: "kultaa",
+        ine: "kullassa",
+    },
+    NounKptEntry {
+        nom: "silta",
+        geni: "sillan",
+        part: "siltaa",
+        ine: "sillassa",
+    },
+    NounKptEntry {
+        nom: "ilta",
+        geni: "illan",
+        part: "iltaa",
+        ine: "illassa",
+    },
 ];
 
 // Cluster: rt -> rr
 const KPT_RT_RR: &[NounKptEntry] = &[
-    NounKptEntry { nom: "parta", geni: "parran", part: "partaa", ine: "parrassa" },
-    NounKptEntry { nom: "virta", geni: "virran", part: "virtaa", ine: "virrassa" },
+    NounKptEntry {
+        nom: "parta",
+        geni: "parran",
+        part: "partaa",
+        ine: "parrassa",
+    },
+    NounKptEntry {
+        nom: "virta",
+        geni: "virran",
+        part: "virtaa",
+        ine: "virrassa",
+    },
 ];
 
 // Special: k -> v (between vowels before u/y) and k -> 0 (disappears)
@@ -173,7 +353,13 @@ const GEN_KPT_CASES: &[(&str, &str, &str, &str, &str)] = &[
     ("hattu", "genitive", "singular", "hatun", "tt->t"),
     // NOTE: "kenttä" genitive is "kentän" in Finnish, but the simplified
     // generator produces "kennän" (cluster ntt is mishandled). Known limitation.
-    ("kentt\u{00E4}", "genitive", "singular", "kenn\u{00E4}n", "tt->t (cluster ntt)"),
+    (
+        "kentt\u{00E4}",
+        "genitive",
+        "singular",
+        "kenn\u{00E4}n",
+        "tt->t (cluster ntt)",
+    ),
     // Quantitative: kk->k
     ("kukka", "genitive", "singular", "kukan", "kk->k"),
     ("takki", "genitive", "singular", "takin", "kk->k"),
@@ -183,7 +369,13 @@ const GEN_KPT_CASES: &[(&str, &str, &str, &str, &str)] = &[
     // Qualitative: t->d
     ("katu", "genitive", "singular", "kadun", "t->d"),
     ("pata", "genitive", "singular", "padan", "t->d"),
-    ("p\u{00F6}yt\u{00E4}", "genitive", "singular", "p\u{00F6}yd\u{00E4}n", "t->d"),
+    (
+        "p\u{00F6}yt\u{00E4}",
+        "genitive",
+        "singular",
+        "p\u{00F6}yd\u{00E4}n",
+        "t->d",
+    ),
     // Cluster: mp->mm
     ("kampa", "genitive", "singular", "kamman", "mp->mm"),
     // Cluster: nt->nn
@@ -191,7 +383,13 @@ const GEN_KPT_CASES: &[(&str, &str, &str, &str, &str)] = &[
     ("lintu", "genitive", "singular", "linnun", "nt->nn"),
     // Cluster: nk->ng
     ("kaupunki", "genitive", "singular", "kaupungin", "nk->ng"),
-    ("kenk\u{00E4}", "genitive", "singular", "keng\u{00E4}n", "nk->ng"),
+    (
+        "kenk\u{00E4}",
+        "genitive",
+        "singular",
+        "keng\u{00E4}n",
+        "nk->ng",
+    ),
     // Cluster: lt->ll
     ("kulta", "genitive", "singular", "kullan", "lt->ll"),
     ("ilta", "genitive", "singular", "illan", "lt->ll"),
@@ -199,42 +397,72 @@ const GEN_KPT_CASES: &[(&str, &str, &str, &str, &str)] = &[
     ("parta", "genitive", "singular", "parran", "rt->rr"),
     ("virta", "genitive", "singular", "virran", "rt->rr"),
     // Non-genitive cases triggering weak grade
-    ("kaupunki", "inessive", "singular", "kaupungissa", "nk->ng ine"),
-    ("kaupunki", "elative", "singular", "kaupungista", "nk->ng ela"),
-    ("kaupunki", "adessive", "singular", "kaupungilla", "nk->ng ade"),
+    (
+        "kaupunki",
+        "inessive",
+        "singular",
+        "kaupungissa",
+        "nk->ng ine",
+    ),
+    (
+        "kaupunki",
+        "elative",
+        "singular",
+        "kaupungista",
+        "nk->ng ela",
+    ),
+    (
+        "kaupunki",
+        "adessive",
+        "singular",
+        "kaupungilla",
+        "nk->ng ade",
+    ),
     // Strong grade preserved in partitive
-    ("kaupunki", "partitive", "singular", "kaupunkia", "nk (strong, part)"),
-    ("kukka", "partitive", "singular", "kukkaa", "kk (strong, part)"),
+    (
+        "kaupunki",
+        "partitive",
+        "singular",
+        "kaupunkia",
+        "nk (strong, part)",
+    ),
+    (
+        "kukka",
+        "partitive",
+        "singular",
+        "kukkaa",
+        "kk (strong, part)",
+    ),
 ];
 
 // "ranta" (nt->nn) full paradigm check
 const RANTA_EXPECTED: &[(&str, &str)] = &[
-    ("nominative sg", "ranta"),      // strong
-    ("genitive sg", "rannan"),       // weak (nt->nn)
-    ("partitive sg", "rantaa"),      // strong
-    ("inessive sg", "rannassa"),     // weak
-    ("elative sg", "rannasta"),      // weak
-    ("illative sg", "rantaan"),      // strong
-    ("adessive sg", "rannalla"),     // weak
-    ("ablative sg", "rannalta"),     // weak
-    ("allative sg", "rannalle"),     // weak
-    ("essive sg", "rantana"),        // strong
-    ("translative sg", "rannaksi"),  // weak
+    ("nominative sg", "ranta"),     // strong
+    ("genitive sg", "rannan"),      // weak (nt->nn)
+    ("partitive sg", "rantaa"),     // strong
+    ("inessive sg", "rannassa"),    // weak
+    ("elative sg", "rannasta"),     // weak
+    ("illative sg", "rantaan"),     // strong
+    ("adessive sg", "rannalla"),    // weak
+    ("ablative sg", "rannalta"),    // weak
+    ("allative sg", "rannalle"),    // weak
+    ("essive sg", "rantana"),       // strong
+    ("translative sg", "rannaksi"), // weak
 ];
 
 // "kukka" (kk->k) full paradigm check
 const KUKKA_EXPECTED: &[(&str, &str)] = &[
-    ("nominative sg", "kukka"),      // strong
-    ("genitive sg", "kukan"),        // weak (kk->k)
-    ("partitive sg", "kukkaa"),      // strong
-    ("inessive sg", "kukassa"),      // weak
-    ("elative sg", "kukasta"),       // weak
-    ("illative sg", "kukkaan"),      // strong
-    ("adessive sg", "kukalla"),      // weak
-    ("ablative sg", "kukalta"),      // weak
-    ("allative sg", "kukalle"),      // weak
-    ("essive sg", "kukkana"),        // strong
-    ("translative sg", "kukaksi"),   // weak
+    ("nominative sg", "kukka"),    // strong
+    ("genitive sg", "kukan"),      // weak (kk->k)
+    ("partitive sg", "kukkaa"),    // strong
+    ("inessive sg", "kukassa"),    // weak
+    ("elative sg", "kukasta"),     // weak
+    ("illative sg", "kukkaan"),    // strong
+    ("adessive sg", "kukalla"),    // weak
+    ("ablative sg", "kukalta"),    // weak
+    ("allative sg", "kukalle"),    // weak
+    ("essive sg", "kukkana"),      // strong
+    ("translative sg", "kukaksi"), // weak
 ];
 
 // Verb KPT baseform extraction: (inflected, expected_baseform, pattern)
@@ -244,7 +472,11 @@ const KUKKA_EXPECTED: &[(&str, &str)] = &[
 // We test with case-insensitive comparison where disambiguation is ambiguous.
 const VERB_KPT_BASEFORM: &[(&str, &str, &str)] = &[
     ("kiit\u{00E4}n", "kiitt\u{00E4}\u{00E4}", "tt->t"),
-    ("kiitt\u{00E4}\u{00E4}", "kiitt\u{00E4}\u{00E4}", "tt->t (inf)"),
+    (
+        "kiitt\u{00E4}\u{00E4}",
+        "kiitt\u{00E4}\u{00E4}",
+        "tt->t (inf)",
+    ),
     ("otan", "ottaa", "tt->t"),
     ("ottaa", "ottaa", "tt->t (inf)"),
     ("nukun", "nukkua", "kk->k"),
@@ -273,52 +505,207 @@ struct VerbKptGenCase {
 
 const VERB_GEN_KPT: &[VerbKptGenCase] = &[
     // tt->t in present
-    VerbKptGenCase { inf: "ottaa", tense: VerbTense::Present, person: VerbPerson::First, number: VerbNumber::Singular, polarity: VerbPolarity::Affirmative, expected: "otan", pattern: "tt->t" },
-    VerbKptGenCase { inf: "ottaa", tense: VerbTense::Present, person: VerbPerson::Third, number: VerbNumber::Singular, polarity: VerbPolarity::Affirmative, expected: "ottaa", pattern: "tt (3sg=inf)" },
-    VerbKptGenCase { inf: "kiitt\u{00E4}\u{00E4}", tense: VerbTense::Present, person: VerbPerson::First, number: VerbNumber::Singular, polarity: VerbPolarity::Affirmative, expected: "kiit\u{00E4}n", pattern: "tt->t" },
+    VerbKptGenCase {
+        inf: "ottaa",
+        tense: VerbTense::Present,
+        person: VerbPerson::First,
+        number: VerbNumber::Singular,
+        polarity: VerbPolarity::Affirmative,
+        expected: "otan",
+        pattern: "tt->t",
+    },
+    VerbKptGenCase {
+        inf: "ottaa",
+        tense: VerbTense::Present,
+        person: VerbPerson::Third,
+        number: VerbNumber::Singular,
+        polarity: VerbPolarity::Affirmative,
+        expected: "ottaa",
+        pattern: "tt (3sg=inf)",
+    },
+    VerbKptGenCase {
+        inf: "kiitt\u{00E4}\u{00E4}",
+        tense: VerbTense::Present,
+        person: VerbPerson::First,
+        number: VerbNumber::Singular,
+        polarity: VerbPolarity::Affirmative,
+        expected: "kiit\u{00E4}n",
+        pattern: "tt->t",
+    },
     // kk->k
-    VerbKptGenCase { inf: "nukkua", tense: VerbTense::Present, person: VerbPerson::First, number: VerbNumber::Singular, polarity: VerbPolarity::Affirmative, expected: "nukun", pattern: "kk->k" },
-    VerbKptGenCase { inf: "nukkua", tense: VerbTense::Present, person: VerbPerson::Third, number: VerbNumber::Singular, polarity: VerbPolarity::Affirmative, expected: "nukkuu", pattern: "kk (3sg)" },
+    VerbKptGenCase {
+        inf: "nukkua",
+        tense: VerbTense::Present,
+        person: VerbPerson::First,
+        number: VerbNumber::Singular,
+        polarity: VerbPolarity::Affirmative,
+        expected: "nukun",
+        pattern: "kk->k",
+    },
+    VerbKptGenCase {
+        inf: "nukkua",
+        tense: VerbTense::Present,
+        person: VerbPerson::Third,
+        number: VerbNumber::Singular,
+        polarity: VerbPolarity::Affirmative,
+        expected: "nukkuu",
+        pattern: "kk (3sg)",
+    },
     // t->d
-    VerbKptGenCase { inf: "tiet\u{00E4}\u{00E4}", tense: VerbTense::Present, person: VerbPerson::First, number: VerbNumber::Singular, polarity: VerbPolarity::Affirmative, expected: "tied\u{00E4}n", pattern: "t->d" },
-    VerbKptGenCase { inf: "tiet\u{00E4}\u{00E4}", tense: VerbTense::Present, person: VerbPerson::Third, number: VerbNumber::Singular, polarity: VerbPolarity::Affirmative, expected: "tiet\u{00E4}\u{00E4}", pattern: "t (3sg=inf)" },
+    VerbKptGenCase {
+        inf: "tiet\u{00E4}\u{00E4}",
+        tense: VerbTense::Present,
+        person: VerbPerson::First,
+        number: VerbNumber::Singular,
+        polarity: VerbPolarity::Affirmative,
+        expected: "tied\u{00E4}n",
+        pattern: "t->d",
+    },
+    VerbKptGenCase {
+        inf: "tiet\u{00E4}\u{00E4}",
+        tense: VerbTense::Present,
+        person: VerbPerson::Third,
+        number: VerbNumber::Singular,
+        polarity: VerbPolarity::Affirmative,
+        expected: "tiet\u{00E4}\u{00E4}",
+        pattern: "t (3sg=inf)",
+    },
     // nt->nn
-    VerbKptGenCase { inf: "antaa", tense: VerbTense::Present, person: VerbPerson::First, number: VerbNumber::Singular, polarity: VerbPolarity::Affirmative, expected: "annan", pattern: "nt->nn" },
-    VerbKptGenCase { inf: "antaa", tense: VerbTense::Present, person: VerbPerson::Third, number: VerbNumber::Singular, polarity: VerbPolarity::Affirmative, expected: "antaa", pattern: "nt (3sg)" },
+    VerbKptGenCase {
+        inf: "antaa",
+        tense: VerbTense::Present,
+        person: VerbPerson::First,
+        number: VerbNumber::Singular,
+        polarity: VerbPolarity::Affirmative,
+        expected: "annan",
+        pattern: "nt->nn",
+    },
+    VerbKptGenCase {
+        inf: "antaa",
+        tense: VerbTense::Present,
+        person: VerbPerson::Third,
+        number: VerbNumber::Singular,
+        polarity: VerbPolarity::Affirmative,
+        expected: "antaa",
+        pattern: "nt (3sg)",
+    },
     // lt->ll
-    VerbKptGenCase { inf: "kielt\u{00E4}\u{00E4}", tense: VerbTense::Present, person: VerbPerson::First, number: VerbNumber::Singular, polarity: VerbPolarity::Affirmative, expected: "kiell\u{00E4}n", pattern: "lt->ll" },
+    VerbKptGenCase {
+        inf: "kielt\u{00E4}\u{00E4}",
+        tense: VerbTense::Present,
+        person: VerbPerson::First,
+        number: VerbNumber::Singular,
+        polarity: VerbPolarity::Affirmative,
+        expected: "kiell\u{00E4}n",
+        pattern: "lt->ll",
+    },
     // Past tense with KPT
     // NOTE: Generator produces regular forms for past tense. Some are known
     // limitations (e.g., "ottaa" past 1sg -> "otoin" instead of "otin",
     // "tietää" past 1sg -> "tiesin" involves consonant stem change beyond
     // simple KPT). Test expected values match actual generator output.
-    VerbKptGenCase { inf: "ottaa", tense: VerbTense::Past, person: VerbPerson::First, number: VerbNumber::Singular, polarity: VerbPolarity::Affirmative, expected: "otoin", pattern: "tt->t past" },
-    VerbKptGenCase { inf: "tiet\u{00E4}\u{00E4}", tense: VerbTense::Past, person: VerbPerson::First, number: VerbNumber::Singular, polarity: VerbPolarity::Affirmative, expected: "tiedin", pattern: "t->d past" },
-    VerbKptGenCase { inf: "antaa", tense: VerbTense::Past, person: VerbPerson::First, number: VerbNumber::Singular, polarity: VerbPolarity::Affirmative, expected: "annoin", pattern: "nt->nn past" },
+    VerbKptGenCase {
+        inf: "ottaa",
+        tense: VerbTense::Past,
+        person: VerbPerson::First,
+        number: VerbNumber::Singular,
+        polarity: VerbPolarity::Affirmative,
+        expected: "otoin",
+        pattern: "tt->t past",
+    },
+    VerbKptGenCase {
+        inf: "tiet\u{00E4}\u{00E4}",
+        tense: VerbTense::Past,
+        person: VerbPerson::First,
+        number: VerbNumber::Singular,
+        polarity: VerbPolarity::Affirmative,
+        expected: "tiedin",
+        pattern: "t->d past",
+    },
+    VerbKptGenCase {
+        inf: "antaa",
+        tense: VerbTense::Past,
+        person: VerbPerson::First,
+        number: VerbNumber::Singular,
+        polarity: VerbPolarity::Affirmative,
+        expected: "annoin",
+        pattern: "nt->nn past",
+    },
 ];
 
 // KPT in sentence context: (sentence, word, expected_baseform, expected_pos, pattern)
 const KPT_SENTENCES: &[(&str, &str, &str, &str, &str)] = &[
     // "Kadun" omitted from sentence test: ambiguous (katu gen vs katua verb 1sg).
     // Use "Padan" instead which is unambiguous.
-    ("Padan kansi on punainen.", "Padan", "pata", "nimisana", "t->d"),
-    ("Rannan hiekalla leikkiv\u{00E4}t lapset.", "Rannan", "ranta", "nimisana", "nt->nn"),
-    ("Kaupungin keskustassa on paljon liikennett\u{00E4}.", "Kaupungin", "kaupunki", "nimisana", "nk->ng"),
-    ("Tied\u{00E4}n ett\u{00E4} t\u{00E4}m\u{00E4} on totta.", "Tied\u{00E4}n", "tiet\u{00E4}\u{00E4}", "teonsana", "t->d verb"),
-    ("Otan kahvia ja luen lehden.", "Otan", "ottaa", "teonsana", "tt->t verb"),
+    (
+        "Padan kansi on punainen.",
+        "Padan",
+        "pata",
+        "nimisana",
+        "t->d",
+    ),
+    (
+        "Rannan hiekalla leikkiv\u{00E4}t lapset.",
+        "Rannan",
+        "ranta",
+        "nimisana",
+        "nt->nn",
+    ),
+    (
+        "Kaupungin keskustassa on paljon liikennett\u{00E4}.",
+        "Kaupungin",
+        "kaupunki",
+        "nimisana",
+        "nk->ng",
+    ),
+    (
+        "Tied\u{00E4}n ett\u{00E4} t\u{00E4}m\u{00E4} on totta.",
+        "Tied\u{00E4}n",
+        "tiet\u{00E4}\u{00E4}",
+        "teonsana",
+        "t->d verb",
+    ),
+    (
+        "Otan kahvia ja luen lehden.",
+        "Otan",
+        "ottaa",
+        "teonsana",
+        "tt->t verb",
+    ),
     // "Kullan" may be classified as "nimisana_laatusana" (noun-adjective compound class)
-    ("Kullan hinta nousi t\u{00E4}n\u{00E4}\u{00E4}n.", "Kullan", "kulta", "nimisana_laatusana", "lt->ll"),
+    (
+        "Kullan hinta nousi t\u{00E4}n\u{00E4}\u{00E4}n.",
+        "Kullan",
+        "kulta",
+        "nimisana_laatusana",
+        "lt->ll",
+    ),
 ];
 
 // Weak-grade forms that should pass spell check
 const SPELL_KPT: &[&str] = &[
     // Weak-grade genitives
-    "kaapin", "maton", "kukan", "kadun", "tuvan", "rannan",
-    "kaupungin", "kullan", "parran", "kamman",
+    "kaapin",
+    "maton",
+    "kukan",
+    "kadun",
+    "tuvan",
+    "rannan",
+    "kaupungin",
+    "kullan",
+    "parran",
+    "kamman",
     // Inessive (deeper weak grade)
-    "kaupungissa", "rannassa", "kullassa", "tuvassa",
+    "kaupungissa",
+    "rannassa",
+    "kullassa",
+    "tuvassa",
     // Weak-grade verbs
-    "tied\u{00E4}n", "pyyd\u{00E4}n", "kiell\u{00E4}n", "annan", "otan",
+    "tied\u{00E4}n",
+    "pyyd\u{00E4}n",
+    "kiell\u{00E4}n",
+    "annan",
+    "otan",
 ];
 
 // ===========================================================================
@@ -371,14 +758,15 @@ fn disambiguate_sentence(sentence: &str) -> Vec<(String, Analysis)> {
     let raw_tokens: Vec<&str> = sentence.split_whitespace().collect();
     let words: Vec<String> = raw_tokens
         .iter()
-        .map(|w| w.trim_matches(|c: char| c.is_ascii_punctuation()).to_string())
+        .map(|w| {
+            w.trim_matches(|c: char| c.is_ascii_punctuation())
+                .to_string()
+        })
         .filter(|w| !w.is_empty())
         .collect();
 
-    let sentence_analyses: Vec<Vec<Analysis>> = words
-        .iter()
-        .map(|w| analyze_word(&analyzer, w))
-        .collect();
+    let sentence_analyses: Vec<Vec<Analysis>> =
+        words.iter().map(|w| analyze_word(&analyzer, w)).collect();
 
     // Filter out words with no analysis before disambiguating
     let (analyzed_words, analyzed): (Vec<_>, Vec<_>) = words
@@ -478,7 +866,8 @@ fn kpt_morphological_analysis() {
         assert!(
             !analyses.is_empty(),
             "[{}] \"{}\" should have analyses",
-            pattern, word
+            pattern,
+            word
         );
         // Find an analysis matching the expected baseform (case-insensitive)
         // and case. The first analysis might be a proper name reading.
@@ -602,7 +991,13 @@ fn verb_kpt_generation() {
     let generator = MorphGenerator::new();
     for case in VERB_GEN_KPT {
         let result = generator
-            .generate_verb(case.inf, case.tense, case.person, case.number, case.polarity)
+            .generate_verb(
+                case.inf,
+                case.tense,
+                case.person,
+                case.number,
+                case.polarity,
+            )
             .unwrap_or_default();
         assert_eq!(
             result, case.expected,
@@ -627,7 +1022,9 @@ fn kpt_sentence_disambiguation() {
         assert!(
             found.is_some(),
             "[{}] \"{}\" should be found in \"{}\"",
-            pattern, target_word, text
+            pattern,
+            target_word,
+            text
         );
         let (_, analysis) = found.unwrap();
         let base = analysis.get(ATTR_BASEFORM).unwrap_or("(none)");
@@ -687,12 +1084,14 @@ fn kpt_k_special() {
         assert!(
             !analyze_word(&analyzer, nom).is_empty(),
             "[{}] \"{}\" should be valid",
-            pattern, nom
+            pattern,
+            nom
         );
         assert!(
             !analyze_word(&analyzer, geni).is_empty(),
             "[{}] \"{}\" should be valid",
-            pattern, geni
+            pattern,
+            geni
         );
     }
 }
