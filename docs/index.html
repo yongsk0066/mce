@@ -153,7 +153,7 @@
     .tile-body cds-textarea { margin-bottom: var(--cds-spacing-04); }
     .example-tag { cursor: pointer; transition: opacity 0.15s; }
     .example-tag:hover { opacity: 0.8; }
-    .example-tag[filter] { outline: 2px solid var(--cds-focus); outline-offset: 1px; }
+    .example-tag.selected { outline: 2px solid var(--cds-focus); outline-offset: 1px; }
     .input-row { display: flex; gap: var(--cds-spacing-05); align-items: flex-end; }
     .input-row cds-text-input { flex: 1; }
     .input-row cds-button { flex-shrink: 0; }
@@ -536,13 +536,13 @@ flowchart TD
               <cds-tile data-action="spell" data-input="spellInput">
                 <div class="tile-header"><h2 class="cds--type-heading-compact-01">Spell Check</h2><cds-tag type="green">spell_check()</cds-tag></div>
                 <div class="tile-body">
-                  <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">Check if a word is correctly spelled. Uses morphological analysis and compound-aware checking &mdash; more permissive than <code>is_valid_word()</code> for compound words.</p>
+                  <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">The foundation for red-underline spell checking in editors and word processors. Finnish cannot rely on simple dictionary lookup because every noun has dozens of inflected forms and words combine freely into compounds. MCE performs morphological analysis to verify that a word follows valid Finnish morphophonological patterns, even if the exact surface form is not stored in the dictionary.</p>
                   <div class="example-presets" style="display:flex;gap:var(--cds-spacing-02);flex-wrap:wrap;margin-bottom:var(--cds-spacing-04)">
-                    <cds-tag type="green" class="example-tag" data-value="koira" data-target="spellInput" data-hint="&check; Basic noun &lsquo;dog&rsquo; &mdash; should return true. The simplest positive case.">koira</cds-tag>
-                    <cds-tag type="green" class="example-tag" data-value="rautatieasema" data-target="spellInput" data-hint="&check; Compound word &lsquo;train station&rsquo; (rauta+tie+asema). Tests compound recognition.">rautatieasema</cds-tag>
-                    <cds-tag type="green" class="example-tag" data-value="juoksemassa" data-target="spellInput" data-hint="&check; MA-infinitive inessive of &lsquo;juosta&rsquo; (to run). Tests deep inflection recognition.">juoksemassa</cds-tag>
-                    <cds-tag type="red" class="example-tag" data-value="koirra" data-target="spellInput" data-hint="&cross; Misspelled &mdash; extra &lsquo;r&rsquo;. Should return false. Common OCR/typing error.">koirra</cds-tag>
-                    <cds-tag type="red" class="example-tag" data-value="asdfgh" data-target="spellInput" data-hint="&cross; Not a Finnish word. Should return false. Tests rejection of nonsense input.">asdfgh</cds-tag>
+                    <cds-tag type="green" class="example-tag" data-value="koira" data-target="spellInput" data-hint="&check; Basic noun &lsquo;dog&rsquo; &mdash; should return true. A simple positive case to confirm the spell checker accepts known base forms.">koira</cds-tag>
+                    <cds-tag type="green" class="example-tag" data-value="rautatieasema" data-target="spellInput" data-hint="&check; Compound word &lsquo;train station&rsquo; (rauta+tie+asema). In Finnish, compounds are written as a single word. MCE recognizes the compound structure through its FST engine.">rautatieasema</cds-tag>
+                    <cds-tag type="green" class="example-tag" data-value="juoksemassa" data-target="spellInput" data-hint="&check; MA-infinitive inessive of &lsquo;juosta&rsquo; (to run): &lsquo;in the process of running.&rsquo; This deeply inflected form would never be in a static dictionary, but MCE accepts it via morphological analysis.">juoksemassa</cds-tag>
+                    <cds-tag type="red" class="example-tag" data-value="koirra" data-target="spellInput" data-hint="&cross; Misspelled &mdash; extra &lsquo;r&rsquo;. Should return false. A common typing error that violates Finnish consonant patterns. Try the Suggestions tile to see correction candidates.">koirra</cds-tag>
+                    <cds-tag type="red" class="example-tag" data-value="asdfgh" data-target="spellInput" data-hint="&cross; Not a Finnish word. Should return false. Verifies that the spell checker properly rejects input that has no valid morphological parse.">asdfgh</cds-tag>
                   </div>
                   <div class="input-row">
                     <cds-text-input id="spellInput" value="koira" label="Word" placeholder="Finnish word"></cds-text-input>
@@ -557,12 +557,12 @@ flowchart TD
               <cds-tile data-action="analyze" data-input="analyzeInput">
                 <div class="tile-header"><h2 class="cds--type-heading-compact-01">Morphological Analysis</h2><cds-tag type="purple">analyze()</cds-tag></div>
                 <div class="tile-body">
-                  <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">Returns all possible morphological readings of a word: base form (lemma), word class, case, number, person, and other features. Multiple readings indicate ambiguity.</p>
+                  <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">The core of every NLP task. A single Finnish word can have thousands of inflected forms &mdash; <em>koira</em> (dog) alone produces 22 case&times;number combinations, each potentially compounding further. This function returns every possible morphological reading of a word: base form (lemma), word class, case, number, person, and other features. Multiple readings indicate genuine ambiguity that context must resolve.</p>
                   <div class="example-presets" style="display:flex;gap:var(--cds-spacing-02);flex-wrap:wrap;margin-bottom:var(--cds-spacing-04)">
-                    <cds-tag type="green" class="example-tag" data-value="kissalla" data-target="analyzeInput" data-hint="Adessive case of &lsquo;kissa&rsquo; (cat): &lsquo;on/with the cat&rsquo;. Expect one clean reading with BASEFORM=kissa, SIJAMUOTO=ulkopaikallissija_ade.">kissalla</cds-tag>
-                    <cds-tag type="purple" class="example-tag" data-value="tuli" data-target="analyzeInput" data-hint="Ambiguous: &lsquo;tuli&rsquo; = &lsquo;fire&rsquo; (noun) OR past tense of &lsquo;tulla&rsquo; (to come). Expect 2+ readings &mdash; this is genuine Finnish ambiguity that disambiguation must resolve.">tuli</cds-tag>
-                    <cds-tag type="green" class="example-tag" data-value="rautatieasemalta" data-target="analyzeInput" data-hint="Compound + ablative: &lsquo;from the train station&rsquo;. Tests compound decomposition + case suffix analysis simultaneously.">rautatieasemalta</cds-tag>
-                    <cds-tag type="red" class="example-tag" data-value="xyzzy" data-target="analyzeInput" data-hint="Not a Finnish word &mdash; expect empty analysis array. Shows how MCE handles OOV (out-of-vocabulary) words.">xyzzy</cds-tag>
+                    <cds-tag type="green" class="example-tag" data-value="kissalla" data-target="analyzeInput" data-hint="Adessive case of &lsquo;kissa&rsquo; (cat): &lsquo;on/with the cat.&rsquo; Expect one clean reading with BASEFORM=kissa. The adessive case expresses location on a surface or possession in Finnish.">kissalla</cds-tag>
+                    <cds-tag type="purple" class="example-tag" data-value="tuli" data-target="analyzeInput" data-hint="Genuinely ambiguous: &lsquo;tuli&rsquo; = &lsquo;fire&rsquo; (noun) OR past tense of &lsquo;tulla&rsquo; (to come). Expect 2+ readings. Only sentence context can disambiguate, which is why POS tagging exists.">tuli</cds-tag>
+                    <cds-tag type="green" class="example-tag" data-value="rautatieasemalta" data-target="analyzeInput" data-hint="Compound + ablative: &lsquo;from the train station.&rsquo; MCE must decompose the compound (rauta+tie+asema) and parse the ablative suffix (-lta) simultaneously &mdash; a task unique to agglutinative languages.">rautatieasemalta</cds-tag>
+                    <cds-tag type="red" class="example-tag" data-value="xyzzy" data-target="analyzeInput" data-hint="Not a Finnish word &mdash; expect an empty analysis array. Out-of-vocabulary words return no readings, which spell checkers use as the signal to show a red underline.">xyzzy</cds-tag>
                   </div>
                   <div class="input-row">
                     <cds-text-input id="analyzeInput" value="kissalla" label="Word"></cds-text-input>
@@ -577,12 +577,12 @@ flowchart TD
               <cds-tile data-action="pos" data-input="posInput">
                 <div class="tile-header"><h2 class="cds--type-heading-compact-01">POS Tagging</h2><cds-tag type="blue">analyze_sentence()</cds-tag></div>
                 <div class="tile-body">
-                  <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">Full pipeline: tokenize &rarr; FST analysis &rarr; CG disambiguation &rarr; suffix tagger &rarr; Viterbi. Returns tokenized analysis with morphological features including word class and base form. Accuracy: 94.58% UPOS with suffix tagger model.</p>
+                  <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">The backbone of translation engines, grammar checkers, and reading assistants. POS tagging determines whether each word is a noun, verb, adjective, etc. In Finnish, words like <em>kuusi</em> can mean &lsquo;six&rsquo; (NUM), &lsquo;spruce tree&rsquo; (NOUN), or &lsquo;your moon&rsquo; (NOUN) &mdash; only context resolves the ambiguity. MCE runs the full pipeline: tokenize &rarr; FST analysis &rarr; CG rules &rarr; suffix tagger &rarr; Viterbi, achieving 94.58% UPOS accuracy.</p>
                   <div class="example-presets" style="display:flex;gap:var(--cds-spacing-02);flex-wrap:wrap;margin-bottom:var(--cds-spacing-04)">
-                    <cds-tag type="green" class="example-tag" data-value="Koira juoksee nopeasti." data-target="posInput" data-hint="Simple SVO: NOUN + VERB + ADV. The baseline test &mdash; all three tags should be correct.">Simple SVO</cds-tag>
-                    <cds-tag type="purple" class="example-tag" data-value="Tulen kotiin huomenna." data-target="posInput" data-hint="Ambiguous &lsquo;tulen&rsquo;: could be &lsquo;I come&rsquo; (VERB) or genitive of &lsquo;tuli&rsquo;/fire (NOUN). Context should disambiguate to VERB here. Tests CG + tagger interaction.">Ambiguous verb</cds-tag>
-                    <cds-tag type="blue" class="example-tag" data-value="Hän ei ollut koskaan käynyt Suomessa." data-target="posInput" data-hint="Negation chain: PRON + AUX(neg) + AUX(past) + ADV + VERB(ptcp) + PROPN. Tests AUX vs VERB distinction and proper noun recognition.">Negation chain</cds-tag>
-                    <cds-tag type="red" class="example-tag" data-value="Suomalainen ihminen on erityinen." data-target="posInput" data-hint="ADJ/NOUN boundary: &lsquo;suomalainen&rsquo; and &lsquo;erityinen&rsquo; are -inen words that can be ADJ or NOUN. This is MCE&rsquo;s #1 error pattern (ADJ&harr;NOUN confusion). Check if tags are correct.">ADJ/NOUN boundary</cds-tag>
+                    <cds-tag type="green" class="example-tag" data-value="Koira juoksee nopeasti." data-target="posInput" data-hint="Simple SVO: &lsquo;The dog runs fast.&rsquo; Expect NOUN + VERB + ADV + PUNCT. The baseline test &mdash; all tags should be correct. A good starting point to see the output format.">Simple SVO</cds-tag>
+                    <cds-tag type="purple" class="example-tag" data-value="Tulen kotiin huomenna." data-target="posInput" data-hint="Ambiguous &lsquo;tulen&rsquo;: could be &lsquo;I come&rsquo; (VERB) or genitive of &lsquo;tuli&rsquo;/fire (NOUN). The CG rules and suffix tagger should disambiguate to VERB based on the sentence context.">Ambiguous verb</cds-tag>
+                    <cds-tag type="blue" class="example-tag" data-value="Hän ei ollut koskaan käynyt Suomessa." data-target="posInput" data-hint="&lsquo;He/she had never visited Finland.&rsquo; A complex negation chain: PRON + AUX(neg) + AUX(past) + ADV + VERB(ptcp) + PROPN. Tests AUX vs VERB distinction and proper noun recognition &mdash; both challenging patterns.">Negation chain</cds-tag>
+                    <cds-tag type="red" class="example-tag" data-value="Suomalainen ihminen on erityinen." data-target="posInput" data-hint="&lsquo;A Finnish person is special.&rsquo; ADJ/NOUN boundary: -inen words can be either. This is MCE&rsquo;s #1 error pattern (ADJ&harr;NOUN confusion). Check whether it gets the tags right.">ADJ/NOUN boundary</cds-tag>
                   </div>
                   <cds-textarea id="posInput" value="Koira juoksee nopeasti." label="Finnish text"></cds-textarea>
                   <cds-button disabled size="md">Tag POS</cds-button>
@@ -595,12 +595,12 @@ flowchart TD
               <cds-tile data-action="hyphenate" data-input="hyphenInput">
                 <div class="tile-header"><h2 class="cds--type-heading-compact-01">Hyphenation</h2><cds-tag type="teal">hyphenate()</cds-tag></div>
                 <div class="tile-body">
-                  <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">Splits a word at valid hyphenation points using syllable rules and compound boundaries. Essential for Finnish typesetting where long compound words are common.</p>
+                  <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">Essential for typesetting and responsive text layout. Finnish compound words can be extremely long &mdash; <em>lentokonesuihkuturbiinimoottori</em> (jet turbine engine) is 33 characters &mdash; and without proper hyphenation, text overflows columns and narrow screens. MCE splits words at valid break points using syllable rules and compound boundaries, the same way Finnish typographers do.</p>
                   <div class="example-presets" style="display:flex;gap:var(--cds-spacing-02);flex-wrap:wrap;margin-bottom:var(--cds-spacing-04)">
-                    <cds-tag type="green" class="example-tag" data-value="kissanpentu" data-target="hyphenInput" data-hint="Compound &lsquo;kitten&rsquo; (kissan+pentu). Should hyphenate at compound boundary AND syllable boundaries: kis-san-pen-tu.">kissanpentu</cds-tag>
-                    <cds-tag type="green" class="example-tag" data-value="yliopisto" data-target="hyphenInput" data-hint="&lsquo;University&rsquo;. Syllable-based hyphenation: yli-opis-to. Note the compound boundary (yli+opisto) differs from syllable boundaries.">yliopisto</cds-tag>
-                    <cds-tag type="blue" class="example-tag" data-value="lentokonesuihkuturbiinimoottori" data-target="hyphenInput" data-hint="&lsquo;Jet turbine engine&rsquo; &mdash; a famously long Finnish compound. Tests handling of deeply nested compounds: lento+kone+suihku+turbiini+moottori.">Long compound</cds-tag>
-                    <cds-tag type="purple" class="example-tag" data-value="epäjärjestelmällisyys" data-target="hyphenInput" data-hint="&lsquo;Disorderliness&rsquo; &mdash; derived word with multiple prefixes/suffixes: epä+järjestelmä+llisyys. Tests prefix and derivation handling.">Derived word</cds-tag>
+                    <cds-tag type="green" class="example-tag" data-value="kissanpentu" data-target="hyphenInput" data-hint="Compound &lsquo;kitten&rsquo; (kissan+pentu). Should hyphenate at both compound and syllable boundaries: kis-san-pen-tu. Notice how the compound join and syllable breaks may overlap.">kissanpentu</cds-tag>
+                    <cds-tag type="green" class="example-tag" data-value="yliopisto" data-target="hyphenInput" data-hint="&lsquo;University.&rsquo; An interesting case where the compound boundary (yli+opisto) does not align with syllable breaks (yli-opis-to). MCE respects both levels.">yliopisto</cds-tag>
+                    <cds-tag type="blue" class="example-tag" data-value="lentokonesuihkuturbiinimoottori" data-target="hyphenInput" data-hint="&lsquo;Jet turbine engine&rsquo; &mdash; the classic long Finnish compound (33 chars). Five components: lento+kone+suihku+turbiini+moottori. Without hyphenation, this word would break any narrow column layout.">Long compound</cds-tag>
+                    <cds-tag type="purple" class="example-tag" data-value="epäjärjestelmällisyys" data-target="hyphenInput" data-hint="&lsquo;Disorderliness&rsquo; &mdash; a derived word with prefix ep&auml;- and multiple suffixes. Tests how hyphenation handles derivational morphology alongside syllable rules.">Derived word</cds-tag>
                   </div>
                   <div class="input-row">
                     <cds-text-input id="hyphenInput" value="kissanpentu" label="Word"></cds-text-input>
@@ -615,11 +615,11 @@ flowchart TD
               <cds-tile data-action="grammar" data-input="grammarInput">
                 <div class="tile-header"><h2 class="cds--type-heading-compact-01">Grammar Check</h2><cds-tag type="red">grammar_check()</cds-tag></div>
                 <div class="tile-body">
-                  <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">Detects 21 types of grammar errors including repeated words, missing capitalization, incorrect spacing, and more. Returns error positions, types, and suggested fixes.</p>
+                  <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">Goes beyond spell checking: even correctly spelled words can form grammatically wrong sentences. MCE detects 21 types of grammar errors including repeated words, missing sentence capitalization, incorrect spacing around punctuation, and more. Each error comes with a position, type, and suggested fix &mdash; ready for red/green squiggly underlines in an editor.</p>
                   <div class="example-presets" style="display:flex;gap:var(--cds-spacing-02);flex-wrap:wrap;margin-bottom:var(--cds-spacing-04)">
-                    <cds-tag type="red" class="example-tag" data-value="koira koira juoksee." data-target="grammarInput" data-hint="Repeated word error. MCE should flag &lsquo;koira koira&rsquo; as a duplicate word sequence.">Repeated word</cds-tag>
-                    <cds-tag type="green" class="example-tag" data-value="Koira juoksee nopeasti puistossa." data-target="grammarInput" data-hint="Grammatically correct sentence. Expect zero errors &mdash; this verifies no false positives on clean input.">Correct sentence</cds-tag>
-                    <cds-tag type="red" class="example-tag" data-value="koira Juoksee nopeasti." data-target="grammarInput" data-hint="Two possible errors: (1) missing capitalization at sentence start, (2) unexpected capitalization on &lsquo;Juoksee&rsquo; mid-sentence.">Capitalization</cds-tag>
+                    <cds-tag type="red" class="example-tag" data-value="koira koira juoksee." data-target="grammarInput" data-hint="Repeated word error &mdash; both &lsquo;koira&rsquo; are spelled correctly, but the duplication is a grammar mistake. This is the kind of error a spell checker alone would miss.">Repeated word</cds-tag>
+                    <cds-tag type="green" class="example-tag" data-value="Koira juoksee nopeasti puistossa." data-target="grammarInput" data-hint="&lsquo;The dog runs fast in the park.&rsquo; A grammatically correct sentence. Expect zero errors &mdash; this verifies that MCE does not produce false positives on clean input.">Correct sentence</cds-tag>
+                    <cds-tag type="red" class="example-tag" data-value="koira Juoksee nopeasti." data-target="grammarInput" data-hint="Two capitalization errors: (1) sentence should start with uppercase, (2) &lsquo;Juoksee&rsquo; should not be capitalized mid-sentence. Each word is spelled correctly, but the casing rules are violated.">Capitalization</cds-tag>
                   </div>
                   <cds-textarea id="grammarInput" value="koira koira juoksee." label="Text"></cds-textarea>
                   <cds-button disabled size="md">Check Grammar</cds-button>
@@ -632,11 +632,11 @@ flowchart TD
               <cds-tile data-action="suggest" data-input="suggestInput">
                 <div class="tile-header"><h2 class="cds--type-heading-compact-01">Spelling Suggestions</h2><cds-tag type="magenta">suggest()</cds-tag></div>
                 <div class="tile-body">
-                  <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">Generates correction suggestions ranked by edit distance using trie-based fuzzy search against a 44K-word dictionary. All candidates are known dictionary forms. Auto-escalates edit distance (up to 3) if no results found.</p>
+                  <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">Powers the &ldquo;Did you mean&hellip;?&rdquo; feature in editors. When a word fails spell check, MCE searches a 44K-word dictionary using trie-based fuzzy matching to find similar real words, ranked by edit distance. All suggestions are guaranteed dictionary forms, so the user can click to fix with confidence. The search auto-escalates edit distance (up to 3) if no close matches exist.</p>
                   <div class="example-presets" style="display:flex;gap:var(--cds-spacing-02);flex-wrap:wrap;margin-bottom:var(--cds-spacing-04)">
-                    <cds-tag type="green" class="example-tag" data-value="koirra" data-target="suggestInput" data-hint="Extra consonant: &lsquo;koirra&rsquo; &rarr; &lsquo;koira&rsquo; (dog). The top suggestion should be the correct form. Tests single-edit correction.">koirra</cds-tag>
-                    <cds-tag type="purple" class="example-tag" data-value="Helsigni" data-target="suggestInput" data-hint="Transposed letters in &lsquo;Helsinki&rsquo;. Tests whether proper noun suggestions are supported and transposition handling.">Helsigni</cds-tag>
-                    <cds-tag type="blue" class="example-tag" data-value="ksia" data-target="suggestInput" data-hint="Severely garbled &lsquo;kissa&rsquo; (cat). Two edits needed. May or may not find the correct form &mdash; tests the boundary of suggestion range.">ksia</cds-tag>
+                    <cds-tag type="green" class="example-tag" data-value="koirra" data-target="suggestInput" data-hint="Extra consonant: &lsquo;koirra&rsquo; &rarr; &lsquo;koira&rsquo; (dog). Only one edit away, so the top suggestion should be the correct form. The most common real-world correction scenario.">koirra</cds-tag>
+                    <cds-tag type="purple" class="example-tag" data-value="Helsigni" data-target="suggestInput" data-hint="Transposed letters in &lsquo;Helsinki.&rsquo; Transpositions are a common typing error pattern. Tests whether the fuzzy search catches letter-swap mistakes in proper nouns.">Helsigni</cds-tag>
+                    <cds-tag type="blue" class="example-tag" data-value="ksia" data-target="suggestInput" data-hint="Severely garbled &lsquo;kissa&rsquo; (cat). Two edits needed. This pushes the boundary of suggestion range &mdash; the engine may or may not find the correct form at this distance.">ksia</cds-tag>
                   </div>
                   <div class="input-row">
                     <cds-text-input id="suggestInput" value="koirra" label="Misspelled word"></cds-text-input>
@@ -651,12 +651,12 @@ flowchart TD
               <cds-tile data-action="compound" data-input="compoundInput">
                 <div class="tile-header"><h2 class="cds--type-heading-compact-01">Compound Word Split</h2><cds-tag type="cyan">compound_split()</cds-tag></div>
                 <div class="tile-body">
-                  <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">Decomposes Finnish compound words into their constituent parts. Finnish freely creates compounds by concatenation, making this essential for understanding word structure.</p>
+                  <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">Reveals the internal structure of Finnish compound words. Unlike English, where &ldquo;train station&rdquo; is two words, Finnish writes it as one: <em>rautatieasema</em>. Speakers create new compounds freely by concatenation, producing words that no dictionary could exhaustively list. MCE&rsquo;s Pushdown Transducer (M3) decomposes these compounds into their meaningful parts, enabling search indexing, machine translation, and vocabulary learning tools.</p>
                   <div class="example-presets" style="display:flex;gap:var(--cds-spacing-02);flex-wrap:wrap;margin-bottom:var(--cds-spacing-04)">
-                    <cds-tag type="green" class="example-tag" data-value="rautatieasema" data-target="compoundInput" data-hint="Three-part compound: rauta (iron) + tie (road) + asema (station) = train station. The &lsquo;n&rsquo; linking morpheme between rauta and tie may appear.">rautatieasema</cds-tag>
-                    <cds-tag type="blue" class="example-tag" data-value="lentokonesuihkuturbiinimoottori" data-target="compoundInput" data-hint="Five-part compound: lento+kone+suihku+turbiini+moottori. Tests deeply nested compound decomposition.">Jet engine</cds-tag>
-                    <cds-tag type="green" class="example-tag" data-value="kissanpentu" data-target="compoundInput" data-hint="Two-part with linking -n: kissan (cat&rsquo;s) + pentu (puppy/kitten). Tests genitive linking morpheme.">kissanpentu</cds-tag>
-                    <cds-tag type="red" class="example-tag" data-value="koira" data-target="compoundInput" data-hint="Not a compound &mdash; should return the word unchanged or empty splits. Tests that simple words are not falsely decomposed.">koira (simple)</cds-tag>
+                    <cds-tag type="green" class="example-tag" data-value="rautatieasema" data-target="compoundInput" data-hint="Three-part compound: rauta (iron) + tie (road) + asema (station) = &lsquo;train station.&rsquo; A classic example of productive Finnish compounding that search engines need to decompose.">rautatieasema</cds-tag>
+                    <cds-tag type="blue" class="example-tag" data-value="lentokonesuihkuturbiinimoottori" data-target="compoundInput" data-hint="Five-part compound: lento+kone+suihku+turbiini+moottori (&lsquo;jet turbine engine&rsquo;). Tests deeply nested decomposition &mdash; each component is a valid Finnish word on its own.">Jet engine</cds-tag>
+                    <cds-tag type="green" class="example-tag" data-value="kissanpentu" data-target="compoundInput" data-hint="Two-part with linking -n: kissan (cat&rsquo;s) + pentu (kitten). The genitive linking morpheme -n is a common pattern in Finnish compounds, like English &lsquo;cat&rsquo;s paw.&rsquo;">kissanpentu</cds-tag>
+                    <cds-tag type="red" class="example-tag" data-value="koira" data-target="compoundInput" data-hint="Not a compound &mdash; should return the word unchanged or empty splits. Verifies that MCE does not falsely decompose simple words into spurious sub-parts.">koira (simple)</cds-tag>
                   </div>
                   <div class="input-row">
                     <cds-text-input id="compoundInput" value="rautatieasema" label="Compound word"></cds-text-input>
@@ -671,14 +671,35 @@ flowchart TD
               <cds-tile data-action="paradigm" data-input="paradigmInput">
                 <div class="tile-header"><h2 class="cds--type-heading-compact-01">Paradigm Generation</h2><cds-tag type="warm-gray">generate_paradigm()</cds-tag></div>
                 <div class="tile-body">
-                  <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">Generates all 22 case forms (11 singular + 11 plural) of a Finnish noun. Tests the morphological generation pipeline including consonant gradation and vowel harmony application.</p>
+                  <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">Ideal for language learning apps, dictionary tools, and flashcard generators. Finnish nouns inflect across 11 grammatical cases in both singular and plural, yielding 22 forms per word. The generation pipeline applies consonant gradation (e.g., pp&rarr;p in <em>kauppa</em>&rarr;<em>kaupan</em>) and vowel harmony (front vs. back suffixes) automatically through the Writer Comonad.</p>
                   <div class="example-presets" style="display:flex;gap:var(--cds-spacing-02);flex-wrap:wrap;margin-bottom:var(--cds-spacing-04)">
-                    <cds-tag type="green" class="example-tag" data-value="koira" data-target="paradigmInput" data-hint="Regular noun &lsquo;dog&rsquo;. Expect 22 forms (11 sg + 11 pl): koira, koiran, koiraa, &hellip; koirat, koirien, koiria, &hellip;">koira</cds-tag>
-                    <cds-tag type="purple" class="example-tag" data-value="kauppa" data-target="paradigmInput" data-hint="Tests consonant gradation: &lsquo;kauppa&rsquo; (shop) &rarr; &lsquo;kaupan&rsquo; (genitive, pp&rarr;p). The Writer Comonad handles this pp/p alternation.">kauppa (gradation)</cds-tag>
-                    <cds-tag type="blue" class="example-tag" data-value="pöytä" data-target="paradigmInput" data-hint="Tests vowel harmony: front-vowel word (&ouml;, &auml;). All suffixes should use front variants: -ss&auml;, -st&auml;, -ll&auml;, etc.">pöytä (harmony)</cds-tag>
+                    <cds-tag type="green" class="example-tag" data-value="koira" data-target="paradigmInput" data-hint="Regular noun &lsquo;dog.&rsquo; Expect 22 forms (11 sg + 11 pl): koira, koiran, koiraa, &hellip; koirat, koirien, koiria. A good starting point to see the full case system at a glance.">koira</cds-tag>
+                    <cds-tag type="purple" class="example-tag" data-value="kauppa" data-target="paradigmInput" data-hint="Consonant gradation: &lsquo;kauppa&rsquo; (shop) &rarr; &lsquo;kaupan&rsquo; (genitive, pp&rarr;p). This alternation is one of the trickiest parts of Finnish morphology for learners. The Writer Comonad handles it as a pure coKleisli arrow.">kauppa (gradation)</cds-tag>
+                    <cds-tag type="blue" class="example-tag" data-value="pöytä" data-target="paradigmInput" data-hint="Vowel harmony test: &lsquo;p&ouml;yt&auml;&rsquo; (table) has front vowels (&ouml;, &auml;), so all suffixes must use front variants: -ss&auml;, -st&auml;, -ll&auml;, etc. Back-vowel equivalents (-ssa, -sta, -lla) would be incorrect.">pöytä (harmony)</cds-tag>
                   </div>
                   <div class="input-row">
                     <cds-text-input id="paradigmInput" value="koira" label="Base form (noun)"></cds-text-input>
+                    <cds-button disabled size="md">Generate</cds-button>
+                  </div>
+                  <div class="example-hint" style="margin-top:var(--cds-spacing-03);color:var(--cds-text-helper);font-size:var(--cds-body-compact-01-font-size)"></div>
+                  <div class="result"></div>
+                </div>
+              </cds-tile>
+
+              <!-- Verb Paradigm -->
+              <cds-tile data-action="verb_paradigm" data-input="verbParadigmInput">
+                <div class="tile-header"><h2 class="cds--type-heading-compact-01">Verb Paradigm</h2><cds-tag type="warm-gray">generate_verb_paradigm()</cds-tag><cds-tag type="purple" size="sm">Beta</cds-tag></div>
+                <div class="tile-body">
+                  <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">Generates the full conjugation paradigm of a Finnish verb across present, past, conditional, and negative tenses. Finnish has four main verb conjugation types determined by the infinitive ending, and MCE handles regular verbs from all four types. This feature is in beta &mdash; regular verbs produce correct forms, but irregular verbs (such as <em>olla</em>) may generate incorrect conjugations.</p>
+                  <div class="example-presets" style="display:flex;gap:var(--cds-spacing-02);flex-wrap:wrap;margin-bottom:var(--cds-spacing-04)">
+                    <cds-tag type="green" class="example-tag" data-value="puhua" data-target="verbParadigmInput" data-hint="Type 1 verb: &lsquo;puhua&rsquo; (to speak). The most common conjugation pattern in Finnish. Expect present, past, conditional, and negative forms for all six persons (1sg through 3pl).">puhua (type 1)</cds-tag>
+                    <cds-tag type="green" class="example-tag" data-value="lukea" data-target="verbParadigmInput" data-hint="Type 1 verb with consonant gradation: &lsquo;lukea&rsquo; (to read). The k disappears in certain forms (luen, not luken). Tests the Writer Comonad&rsquo;s gradation handling in verb conjugation.">lukea (type 1)</cds-tag>
+                    <cds-tag type="blue" class="example-tag" data-value="tulla" data-target="verbParadigmInput" data-hint="Type 3 verb: &lsquo;tulla&rsquo; (to come). Has a consonant stem change (-lla &rarr; -le-). A good test for verbs with stem-final consonant clusters.">tulla (type 3)</cds-tag>
+                    <cds-tag type="blue" class="example-tag" data-value="haluta" data-target="verbParadigmInput" data-hint="Type 4 verb: &lsquo;haluta&rsquo; (to want). The -ta/-t&auml; infinitive ending drops and the stem changes across conjugations. Tests the most complex regular verb pattern.">haluta (type 4)</cds-tag>
+                    <cds-tag type="red" class="example-tag" data-value="olla" data-target="verbParadigmInput" data-hint="Irregular verb: &lsquo;olla&rsquo; (to be). The most common verb in Finnish with highly irregular forms (olen, olet, on&hellip;). Beta: irregular verbs may produce incorrect forms &mdash; compare against known conjugations.">olla (irregular)</cds-tag>
+                  </div>
+                  <div class="input-row">
+                    <cds-text-input id="verbParadigmInput" value="puhua" label="Base form (verb)"></cds-text-input>
                     <cds-button disabled size="md">Generate</cds-button>
                   </div>
                   <div class="example-hint" style="margin-top:var(--cds-spacing-03);color:var(--cds-text-helper);font-size:var(--cds-body-compact-01-font-size)"></div>
@@ -1484,6 +1505,13 @@ mce/
           return escHtml(JSON.stringify(parsed, null, 2));
         } catch { return escHtml(r || '(no paradigm)'); }
       },
+      verb_paradigm(w) {
+        const r = engine.generate_verb_paradigm(w);
+        try {
+          const parsed = JSON.parse(r);
+          return escHtml(JSON.stringify(parsed, null, 2));
+        } catch { return escHtml(r || '(no paradigm)'); }
+      },
     };
 
     // Delegate button clicks
@@ -1514,8 +1542,8 @@ mce/
         const hintEl = tile.querySelector('.example-hint');
         if (hintEl) hintEl.innerHTML = hint || '';
         // highlight selected tag
-        tile.querySelectorAll('.example-tag').forEach(t => t.removeAttribute('filter'));
-        tag.setAttribute('filter', '');
+        tile.querySelectorAll('.example-tag').forEach(t => t.classList.remove('selected'));
+        tag.classList.add('selected');
       }
     });
 
