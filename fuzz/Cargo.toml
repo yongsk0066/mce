@@ -1,0 +1,26 @@
+[package]
+name = "mce-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+mce-fst = { path = "../crates/mce-fst" }
+mce-tokenizer = { path = "../crates/mce-tokenizer" }
+mce-core = { path = "../crates/mce-core" }
+
+[workspace]
+
+[[bin]]
+name = "fst_from_bytes"
+path = "fuzz_targets/fst_from_bytes.rs"
+doc = false
+
+[[bin]]
+name = "tokenize"
+path = "fuzz_targets/tokenize.rs"
+doc = false

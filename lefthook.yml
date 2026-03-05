@@ -1,0 +1,45 @@
+min_version: 2.1.0
+
+output:
+  - meta
+  - summary
+  - failure
+
+pre-commit:
+  parallel: true
+  jobs:
+    - name: rust-fmt-check
+      glob: "*.rs"
+      run: cargo fmt -- --check
+      fail_text: "Run 'cargo fmt' to fix formatting"
+    - name: rust-clippy
+      glob: "*.rs"
+      run: cargo clippy --workspace --all-targets -- -D warnings
+      fail_text: "Fix clippy warnings before committing"
+
+pre-push:
+  piped: true
+  jobs:
+    - name: rust-fmt-check
+      priority: 1
+      glob: "*.rs"
+      run: cargo fmt -- --check
+    - name: rust-clippy
+      priority: 2
+      glob: "*.rs"
+      run: cargo clippy --workspace --all-targets -- -D warnings
+    - name: rust-test
+      priority: 3
+      run: cargo test --workspace
+
+commit-msg:
+  jobs:
+    - name: conventional-commit
+      run: |
+        MSG=$(head -1 {1})
+        if ! echo "$MSG" | grep -qE '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?(!)?: .{1,}$'; then
+          echo "ERROR: Commit message must follow Conventional Commits"
+          echo "  <type>(<scope>): <description>"
+          echo "  Your message: $MSG"
+          exit 1
+        fi

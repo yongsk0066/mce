@@ -1,14 +1,36 @@
 name: Release
+
 on:
   push:
     tags: ['v*']
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 permissions:
   contents: write
 
 jobs:
-  release:
+  validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check tag matches Cargo.toml version
+        run: |
+          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          CARGO_VERSION=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
+          if [ "$TAG_VERSION" != "$CARGO_VERSION" ]; then
+            echo "::error::Tag version $TAG_VERSION does not match Cargo.toml version $CARGO_VERSION"
+            exit 1
+          fi
+          echo "Version validated: $TAG_VERSION"
+
+  publish:
+    needs: [validate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
         with:
@@ -16,14 +38,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
-          components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
-
-      - name: CI checks
-        run: |
-          cargo fmt --all --check
-          cargo clippy --all-features -- -D warnings
-          cargo test --all-features
 
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
@@ -48,10 +63,8 @@ jobs:
           " --input-type=module
 
       - name: Publish to npm
-        run: |
-          cd crates/mce-wasm/pkg
-          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
-          npm publish --access public
+        working-directory: crates/mce-wasm/pkg
+        run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -63,6 +76,3 @@ jobs:
             crates/mce-wasm/pkg/mce_wasm_bg.wasm
             crates/mce-wasm/pkg/mce_wasm.js
             crates/mce-wasm/pkg/mce_wasm.d.ts
-
-  # Docs are deployed by docs.yml on main push (GitHub Pages Actions mode).
-  # No separate deploy-docs job needed here.

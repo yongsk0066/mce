@@ -1,6 +1,6 @@
 [package]
 name = "mce-fi"
-version = "0.1.0"
+version.workspace = true
 description = "Finnish language module for MCE"
 edition.workspace = true
 rust-version.workspace = true

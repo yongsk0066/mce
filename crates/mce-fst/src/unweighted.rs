@@ -71,6 +71,21 @@ impl UnweightedTransducer {
         let dst_bytes = bytemuck::cast_slice_mut::<Transition, u8>(&mut transitions);
         dst_bytes.copy_from_slice(&remaining[..transition_count * size_of::<Transition>()]);
 
+        // Validate all transition targets are within bounds.
+        let tc = transitions.len();
+        for (i, t) in transitions.iter().enumerate() {
+            if t.sym_in == UNWEIGHTED_FINAL_SYM {
+                continue; // Final transitions don't have meaningful targets.
+            }
+            let target = t.target_state() as usize;
+            if target >= tc {
+                return Err(VfstError::InvalidSymbolTable(format!(
+                    "transition {} target_state {} out of bounds (total {})",
+                    i, target, tc,
+                )));
+            }
+        }
+
         Ok(Self {
             unknown_symbol_ordinal: symbols.symbol_strings.len() as u16,
             transitions,
@@ -123,6 +138,9 @@ impl UnweightedTransducer {
                     tc += 1;
                     trans_idx += 1;
                 }
+                if trans_idx as usize >= transitions.len() {
+                    return false;
+                }
                 let ct = &transitions[trans_idx as usize];
 
                 if ct.sym_in == UNWEIGHTED_FINAL_SYM {
@@ -169,6 +187,9 @@ impl UnweightedTransducer {
             }
             config.stack_depth -= 1;
             let prev_idx = config.current_transition_stack[config.stack_depth];
+            if prev_idx as usize >= transitions.len() {
+                return false;
+            }
             let prev_sym = transitions[prev_idx as usize].sym_in;
             if prev_sym >= first_normal {
                 config.input_depth -= 1;
@@ -187,6 +208,9 @@ impl UnweightedTransducer {
         let ffc = self.symbols.flag_feature_count;
         if ffc == 0 || symbol == 0 {
             return true;
+        }
+        if symbol as usize >= self.symbols.symbol_to_diacritic.len() {
+            return false;
         }
         let ofv = &self.symbols.symbol_to_diacritic[symbol as usize];
         let current_value = config.current_flag_values[ofv.feature as usize];

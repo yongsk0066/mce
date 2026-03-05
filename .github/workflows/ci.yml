@@ -1,8 +1,17 @@
 name: CI
+
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
 
 env:
   CARGO_TERM_COLOR: always
@@ -10,8 +19,11 @@ env:
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
+        with:
+          submodules: true
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -25,6 +37,7 @@ jobs:
 
   audit:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
       - uses: rustsec/audit-check@v2
@@ -33,6 +46,7 @@ jobs:
 
   wasm:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
@@ -41,3 +55,70 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: ./.github/actions/check-wasm-size
         id: wasm
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wasm-pkg
+          path: crates/mce-wasm/pkg/
+          retention-days: 1
+
+  integration-js:
+    if: github.event_name == 'pull_request'
+    needs: [wasm]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: wasm-pkg
+          path: crates/mce-wasm/pkg/
+      - uses: oven-sh/setup-bun@v2
+      - name: Install dependencies
+        working-directory: tests/integration-js
+        run: bun install
+      - name: Run integration tests
+        working-directory: tests/integration-js
+        run: npx vitest run
+
+  dict-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Dictionary integration tests
+        env:
+          MCE_DICT_PATH: ${{ github.workspace }}/data
+        run: cargo test --all-features -- --ignored
+
+  docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build docs
+        run: cargo doc --no-deps --all-features --workspace
+
+  done:
+    if: always()
+    needs: [check, audit, wasm, integration-js, dict-tests, docs]
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Check all jobs
+        run: |
+          results=("${{ needs.check.result }}" "${{ needs.audit.result }}" "${{ needs.wasm.result }}" "${{ needs.integration-js.result }}" "${{ needs.dict-tests.result }}" "${{ needs.docs.result }}")
+          for r in "${results[@]}"; do
+            if [[ "$r" == "failure" || "$r" == "cancelled" ]]; then
+              echo "Job failed or cancelled: $r"
+              exit 1
+            fi
+          done
+          echo "All jobs passed"

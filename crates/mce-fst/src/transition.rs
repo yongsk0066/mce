@@ -56,9 +56,16 @@ pub struct WeightedOverflowCell {
 
 #[inline]
 pub fn unweighted_max_tc(transitions: &[Transition], state_index: u32) -> u32 {
-    let max_tc = transitions[state_index as usize].more_transitions() as u32;
+    let idx = state_index as usize;
+    if idx >= transitions.len() {
+        return 0;
+    }
+    let max_tc = transitions[idx].more_transitions() as u32;
     if max_tc == 255 {
-        let overflow_bytes = bytemuck::bytes_of(&transitions[state_index as usize + 1]);
+        if idx + 1 >= transitions.len() {
+            return 0;
+        }
+        let overflow_bytes = bytemuck::bytes_of(&transitions[idx + 1]);
         let oc: &OverflowCell = bytemuck::from_bytes(overflow_bytes);
         oc.more_transitions + 1
     } else {
@@ -68,9 +75,16 @@ pub fn unweighted_max_tc(transitions: &[Transition], state_index: u32) -> u32 {
 
 #[inline]
 pub fn weighted_max_tc(transitions: &[WeightedTransition], state_index: u32) -> u32 {
-    let max_tc = transitions[state_index as usize].more_transitions as u32;
+    let idx = state_index as usize;
+    if idx >= transitions.len() {
+        return 0;
+    }
+    let max_tc = transitions[idx].more_transitions as u32;
     if max_tc == 255 {
-        let overflow_bytes = bytemuck::bytes_of(&transitions[state_index as usize + 1]);
+        if idx + 1 >= transitions.len() {
+            return 0;
+        }
+        let overflow_bytes = bytemuck::bytes_of(&transitions[idx + 1]);
         let oc: &WeightedOverflowCell = bytemuck::from_bytes(overflow_bytes);
         oc.more_transitions + 1
     } else {
