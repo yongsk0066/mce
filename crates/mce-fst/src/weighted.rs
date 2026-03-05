@@ -127,6 +127,9 @@ impl WeightedTransducer {
                     tc += 1;
                     ti += 1;
                 }
+                if ti as usize >= transitions.len() {
+                    return false;
+                }
                 let ct = &transitions[ti as usize];
 
                 if ct.sym_in == WEIGHTED_FINAL_SYM {
@@ -177,7 +180,11 @@ impl WeightedTransducer {
                     let mut max: u32 = max_tc - tc;
                     while min + 1 < max {
                         let mid = (min + max) / 2;
-                        if transitions[(ti + mid) as usize].sym_in < input_sym {
+                        let probe = (ti + mid) as usize;
+                        if probe >= transitions.len() {
+                            break;
+                        }
+                        if transitions[probe].sym_in < input_sym {
                             min = mid;
                         } else {
                             max = mid;
@@ -195,6 +202,9 @@ impl WeightedTransducer {
             }
             config.stack_depth -= 1;
             let pi = config.current_transition_stack[config.stack_depth];
+            if pi as usize >= transitions.len() {
+                return false;
+            }
             let ps = transitions[pi as usize].sym_in;
             if ps >= first_normal {
                 config.input_depth -= 1;
@@ -211,6 +221,9 @@ impl WeightedTransducer {
         let ffc = self.symbols.flag_feature_count;
         if ffc == 0 || symbol == 0 {
             return true;
+        }
+        if symbol as usize >= self.symbols.symbol_to_diacritic.len() {
+            return false;
         }
         let ofv = &self.symbols.symbol_to_diacritic[symbol as usize];
         let cv = config.current_flags()[ofv.feature as usize] as u16;

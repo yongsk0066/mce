@@ -5,24 +5,64 @@ on:
     types: [closed]
     branches: [main]
 
+concurrency:
+  group: auto-tag
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
 jobs:
   tag:
     if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/')
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
 
-      - name: Extract version from branch name
+      - name: Extract and validate version
         id: version
+        env:
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
         run: |
-          BRANCH="${{ github.event.pull_request.head.ref }}"
-          VERSION="${BRANCH#release/}"
+          VERSION="${PR_BRANCH#release/}"
+
+          # Validate semver format (vX.Y.Z or vX.Y.Z-suffix)
+          if ! echo "$VERSION" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$'; then
+            echo "::error::Invalid version format: $VERSION (expected vX.Y.Z)"
+            exit 1
+          fi
+
+          # Check Cargo.toml workspace version matches
+          CARGO_VERSION=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
+          TAG_VERSION="${VERSION#v}"
+          if [ "$CARGO_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::Tag version $TAG_VERSION does not match Cargo.toml version $CARGO_VERSION"
+            exit 1
+          fi
+
           echo "tag=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Will create tag: $VERSION"
+          echo "Will create tag: $VERSION (matches Cargo.toml: $CARGO_VERSION)"
+
+      - name: Check for duplicate tag
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "::error::Tag $TAG already exists"
+            exit 1
+          fi
 
       - name: Create and push tag
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
-          git tag "${{ steps.version.outputs.tag }}"
-          git push origin "${{ steps.version.outputs.tag }}"
+          git tag "$TAG"
+          git push origin "$TAG"
+
+      - name: Delete release branch
+        env:
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git push origin --delete "$PR_BRANCH" || echo "Branch already deleted"

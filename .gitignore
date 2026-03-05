@@ -3,11 +3,26 @@
 *.swo
 *.bak
 .DS_Store
-__pycache__/
-.venv/
-
-# WASM demo build artifacts
-demo/pkg/
-demo/mor.vfst
 .env
 .npmrc
+
+# Python cache (nested)
+**/__pycache__/
+.venv/
+
+# WP-2: wasm-pack build output (rebuilt by CI)
+crates/mce-wasm/pkg/
+demo/pkg/
+
+# WP-4: lefthook local overrides (per-developer)
+lefthook-local.yml
+
+# WP-5: docs/ binary artifacts (assembled by CI from data/ + wasm-pack build)
+docs/mce_wasm_bg.wasm
+docs/mce_wasm.js
+docs/mor.vfst
+docs/suffix_tagger.bin
+docs/wordlist.txt
+
+# WASM demo build artifacts
+demo/mor.vfst

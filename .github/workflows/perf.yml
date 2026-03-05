@@ -5,12 +5,20 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  group: perf-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   accuracy:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     outputs:
       upos: ${{ steps.eval.outputs.upos }}
       lemma: ${{ steps.eval.outputs.lemma }}
@@ -36,6 +44,7 @@ jobs:
 
   trie-bench:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       results: ${{ steps.bench.outputs.results }}
     steps:
@@ -47,6 +56,7 @@ jobs:
 
   wasm-size:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       size: ${{ steps.wasm.outputs.size }}
       size-kb: ${{ steps.wasm.outputs.size-kb }}
@@ -64,6 +74,7 @@ jobs:
     if: github.event_name == 'pull_request'
     needs: [accuracy, trie-bench, wasm-size]
     runs-on: ubuntu-latest
+    timeout-minutes: 2
     permissions:
       pull-requests: write
     steps:

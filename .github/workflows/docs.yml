@@ -21,6 +21,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -42,6 +43,8 @@ jobs:
           cp crates/mce-wasm/pkg/mce_wasm_bg.wasm docs/
           cp crates/mce-wasm/pkg/mce_wasm.js docs/
           cp data/wordlist.txt docs/
+          cp data/mor.vfst docs/
+          cp data/suffix_tagger.bin docs/
 
       - uses: actions/upload-pages-artifact@v4
         with:

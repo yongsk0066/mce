@@ -23,7 +23,7 @@ Browser-first Finnish NLP engine. Runs entirely offline in WebAssembly with no s
 | CG rules | 62 active (85 total), 24 rule types, 23 phases |
 | Grammar rules | 21 (258 tests) |
 | Generation | Nouns: 22 forms (11 sg + 11 pl), Verbs: 4 conjugation types |
-| Tests | 1,579 passed |
+| Tests | 1,619 passed (+ 18 proptest, 2 fuzz targets) |
 | LOC | ~45,600 Rust |
 
 ## Architecture: MCE v3 (4 Machines)
@@ -95,7 +95,17 @@ crates/
 
 ## Build and Verification
 
-Run the full chain before every commit:
+Use the justfile task runner (preferred):
+
+```bash
+just              # Full pre-commit: fmt + clippy + test + audit
+just test-all     # Include #[ignore] integration tests (needs data/)
+just wasm-size    # Build WASM + check 420KB budget
+just js-test      # WASM + JS integration tests (375 tests)
+just eval         # Accuracy evaluation on dev set
+```
+
+Or run manually:
 
 ```bash
 cargo fmt --all --check
@@ -103,6 +113,16 @@ cargo test --all-features
 cargo clippy --all-features -- -D warnings
 cargo audit
 ```
+
+## Development Process
+
+- **Task runner**: `justfile` (27 recipes, run `just --list`)
+- **Pre-commit hooks**: `lefthook` v2.1.2 (`lefthook install`)
+- **CI**: 7 workflows, `done` job as single required check
+- **Release**: `release/vX.Y.Z` branch → PR → auto-tag → npm publish
+- **Version**: workspace-unified (`version.workspace = true`, all crates)
+- **Bump**: `scripts/bump-version.sh X.Y.Z`
+- See `CONTRIBUTING.md` for full guide
 
 ## WASM API (22 methods)
 

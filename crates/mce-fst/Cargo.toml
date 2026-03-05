@@ -1,6 +1,6 @@
 [package]
 name = "mce-fst"
-version = "0.1.0"
+version.workspace = true
 description = "FST engine with format abstraction for MCE"
 edition.workspace = true
 rust-version.workspace = true
