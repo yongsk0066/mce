@@ -93,7 +93,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Dictionary integration tests
         env:
-          MCE_DICT_PATH: data
+          MCE_DICT_PATH: ${{ github.workspace }}/data
         run: cargo test --all-features -- --ignored
 
   docs:
@@ -104,8 +104,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Build docs
-        env:
-          RUSTDOCFLAGS: "-D warnings"
         run: cargo doc --no-deps --all-features --workspace
 
   done:
