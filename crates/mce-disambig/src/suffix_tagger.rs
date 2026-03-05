@@ -40,6 +40,7 @@
 //! ```
 
 use std::collections::HashMap;
+use std::fmt::Write as FmtWrite;
 
 /// Magic bytes identifying a suffix tagger model file.
 const MODEL_MAGIC: &[u8; 4] = b"MCET";
@@ -685,14 +686,15 @@ impl SuffixTagger {
         position: usize,
         sent_len: usize,
     ) -> Vec<f64> {
-        let features = extract_features(&self.config, word, prev, next, position, sent_len);
-        self.compute_log_probs(&features)
+        self.emission_scores_ext_fast(word, prev, next, None, None, position, sent_len)
     }
 
     /// Compute emission log-probabilities with extended context.
     ///
     /// Like [`emission_scores`](Self::emission_scores), but also considers
     /// prev-2 and next-2 words for wider context features.
+    ///
+    /// Uses the zero-allocation fast path internally.
     #[allow(clippy::too_many_arguments)]
     pub fn emission_scores_ext(
         &self,
@@ -704,17 +706,7 @@ impl SuffixTagger {
         position: usize,
         sent_len: usize,
     ) -> Vec<f64> {
-        let features = extract_features_ext(
-            &self.config,
-            word,
-            prev,
-            next,
-            prev2,
-            next2,
-            position,
-            sent_len,
-        );
-        self.compute_log_probs(&features)
+        self.emission_scores_ext_fast(word, prev, next, prev2, next2, position, sent_len)
     }
 
     /// Compute emission log-probabilities for a pre-extracted feature set.
@@ -743,6 +735,354 @@ impl SuffixTagger {
                     }
                 }
             }
+        }
+
+        // Log-softmax.
+        log_softmax_in_place(&mut scores);
+        scores
+    }
+
+    /// Accumulate the weight for a feature (looked up by name in a reusable buffer)
+    /// into the score array. The buffer is cleared after lookup.
+    #[inline]
+    fn accumulate_feature(&self, buf: &str, scores: &mut [f64], nf: usize, scale: f64) {
+        if let Some(&idx) = self.feature_vocab.get(buf) {
+            let idx = idx as usize;
+            if idx < nf {
+                for (c, score) in scores.iter_mut().enumerate() {
+                    let w = self.weights[c * nf + idx];
+                    *score += (w as f64) * scale;
+                }
+            }
+        }
+    }
+
+    /// Compute emission log-probabilities with zero feature-name allocation.
+    ///
+    /// This is a fused version of `extract_features_ext` + `compute_log_probs`
+    /// that formats each feature into a reusable stack buffer, looks it up in
+    /// `feature_vocab` immediately, and accumulates the weight contribution --
+    /// avoiding all intermediate `String` heap allocations.
+    #[allow(clippy::too_many_arguments)]
+    pub fn emission_scores_ext_fast(
+        &self,
+        word: &str,
+        prev: Option<&str>,
+        next: Option<&str>,
+        prev2: Option<&str>,
+        next2: Option<&str>,
+        position: usize,
+        sent_len: usize,
+    ) -> Vec<f64> {
+        let nc = self.n_classes as usize;
+        let nf = self.n_features as usize;
+        let scale = self.scale as f64;
+        let config = &self.config;
+
+        let mut scores = vec![0.0f64; nc];
+
+        // Add intercepts.
+        for (c, intercept) in self.intercepts.iter().enumerate() {
+            scores[c] = *intercept as f64;
+        }
+
+        // Reusable buffer for feature names -- avoids heap allocation per feature.
+        let mut buf = String::with_capacity(64);
+
+        let lower = word.to_lowercase();
+        let lower_len = lower.chars().count();
+
+        // ── Suffix features ──
+        for n in 1..=config.max_suffix_len.min(lower_len) {
+            let start = char_boundary_from_end(&lower, n);
+            buf.clear();
+            let _ = write!(buf, "suf{}={}", n, &lower[start..]);
+            self.accumulate_feature(&buf, &mut scores, nf, scale);
+        }
+
+        // ── Prefix features ──
+        for n in 1..=config.max_prefix_len.min(lower_len) {
+            let end = char_boundary_from_start(&lower, n);
+            buf.clear();
+            let _ = write!(buf, "pre{}={}", n, &lower[..end]);
+            self.accumulate_feature(&buf, &mut scores, nf, scale);
+        }
+
+        // ── Word properties ──
+        buf.clear();
+        let _ = write!(buf, "len={}", word.len().min(20));
+        self.accumulate_feature(&buf, &mut scores, nf, scale);
+
+        buf.clear();
+        let _ = write!(buf, "shape={}", compressed_shape(word));
+        self.accumulate_feature(&buf, &mut scores, nf, scale);
+
+        if word.chars().next().is_some_and(|c| c.is_uppercase()) {
+            self.accumulate_feature("is_upper=true", &mut scores, nf, scale);
+        }
+        if word.chars().all(|c| c.is_uppercase() || !c.is_alphabetic())
+            && word.chars().any(|c| c.is_uppercase())
+        {
+            self.accumulate_feature("all_upper=True", &mut scores, nf, scale);
+        }
+        if word.chars().all(|c| c.is_lowercase() || !c.is_alphabetic())
+            && word.chars().any(|c| c.is_lowercase())
+        {
+            self.accumulate_feature("all_lower=True", &mut scores, nf, scale);
+        }
+        if word.chars().any(|c| c.is_ascii_digit()) {
+            self.accumulate_feature("has_digit=True", &mut scores, nf, scale);
+        }
+        if word.contains('-') {
+            self.accumulate_feature("has_hyphen=True", &mut scores, nf, scale);
+        }
+        if word.chars().all(|c| c.is_ascii_digit()) && !word.is_empty() {
+            self.accumulate_feature("is_digit=True", &mut scores, nf, scale);
+        }
+
+        // ── Position features ──
+        if position == 0 {
+            self.accumulate_feature("is_first=True", &mut scores, nf, scale);
+        }
+        if sent_len > 0 && position == sent_len - 1 {
+            self.accumulate_feature("is_last=True", &mut scores, nf, scale);
+        }
+        let rel_pos = if sent_len > 1 {
+            (position as f64 / (sent_len - 1) as f64 * 100.0).round() / 100.0
+        } else {
+            0.0
+        };
+        buf.clear();
+        let _ = write!(buf, "rel_pos={:.2}", rel_pos);
+        self.accumulate_feature(&buf, &mut scores, nf, scale);
+
+        // ── Punctuation ──
+        if word.len() == 1 && PUNCT_CHARS.contains(word) {
+            self.accumulate_feature("is_punct=True", &mut scores, nf, scale);
+            buf.clear();
+            let _ = write!(buf, "punct_type={}", word);
+            self.accumulate_feature(&buf, &mut scores, nf, scale);
+        }
+
+        // ── Finnish-specific suffix patterns ──
+        if lower.ends_with("ssa") || lower.ends_with("ss\u{00E4}") {
+            self.accumulate_feature("fi_case_iness=True", &mut scores, nf, scale);
+        }
+        if lower.ends_with("sta") || lower.ends_with("st\u{00E4}") {
+            self.accumulate_feature("fi_case_elat=True", &mut scores, nf, scale);
+        }
+        if lower.ends_with("lla") || lower.ends_with("ll\u{00E4}") {
+            self.accumulate_feature("fi_case_adess=True", &mut scores, nf, scale);
+        }
+        if lower.ends_with("lta") || lower.ends_with("lt\u{00E4}") {
+            self.accumulate_feature("fi_case_ablat=True", &mut scores, nf, scale);
+        }
+        if lower.ends_with("lle") {
+            self.accumulate_feature("fi_case_allat=True", &mut scores, nf, scale);
+        }
+        if lower.ends_with("sti") {
+            self.accumulate_feature("fi_adv_sti=True", &mut scores, nf, scale);
+        }
+        if lower.ends_with("inen") {
+            self.accumulate_feature("fi_adj_inen=True", &mut scores, nf, scale);
+        }
+        if lower.ends_with("inen") || lower.ends_with("llinen") {
+            self.accumulate_feature("fi_adj_pattern=True", &mut scores, nf, scale);
+        }
+
+        // Verb endings
+        for ending in &[
+            "an",
+            "en",
+            "isi",
+            "aa",
+            "\u{00E4}\u{00E4}",
+            "ee",
+            "uu",
+            "yy",
+            "oo",
+            "\u{00F6}\u{00F6}",
+        ] {
+            if lower.ends_with(ending) {
+                buf.clear();
+                let _ = write!(buf, "fi_vend_{}=True", ending);
+                self.accumulate_feature(&buf, &mut scores, nf, scale);
+            }
+        }
+
+        // ── Additional Finnish morphological patterns ──
+        if lower.ends_with("ksi") {
+            self.accumulate_feature("fi_case_transl=True", &mut scores, nf, scale);
+        }
+        if lower.ends_with("na") || lower.ends_with("n\u{00E4}") {
+            self.accumulate_feature("fi_case_ess=True", &mut scores, nf, scale);
+        }
+        if lower_len >= 4 && (lower.ends_with("ta") || lower.ends_with("t\u{00E4}")) {
+            self.accumulate_feature("fi_case_part=True", &mut scores, nf, scale);
+        }
+        if lower_len >= 3 && lower.ends_with('n') {
+            let last_two = &lower[char_boundary_from_end(&lower, 2)..];
+            if !matches!(
+                last_two,
+                "en" | "an" | "in" | "on" | "un" | "yn" | "\u{00E4}n" | "\u{00F6}n"
+            ) {
+                self.accumulate_feature("fi_case_gen_other=True", &mut scores, nf, scale);
+            }
+        }
+        if lower.ends_with("ttu") || lower.ends_with("tty") {
+            self.accumulate_feature("fi_ptcp_pass=True", &mut scores, nf, scale);
+        }
+        if lower.ends_with("nut") || lower.ends_with("nyt") || lower.ends_with("neet") {
+            self.accumulate_feature("fi_ptcp_act=True", &mut scores, nf, scale);
+        }
+        if lower.ends_with("ma") || lower.ends_with("m\u{00E4}") {
+            self.accumulate_feature("fi_ptcp_agent=True", &mut scores, nf, scale);
+        }
+        if lower_len >= 3 && (lower.ends_with("da") || lower.ends_with("d\u{00E4}")) {
+            self.accumulate_feature("fi_inf1=True", &mut scores, nf, scale);
+        }
+        if lower.ends_with("maan") || lower.ends_with("m\u{00E4}\u{00E4}n") {
+            self.accumulate_feature("fi_inf3=True", &mut scores, nf, scale);
+        }
+        if lower.ends_with("mpi") {
+            self.accumulate_feature("fi_comp=True", &mut scores, nf, scale);
+        }
+        if lower_len >= 4 && lower.ends_with("in") {
+            self.accumulate_feature("fi_super=True", &mut scores, nf, scale);
+        }
+        if lower.ends_with("ni")
+            || lower.ends_with("si")
+            || lower.ends_with("nsa")
+            || lower.ends_with("ns\u{00E4}")
+        {
+            self.accumulate_feature("fi_poss=True", &mut scores, nf, scale);
+        }
+        if lower_len >= 4 && lower.contains("isi") {
+            self.accumulate_feature("fi_cond=True", &mut scores, nf, scale);
+        }
+        if matches!(
+            lower.as_str(),
+            "en" | "et" | "ei" | "emme" | "ette" | "eiv\u{00E4}t"
+        ) {
+            self.accumulate_feature("fi_neg=True", &mut scores, nf, scale);
+        }
+
+        // ── Character bigrams ──
+        if lower_len >= 2 {
+            let chars: Vec<char> = lower.chars().take(11).collect();
+            let limit = chars.len().min(11).saturating_sub(1);
+            for i in 0..limit {
+                buf.clear();
+                buf.push_str("bi=");
+                buf.push(chars[i]);
+                buf.push(chars[i + 1]);
+                self.accumulate_feature(&buf, &mut scores, nf, scale);
+            }
+        }
+
+        // ── Context features ──
+        if config.use_context {
+            if let Some(prev) = prev {
+                let prev_lower = prev.to_lowercase();
+                let prev_char_len = prev_lower.chars().count();
+                if prev_char_len >= 3 {
+                    let start = char_boundary_from_end(&prev_lower, 3);
+                    buf.clear();
+                    let _ = write!(buf, "prev_suf3={}", &prev_lower[start..]);
+                    self.accumulate_feature(&buf, &mut scores, nf, scale);
+                }
+                buf.clear();
+                let _ = write!(buf, "prev_shape={}", compressed_shape(prev));
+                self.accumulate_feature(&buf, &mut scores, nf, scale);
+                if prev.chars().next().is_some_and(|c| c.is_uppercase()) {
+                    self.accumulate_feature("prev_is_upper=True", &mut scores, nf, scale);
+                }
+                if prev.len() == 1 && PUNCT_CHARS_EXTENDED.contains(prev) {
+                    self.accumulate_feature("prev_is_punct=True", &mut scores, nf, scale);
+                }
+                if prev_char_len <= 4 {
+                    buf.clear();
+                    let _ = write!(buf, "prev_form={}", prev_lower);
+                    self.accumulate_feature(&buf, &mut scores, nf, scale);
+                }
+            } else {
+                self.accumulate_feature("prev_BOS=True", &mut scores, nf, scale);
+            }
+
+            if let Some(next) = next {
+                let next_lower = next.to_lowercase();
+                let next_char_len = next_lower.chars().count();
+                if next_char_len >= 3 {
+                    let start = char_boundary_from_end(&next_lower, 3);
+                    buf.clear();
+                    let _ = write!(buf, "next_suf3={}", &next_lower[start..]);
+                    self.accumulate_feature(&buf, &mut scores, nf, scale);
+                }
+                buf.clear();
+                let _ = write!(buf, "next_shape={}", compressed_shape(next));
+                self.accumulate_feature(&buf, &mut scores, nf, scale);
+                if next.chars().next().is_some_and(|c| c.is_uppercase()) {
+                    self.accumulate_feature("next_is_upper=True", &mut scores, nf, scale);
+                }
+                if next.len() == 1 && PUNCT_CHARS_EXTENDED.contains(next) {
+                    self.accumulate_feature("next_is_punct=True", &mut scores, nf, scale);
+                }
+                if next_char_len <= 4 {
+                    buf.clear();
+                    let _ = write!(buf, "next_form={}", next_lower);
+                    self.accumulate_feature(&buf, &mut scores, nf, scale);
+                }
+            } else {
+                self.accumulate_feature("next_EOS=True", &mut scores, nf, scale);
+            }
+
+            // ── Extended context (prev-2, next-2) ──
+            if let Some(p2) = prev2 {
+                let p2_lower = p2.to_lowercase();
+                let p2_char_len = p2_lower.chars().count();
+                if p2_char_len >= 3 {
+                    let start = char_boundary_from_end(&p2_lower, 3);
+                    buf.clear();
+                    let _ = write!(buf, "prev2_suf3={}", &p2_lower[start..]);
+                    self.accumulate_feature(&buf, &mut scores, nf, scale);
+                }
+                if p2_char_len <= 4 {
+                    buf.clear();
+                    let _ = write!(buf, "prev2_form={}", p2_lower);
+                    self.accumulate_feature(&buf, &mut scores, nf, scale);
+                }
+            } else {
+                self.accumulate_feature("prev2_BOS=True", &mut scores, nf, scale);
+            }
+
+            if let Some(n2) = next2 {
+                let n2_lower = n2.to_lowercase();
+                let n2_char_len = n2_lower.chars().count();
+                if n2_char_len >= 3 {
+                    let start = char_boundary_from_end(&n2_lower, 3);
+                    buf.clear();
+                    let _ = write!(buf, "next2_suf3={}", &n2_lower[start..]);
+                    self.accumulate_feature(&buf, &mut scores, nf, scale);
+                }
+                if n2_char_len <= 4 {
+                    buf.clear();
+                    let _ = write!(buf, "next2_form={}", n2_lower);
+                    self.accumulate_feature(&buf, &mut scores, nf, scale);
+                }
+            } else {
+                self.accumulate_feature("next2_EOS=True", &mut scores, nf, scale);
+            }
+        }
+
+        // ── Word form (for short, common words) ──
+        if lower_len <= config.max_word_form_len {
+            buf.clear();
+            let _ = write!(buf, "word_form={}", lower);
+            self.accumulate_feature(&buf, &mut scores, nf, scale);
+        } else if lower_len <= config.max_word_form_ext_len {
+            buf.clear();
+            let _ = write!(buf, "word_form_ext={}", lower);
+            self.accumulate_feature(&buf, &mut scores, nf, scale);
         }
 
         // Log-softmax.
@@ -1476,5 +1816,197 @@ mod tests {
         let config = FeatureConfig::default();
         let features = extract_features(&config, "tulisi", None, None, 0, 1);
         assert!(features.contains(&"fi_cond=True".to_string()));
+    }
+
+    // ── Fast path equivalence tests ──
+
+    /// Verify that emission_scores_ext_fast produces identical results to
+    /// the original extract_features_ext + compute_log_probs path.
+    #[test]
+    fn fast_path_equivalence() {
+        let model = make_test_model();
+        let test_cases: Vec<(&str, Option<&str>, Option<&str>, Option<&str>, Option<&str>, usize, usize)> = vec![
+            ("koira", None, None, None, None, 0, 1),
+            ("juoksee", Some("koira"), Some("."), None, None, 1, 3),
+            ("Helsinki", None, Some("on"), None, Some("kaupunki"), 0, 4),
+            (".", Some("juoksee"), None, Some("koira"), None, 2, 3),
+            ("123", None, None, None, None, 0, 1),
+            ("puna-valkoinen", Some("on"), Some("lippu"), Some("Se"), Some("."), 2, 5),
+            ("ei", None, Some("tule"), None, None, 0, 2),
+            ("talossa", Some("Iso"), Some("koira"), None, Some("on"), 1, 4),
+            ("kirjoitettu", Some("on"), None, Some("Se"), None, 2, 3),
+            ("suurempi", None, None, None, None, 0, 1),
+            ("tulisi", Some("h\u{00E4}n"), Some("olla"), None, None, 1, 3),
+        ];
+
+        for (word, prev, next, prev2, next2, pos, slen) in &test_cases {
+            // Original path
+            let features = extract_features_ext(
+                &model.config, word, *prev, *next, *prev2, *next2, *pos, *slen,
+            );
+            let original_scores = model.compute_log_probs(&features);
+
+            // Fast path
+            let fast_scores = model.emission_scores_ext_fast(
+                word, *prev, *next, *prev2, *next2, *pos, *slen,
+            );
+
+            assert_eq!(
+                original_scores.len(),
+                fast_scores.len(),
+                "Score vector length mismatch for '{}'",
+                word
+            );
+            for (i, (orig, fast)) in original_scores.iter().zip(fast_scores.iter()).enumerate() {
+                assert!(
+                    (orig - fast).abs() < 1e-12,
+                    "Score mismatch for '{}' class {}: orig={}, fast={}",
+                    word, i, orig, fast
+                );
+            }
+        }
+    }
+
+    /// Verify the fast path produces identical best-tag decisions for a sentence.
+    #[test]
+    fn fast_path_produces_same_tags() {
+        let model = make_test_model();
+        let words = &["Iso", "koira", "juoksee", "nopeasti", "pihalla", "."];
+        let n = words.len();
+
+        for i in 0..n {
+            let prev = if i > 0 { Some(words[i - 1]) } else { None };
+            let next = if i + 1 < n { Some(words[i + 1]) } else { None };
+            let prev2 = if i > 1 { Some(words[i - 2]) } else { None };
+            let next2 = if i + 2 < n { Some(words[i + 2]) } else { None };
+
+            let original_features = extract_features_ext(
+                &model.config, words[i], prev, next, prev2, next2, i, n,
+            );
+            let original_scores = model.compute_log_probs(&original_features);
+            let fast_scores = model.emission_scores_ext_fast(
+                words[i], prev, next, prev2, next2, i, n,
+            );
+
+            // Best class must be identical
+            let orig_best = original_scores
+                .iter()
+                .enumerate()
+                .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+                .unwrap()
+                .0;
+            let fast_best = fast_scores
+                .iter()
+                .enumerate()
+                .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+                .unwrap()
+                .0;
+            assert_eq!(
+                orig_best, fast_best,
+                "Best class mismatch for '{}': orig={}, fast={}",
+                words[i], orig_best, fast_best
+            );
+        }
+    }
+
+    /// Timing benchmark: compare original path vs fast path.
+    /// Run with: cargo test -p mce-disambig bench_fast_vs_original -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn bench_fast_vs_original() {
+        use std::time::Instant;
+
+        let model = make_test_model();
+        let sentences: Vec<Vec<&str>> = vec![
+            vec!["Iso", "koira", "juoksee", "nopeasti", "pihalla", "."],
+            vec!["Helsinki", "on", "Suomen", "p\u{00E4}\u{00E4}kaupunki", "."],
+            vec!["Kirjoitettu", "teksti", "on", "hyvin", "t\u{00E4}rke\u{00E4}\u{00E4}", "."],
+            vec!["En", "tiedä", ",", "mitä", "sinä", "ajattelet", "."],
+            vec!["Punainen", "auto", "ajaa", "nopeasti", "moottoritiellä", "."],
+            vec!["Hän", "tulisi", "huomenna", "meille", "kylään", "."],
+            vec!["123", "euroa", "maksoi", "uusi", "puhelin", "."],
+            vec!["Puna-valkoinen", "lippu", "liehuu", "tuulessa", "."],
+            vec!["Opettajaksi", "opiskelu", "kestää", "viisi", "vuotta", "."],
+            vec!["Suurempi", "osa", "asukkaista", "puhuu", "suomea", "."],
+        ];
+        let iterations = 10_000;
+
+        // Warm up
+        for _ in 0..100 {
+            for sent in &sentences {
+                let n = sent.len();
+                for i in 0..n {
+                    let prev = if i > 0 { Some(sent[i - 1]) } else { None };
+                    let next = if i + 1 < n { Some(sent[i + 1]) } else { None };
+                    let prev2 = if i > 1 { Some(sent[i - 2]) } else { None };
+                    let next2 = if i + 2 < n { Some(sent[i + 2]) } else { None };
+                    let _ = model.emission_scores_ext_fast(sent[i], prev, next, prev2, next2, i, n);
+                }
+            }
+        }
+
+        // Benchmark original path (extract_features_ext + compute_log_probs)
+        let start = Instant::now();
+        for _ in 0..iterations {
+            for sent in &sentences {
+                let n = sent.len();
+                for i in 0..n {
+                    let prev = if i > 0 { Some(sent[i - 1]) } else { None };
+                    let next = if i + 1 < n { Some(sent[i + 1]) } else { None };
+                    let prev2 = if i > 1 { Some(sent[i - 2]) } else { None };
+                    let next2 = if i + 2 < n { Some(sent[i + 2]) } else { None };
+                    let features = extract_features_ext(
+                        &model.config, sent[i], prev, next, prev2, next2, i, n,
+                    );
+                    let _ = model.compute_log_probs(&features);
+                }
+            }
+        }
+        let original_elapsed = start.elapsed();
+
+        // Benchmark fast path (fused, zero feature-name allocation)
+        let start = Instant::now();
+        for _ in 0..iterations {
+            for sent in &sentences {
+                let n = sent.len();
+                for i in 0..n {
+                    let prev = if i > 0 { Some(sent[i - 1]) } else { None };
+                    let next = if i + 1 < n { Some(sent[i + 1]) } else { None };
+                    let prev2 = if i > 1 { Some(sent[i - 2]) } else { None };
+                    let next2 = if i + 2 < n { Some(sent[i + 2]) } else { None };
+                    let _ = model.emission_scores_ext_fast(sent[i], prev, next, prev2, next2, i, n);
+                }
+            }
+        }
+        let fast_elapsed = start.elapsed();
+
+        let total_words: usize = sentences.iter().map(|s| s.len()).sum::<usize>() * iterations;
+        let orig_ns_per_word = original_elapsed.as_nanos() as f64 / total_words as f64;
+        let fast_ns_per_word = fast_elapsed.as_nanos() as f64 / total_words as f64;
+        let speedup = original_elapsed.as_secs_f64() / fast_elapsed.as_secs_f64();
+
+        // Count allocations in original path for one sentence
+        let sent = &sentences[0];
+        let n = sent.len();
+        let mut total_features = 0;
+        for i in 0..n {
+            let prev = if i > 0 { Some(sent[i - 1]) } else { None };
+            let next = if i + 1 < n { Some(sent[i + 1]) } else { None };
+            let prev2 = if i > 1 { Some(sent[i - 2]) } else { None };
+            let next2 = if i + 2 < n { Some(sent[i + 2]) } else { None };
+            let features = extract_features_ext(
+                &model.config, sent[i], prev, next, prev2, next2, i, n,
+            );
+            total_features += features.len();
+        }
+
+        eprintln!("\n=== extract_features optimization benchmark ===");
+        eprintln!("Iterations: {} x {} sentences ({} total words)", iterations, sentences.len(), total_words);
+        eprintln!("Original: {:?} ({:.0} ns/word)", original_elapsed, orig_ns_per_word);
+        eprintln!("Fast:     {:?} ({:.0} ns/word)", fast_elapsed, fast_ns_per_word);
+        eprintln!("Speedup:  {:.2}x", speedup);
+        eprintln!("Feature strings per sentence (original): {} ({:.1}/word)", total_features, total_features as f64 / n as f64);
+        eprintln!("Feature strings per sentence (fast):     0 (fused into score accumulation)");
+        eprintln!("Heap String allocations eliminated: ~{} per word", total_features / n);
     }
 }
