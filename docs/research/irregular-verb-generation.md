@@ -633,9 +633,9 @@ fn syoda_past_1sg_soin() {
 
 ### 8.1 현재 WASM 크기
 
-- WASM 바이너리: **365KB**
+- WASM 바이너리: **~395KB**
 - 총 배포: **~9.2MB** (WASM + dictionary + model)
-- CI 예산: 390KB
+- CI 예산: 420KB
 
 ### 8.2 전략별 WASM 크기 영향
 
@@ -652,9 +652,9 @@ fn syoda_past_1sg_soin() {
 2. **Phase 2** (이중모음 축약): `contract_diphthong()` ~30줄 → +0.2KB
 3. **Phase 3** (예외 테이블): 5개 동사 × ~10 형태 × ~20바이트 = ~1KB 데이터 + lookup 코드 ~100줄 → +0.8KB
 
-**총 WASM 증가 예상: ~1-2KB** (365KB → ~367KB)
+**총 WASM 증가 예상: ~1-2KB** (~395KB → ~397KB)
 
-CI 예산 390KB 이내로 충분히 여유 있음.
+CI 예산 420KB 이내로 충분히 여유 있음.
 
 ### 8.4 런타임 성능 영향
 

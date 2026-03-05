@@ -41,8 +41,8 @@ relates-to:
 | UPOS accuracy (rule-only) | 88-92% | 82.71% (partial miss, compensated by suffix tagger) |
 | Lemma accuracy | 90%+ | **88.44%** (48K production dict, 42K benchmark dict) |
 | Coverage | 99%+ | **99.64%** |
-| Speed | <5ms/sentence | **~1.35ms** (42,090 tok/s) |
-| WASM binary | <500KB | **365KB** |
+| Speed | <5ms/sentence | **~0.8ms** (84,973 tok/s) |
+| WASM binary | <500KB | **~395KB** |
 | Deploy size | <15MB | **~9.2MB** (gzip ~2-3MB) |
 | CG rules | 50-100 | **62 active** (85 total) |
 | Crates | -- | **11 crates**, ~45,600 LOC |
@@ -64,7 +64,7 @@ M4': Weighted Lattice --> CG-lite + Suffix Tagger + Viterbi disambiguation
 
 | Constraint | Budget | Rationale |
 |------------|--------|-----------|
-| WASM binary | <500KB (current 365KB) | Browser initial load time |
+| WASM binary | <500KB (current ~395KB) | Browser initial load time |
 | Total deploy | <20MB | CDN + gzip feasibility |
 | gzip transfer | <5MB | Mobile network tolerance |
 | Latency per sentence | <10ms | Real-time editing UX |
@@ -244,7 +244,7 @@ Language Server (Rust binary OR Node.js + WASM)
 **Option A -- Rust binary language server (recommended)**:
 - Ship `mce-lsp` binary (compiled for each platform: macOS ARM/x86, Linux, Windows)
 - LSP communication via stdio
-- Full native performance (~42K tok/s)
+- Full native performance (~85K tok/s)
 - Follows Harper's architecture (Rust LS + VS Code client)
 - Size: ~5-10MB binary + 4MB dict + 5MB model = ~15-20MB total extension
 
@@ -456,7 +456,7 @@ P5                                            [RESEARCH........[SUB]
 
 | Tool | Language | Technology | Size | Offline | Status |
 |------|----------|------------|------|---------|--------|
-| **MCE (this project)** | Finnish | Rust + WASM | 365KB + 9.2MB deploy | Yes | Active |
+| **MCE (this project)** | Finnish | Rust + WASM | ~395KB + 9.2MB deploy | Yes | Active |
 | **Harper** (Automattic) | English only | Rust + WASM | Sub-20ms per document | Yes | Active, v1.0.0 |
 | **Hunspell-asm** | Multi-language | C++ -> Emscripten WASM | ~2MB | Yes | Maintained |
 | **LanguageTool (WASM)** | Multi-language | Java -> server (WASM partial) | Server-dependent | Partial | Active |

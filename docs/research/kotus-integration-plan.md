@@ -386,7 +386,7 @@ After integration, verify no degradation:
 
 - Run `mce-eval` pipeline: UPOS must remain >= 94.0% (CI threshold)
 - Run speller tests: no false negatives on previously-correct words
-- WASM binary size: must remain <= 390KB budget
+- WASM binary size: must remain <= 420KB budget
 - Deploy size: wordlist size increase is acceptable (loaded via `load_wordlist`)
 
 ---
@@ -485,7 +485,7 @@ After integration, verify no degradation:
 
 | Metric | Before | After | Impact |
 |--------|--------|-------|--------|
-| WASM binary | 365KB | 365KB | No change (wordlist loaded separately) |
+| WASM binary | ~395KB | ~395KB | No change (wordlist loaded separately) |
 | Deploy size (total) | ~9.2MB | ~9.6-9.7MB | +400-500KB |
 | Deploy size (gzipped) | ~2-3MB | ~2.1-3.2MB | +100-200KB (text compresses well) |
 | `load_wordlist()` time | Baseline | ~1.5-2x | Larger trie build |
