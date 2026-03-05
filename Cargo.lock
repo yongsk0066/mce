@@ -420,7 +420,7 @@ checksum = "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897"
 
 [[package]]
 name = "mce-cli"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "mce-comonad",
  "mce-core",
@@ -435,7 +435,7 @@ dependencies = [
 
 [[package]]
 name = "mce-comonad"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "mce-core",
  "proptest",
@@ -443,7 +443,7 @@ dependencies = [
 
 [[package]]
 name = "mce-core"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "criterion",
  "thiserror",
@@ -451,14 +451,14 @@ dependencies = [
 
 [[package]]
 name = "mce-disambig"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "mce-core",
 ]
 
 [[package]]
 name = "mce-eval"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "mce-comonad",
  "mce-core",
@@ -470,7 +470,7 @@ dependencies = [
 
 [[package]]
 name = "mce-fi"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "mce-comonad",
  "mce-core",
@@ -482,7 +482,7 @@ dependencies = [
 
 [[package]]
 name = "mce-fst"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "bytemuck",
  "hashbrown 0.16.1",
@@ -492,7 +492,7 @@ dependencies = [
 
 [[package]]
 name = "mce-grammar"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "mce-core",
  "mce-disambig",
@@ -503,7 +503,7 @@ dependencies = [
 
 [[package]]
 name = "mce-speller"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "mce-core",
  "mce-fst",
@@ -511,7 +511,7 @@ dependencies = [
 
 [[package]]
 name = "mce-tokenizer"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "mce-core",
  "proptest",
@@ -519,7 +519,7 @@ dependencies = [
 
 [[package]]
 name = "mce-wasm"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "mce-comonad",
  "mce-core",

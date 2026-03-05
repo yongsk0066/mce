@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-03-06
+
+### Added
+- `justfile` task runner with 27 recipes
+- `lefthook.yml` pre-commit hooks (fmt, clippy, conventional commits)
+- Fuzz testing: 2 targets (fst_from_bytes, tokenize)
+- Property-based tests: 18 proptest tests (comonad laws, tokenizer invariants)
+- FST parser bounds checking (load-time + runtime validation)
+- `deny.toml` for cargo-deny license/advisory policy
+- `CODEOWNERS`, PR title lint, dependabot auto-merge workflows
+- `scripts/bump-version.sh` for automated version management
+- `done` gate job in CI (swc pattern, single required check)
+
+### Changed
+- Unified all 11 crates to `version.workspace = true` (0.1.0 → 0.3.4)
+- Merged `ci.yml` + `release-candidate.yml` into unified 7-job CI
+- Slimmed `release.yml`: removed redundant CI re-verification
+- Rewrote `CONTRIBUTING.md` (68 → 355 lines)
+- Added concurrency groups + timeout-minutes to all workflows
+- Removed ~10MB binary artifacts from docs/ git tracking
+
+### Fixed
+- Script injection vulnerability in `auto-tag.yml` (CRITICAL)
+- Missing `mor.vfst`/`suffix_tagger.bin` copy in `docs.yml` deploy
+- GPL license notice strengthened in `THIRD_PARTY_NOTICES.md`
+
+### Removed
+- `release-candidate.yml` (absorbed into `ci.yml`)
+- Stale `crates/mce-wasm/pkg/` from git tracking
+
 ## [0.3.3] - 2026-03-06
 
 ### Changed
@@ -136,7 +166,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - npm package: @yongsk0066/mce@0.1.0
 - 1,365 tests, ~41,800 LOC Rust
 
-[Unreleased]: https://github.com/yongsk0066/mce/compare/v0.3.3...HEAD
+[Unreleased]: https://github.com/yongsk0066/mce/compare/v0.3.4...HEAD
+[0.3.4]: https://github.com/yongsk0066/mce/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/yongsk0066/mce/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/yongsk0066/mce/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/yongsk0066/mce/compare/v0.3.0...v0.3.1
