@@ -183,8 +183,7 @@ impl Analysis {
     }
 
     pub fn get(&self, key: &str) -> Option<&str> {
-        AttrKey::from_str(key)
-            .and_then(|ak| self.slots[ak.index()].as_deref())
+        AttrKey::from_str(key).and_then(|ak| self.slots[ak.index()].as_deref())
     }
 
     pub fn remove(&mut self, key: &str) {
@@ -202,8 +201,7 @@ impl Analysis {
     }
 
     pub fn contains_key(&self, key: &str) -> bool {
-        AttrKey::from_str(key)
-            .is_some_and(|ak| self.slots[ak.index()].is_some())
+        AttrKey::from_str(key).is_some_and(|ak| self.slots[ak.index()].is_some())
     }
 
     /// Returns a HashMap view of the attributes for backward compatibility.
@@ -219,11 +217,9 @@ impl Analysis {
 
     /// Iterate over (key_name, value) pairs without allocating a HashMap.
     pub fn iter(&self) -> impl Iterator<Item = (&'static str, &str)> + '_ {
-        ALL_KEYS.iter().filter_map(|ak| {
-            self.slots[ak.index()]
-                .as_deref()
-                .map(|v| (ak.name(), v))
-        })
+        ALL_KEYS
+            .iter()
+            .filter_map(|ak| self.slots[ak.index()].as_deref().map(|v| (ak.name(), v)))
     }
 
     pub fn len(&self) -> usize {

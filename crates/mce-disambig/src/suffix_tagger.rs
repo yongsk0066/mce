@@ -1825,15 +1825,39 @@ mod tests {
     #[test]
     fn fast_path_equivalence() {
         let model = make_test_model();
-        let test_cases: Vec<(&str, Option<&str>, Option<&str>, Option<&str>, Option<&str>, usize, usize)> = vec![
+        let test_cases: Vec<(
+            &str,
+            Option<&str>,
+            Option<&str>,
+            Option<&str>,
+            Option<&str>,
+            usize,
+            usize,
+        )> = vec![
             ("koira", None, None, None, None, 0, 1),
             ("juoksee", Some("koira"), Some("."), None, None, 1, 3),
             ("Helsinki", None, Some("on"), None, Some("kaupunki"), 0, 4),
             (".", Some("juoksee"), None, Some("koira"), None, 2, 3),
             ("123", None, None, None, None, 0, 1),
-            ("puna-valkoinen", Some("on"), Some("lippu"), Some("Se"), Some("."), 2, 5),
+            (
+                "puna-valkoinen",
+                Some("on"),
+                Some("lippu"),
+                Some("Se"),
+                Some("."),
+                2,
+                5,
+            ),
             ("ei", None, Some("tule"), None, None, 0, 2),
-            ("talossa", Some("Iso"), Some("koira"), None, Some("on"), 1, 4),
+            (
+                "talossa",
+                Some("Iso"),
+                Some("koira"),
+                None,
+                Some("on"),
+                1,
+                4,
+            ),
             ("kirjoitettu", Some("on"), None, Some("Se"), None, 2, 3),
             ("suurempi", None, None, None, None, 0, 1),
             ("tulisi", Some("h\u{00E4}n"), Some("olla"), None, None, 1, 3),
@@ -1842,14 +1866,20 @@ mod tests {
         for (word, prev, next, prev2, next2, pos, slen) in &test_cases {
             // Original path
             let features = extract_features_ext(
-                &model.config, word, *prev, *next, *prev2, *next2, *pos, *slen,
+                &model.config,
+                word,
+                *prev,
+                *next,
+                *prev2,
+                *next2,
+                *pos,
+                *slen,
             );
             let original_scores = model.compute_log_probs(&features);
 
             // Fast path
-            let fast_scores = model.emission_scores_ext_fast(
-                word, *prev, *next, *prev2, *next2, *pos, *slen,
-            );
+            let fast_scores =
+                model.emission_scores_ext_fast(word, *prev, *next, *prev2, *next2, *pos, *slen);
 
             assert_eq!(
                 original_scores.len(),
@@ -1861,7 +1891,10 @@ mod tests {
                 assert!(
                     (orig - fast).abs() < 1e-12,
                     "Score mismatch for '{}' class {}: orig={}, fast={}",
-                    word, i, orig, fast
+                    word,
+                    i,
+                    orig,
+                    fast
                 );
             }
         }
@@ -1880,13 +1913,11 @@ mod tests {
             let prev2 = if i > 1 { Some(words[i - 2]) } else { None };
             let next2 = if i + 2 < n { Some(words[i + 2]) } else { None };
 
-            let original_features = extract_features_ext(
-                &model.config, words[i], prev, next, prev2, next2, i, n,
-            );
+            let original_features =
+                extract_features_ext(&model.config, words[i], prev, next, prev2, next2, i, n);
             let original_scores = model.compute_log_probs(&original_features);
-            let fast_scores = model.emission_scores_ext_fast(
-                words[i], prev, next, prev2, next2, i, n,
-            );
+            let fast_scores =
+                model.emission_scores_ext_fast(words[i], prev, next, prev2, next2, i, n);
 
             // Best class must be identical
             let orig_best = original_scores
@@ -1920,9 +1951,23 @@ mod tests {
         let sentences: Vec<Vec<&str>> = vec![
             vec!["Iso", "koira", "juoksee", "nopeasti", "pihalla", "."],
             vec!["Helsinki", "on", "Suomen", "p\u{00E4}\u{00E4}kaupunki", "."],
-            vec!["Kirjoitettu", "teksti", "on", "hyvin", "t\u{00E4}rke\u{00E4}\u{00E4}", "."],
+            vec![
+                "Kirjoitettu",
+                "teksti",
+                "on",
+                "hyvin",
+                "t\u{00E4}rke\u{00E4}\u{00E4}",
+                ".",
+            ],
             vec!["En", "tiedä", ",", "mitä", "sinä", "ajattelet", "."],
-            vec!["Punainen", "auto", "ajaa", "nopeasti", "moottoritiellä", "."],
+            vec![
+                "Punainen",
+                "auto",
+                "ajaa",
+                "nopeasti",
+                "moottoritiellä",
+                ".",
+            ],
             vec!["Hän", "tulisi", "huomenna", "meille", "kylään", "."],
             vec!["123", "euroa", "maksoi", "uusi", "puhelin", "."],
             vec!["Puna-valkoinen", "lippu", "liehuu", "tuulessa", "."],
@@ -1956,7 +2001,14 @@ mod tests {
                     let prev2 = if i > 1 { Some(sent[i - 2]) } else { None };
                     let next2 = if i + 2 < n { Some(sent[i + 2]) } else { None };
                     let features = extract_features_ext(
-                        &model.config, sent[i], prev, next, prev2, next2, i, n,
+                        &model.config,
+                        sent[i],
+                        prev,
+                        next,
+                        prev2,
+                        next2,
+                        i,
+                        n,
                     );
                     let _ = model.compute_log_probs(&features);
                 }
@@ -1994,19 +2046,36 @@ mod tests {
             let next = if i + 1 < n { Some(sent[i + 1]) } else { None };
             let prev2 = if i > 1 { Some(sent[i - 2]) } else { None };
             let next2 = if i + 2 < n { Some(sent[i + 2]) } else { None };
-            let features = extract_features_ext(
-                &model.config, sent[i], prev, next, prev2, next2, i, n,
-            );
+            let features =
+                extract_features_ext(&model.config, sent[i], prev, next, prev2, next2, i, n);
             total_features += features.len();
         }
 
         eprintln!("\n=== extract_features optimization benchmark ===");
-        eprintln!("Iterations: {} x {} sentences ({} total words)", iterations, sentences.len(), total_words);
-        eprintln!("Original: {:?} ({:.0} ns/word)", original_elapsed, orig_ns_per_word);
-        eprintln!("Fast:     {:?} ({:.0} ns/word)", fast_elapsed, fast_ns_per_word);
+        eprintln!(
+            "Iterations: {} x {} sentences ({} total words)",
+            iterations,
+            sentences.len(),
+            total_words
+        );
+        eprintln!(
+            "Original: {:?} ({:.0} ns/word)",
+            original_elapsed, orig_ns_per_word
+        );
+        eprintln!(
+            "Fast:     {:?} ({:.0} ns/word)",
+            fast_elapsed, fast_ns_per_word
+        );
         eprintln!("Speedup:  {:.2}x", speedup);
-        eprintln!("Feature strings per sentence (original): {} ({:.1}/word)", total_features, total_features as f64 / n as f64);
+        eprintln!(
+            "Feature strings per sentence (original): {} ({:.1}/word)",
+            total_features,
+            total_features as f64 / n as f64
+        );
         eprintln!("Feature strings per sentence (fast):     0 (fused into score accumulation)");
-        eprintln!("Heap String allocations eliminated: ~{} per word", total_features / n);
+        eprintln!(
+            "Heap String allocations eliminated: ~{} per word",
+            total_features / n
+        );
     }
 }
