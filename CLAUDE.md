@@ -17,7 +17,7 @@ Browser-first Finnish NLP engine. Runs entirely offline in WebAssembly with no s
 | UPOS (rule-only) | 82.71% |
 | Lemma | 88.44% |
 | Coverage | 99.64% |
-| Speed | 84,973 tokens/sec (~0.8ms/sentence) |
+| Speed | 88,285 tokens/sec (~0.8ms/sentence) |
 | WASM binary | ~395KB |
 | Deploy (total) | ~9.2MB (gzip: ~2-3MB) |
 | CG rules | 62 active (85 total), 24 rule types, 23 phases |

@@ -507,7 +507,7 @@ Output: disambiguated analyses (lemma, UPOS, features) per token
 
 ### Performance
 
-- **Speed:** 84,973 tokens/second (12 microseconds/token)
+- **Speed:** 88,285 tokens/second (11 microseconds/token)
 - **UPOS accuracy:** 94.58% (CG + suffix tagger), 82.71% (rule-only)
 - **Lemma accuracy:** 88.44%
 - **Coverage:** 99.64% of tokens receive at least one analysis

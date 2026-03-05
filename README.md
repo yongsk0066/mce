@@ -201,7 +201,7 @@ The Rust workspace contains 11 crates:
 | UPOS accuracy (rule-only) | 82.71% |
 | Lemma accuracy | 88.44% |
 | Coverage | 99.64% |
-| Speed | 84,973 tokens/sec (~0.8ms per sentence) |
+| Speed | 88,285 tokens/sec (~0.8ms per sentence) |
 | WASM binary | ~395KB |
 | Total deploy size | ~9.2MB (WASM + dictionary + model) |
 | Deploy size (gzip) | ~2-3MB |

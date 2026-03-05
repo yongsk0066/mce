@@ -41,7 +41,7 @@ relates-to:
 | UPOS accuracy (rule-only) | 88-92% | 82.71% (partial miss, compensated by suffix tagger) |
 | Lemma accuracy | 90%+ | **88.44%** (48K production dict, 42K benchmark dict) |
 | Coverage | 99%+ | **99.64%** |
-| Speed | <5ms/sentence | **~0.8ms** (84,973 tok/s) |
+| Speed | <5ms/sentence | **~0.8ms** (88,285 tok/s) |
 | WASM binary | <500KB | **~395KB** |
 | Deploy size | <15MB | **~9.2MB** (gzip ~2-3MB) |
 | CG rules | 50-100 | **62 active** (85 total) |
@@ -244,7 +244,7 @@ Language Server (Rust binary OR Node.js + WASM)
 **Option A -- Rust binary language server (recommended)**:
 - Ship `mce-lsp` binary (compiled for each platform: macOS ARM/x86, Linux, Windows)
 - LSP communication via stdio
-- Full native performance (~85K tok/s)
+- Full native performance (~88K tok/s)
 - Follows Harper's architecture (Rust LS + VS Code client)
 - Size: ~5-10MB binary + 4MB dict + 5MB model = ~15-20MB total extension
 
