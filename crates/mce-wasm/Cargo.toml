@@ -1,6 +1,6 @@
 [package]
 name = "mce-wasm"
-version = "0.3.2"
+version = "0.3.3"
 description = "WASM bindings for MCE"
 edition.workspace = true
 rust-version.workspace = true
@@ -19,14 +19,12 @@ mce-comonad.workspace = true
 mce-tokenizer.workspace = true
 mce-grammar.workspace = true
 wasm-bindgen.workspace = true
-js-sys.workspace = true
-serde.workspace = true
 
 [package.metadata.wasm-pack.profile.release]
-# wasm-opt disabled: while raw binary shrinks ~10% (365->327KB),
-# gzip-compressed size increases ~3% (140->145KB) because wasm-opt's
-# code transforms reduce redundancy that gzip exploits.
-# Additionally, wasm-pack doesn't pass --enable-bulk-memory to wasm-opt,
-# causing feature mismatch with Rust 1.93+ output.
+# wasm-opt disabled: raw binary shrinks ~10% but gzip size increases ~3%
+# because wasm-opt reduces redundancy that gzip exploits.
+# Additionally, wasm-pack doesn't pass --enable-bulk-memory or
+# --enable-simd to wasm-opt, causing feature mismatch with
+# Rust 1.93+ / SIMD-enabled output (see .cargo/config.toml).
 # Re-enable if wasm-pack adds feature flag passthrough.
 wasm-opt = false

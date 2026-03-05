@@ -1078,13 +1078,11 @@ fn analyses_to_json(analyses: &[Analysis]) -> String {
 /// Serialize a single `Analysis` as a JSON object into the buffer.
 fn analysis_to_json_obj(buf: &mut String, analysis: &Analysis) {
     buf.push('{');
-    let attrs = analysis.attributes();
     let mut first = true;
-    // Sort keys for deterministic output.
-    let mut keys: Vec<&String> = attrs.keys().collect();
-    keys.sort();
-    for key in keys {
-        let value = &attrs[key];
+    // Collect and sort for deterministic output.
+    let mut pairs: Vec<(&str, &str)> = analysis.iter().collect();
+    pairs.sort_by_key(|(k, _)| *k);
+    for (key, value) in pairs {
         if !first {
             buf.push(',');
         }

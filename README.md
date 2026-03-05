@@ -7,13 +7,13 @@
 
 Browser-first Finnish NLP engine -- morphological analysis, POS tagging, spell checking, grammar checking, hyphenation, compound analysis, and morphological generation, all running offline in WebAssembly.
 
-MCE uses a mathematically grounded architecture: a Writer Comonad for morphophonological rules, Constraint Grammar for disambiguation, and a suffix-based statistical tagger -- achieving 94.58% UPOS accuracy in 365KB of WASM with no server required.
+MCE uses a mathematically grounded architecture: a Writer Comonad for morphophonological rules, Constraint Grammar for disambiguation, and a suffix-based statistical tagger -- achieving 94.58% UPOS accuracy in ~395KB of WASM with no server required.
 
 ## Why MCE?
 
 MCE occupies an unusual position in the Finnish NLP landscape. To our knowledge, no other system combines all five of these properties:
 
-**Browser-first, no server.** MCE compiles to a 365KB WASM module. The dictionary and model are fetched once from a CDN (~9.2MB, gzip ~2-3MB) and cached in IndexedDB. After first load, everything runs offline with zero network dependency. To our knowledge, no other Finnish NLP tool runs in the browser.
+**Browser-first, no server.** MCE compiles to a ~395KB WASM module. The dictionary and model are fetched once from a CDN (~9.2MB, gzip ~2-3MB) and cached in IndexedDB. After first load, everything runs offline with zero network dependency. To our knowledge, no other Finnish NLP tool runs in the browser.
 
 **Mathematical foundation.** Morphophonological rules (consonant gradation, vowel harmony, boundary effects) are expressed as coKleisli arrows over a Writer Comonad with a DeletionSet monoid. To our knowledge, this is the first production NLP system to use comonadic composition for morphophonology, ensuring that rules compose purely without mutation or sentinel characters.
 
@@ -201,8 +201,8 @@ The Rust workspace contains 11 crates:
 | UPOS accuracy (rule-only) | 82.71% |
 | Lemma accuracy | 88.44% |
 | Coverage | 99.64% |
-| Speed | 42,090 tokens/sec (~1.35ms per sentence) |
-| WASM binary | 365KB |
+| Speed | 88,285 tokens/sec (~0.8ms per sentence) |
+| WASM binary | ~395KB |
 | Total deploy size | ~9.2MB (WASM + dictionary + model) |
 | Deploy size (gzip) | ~2-3MB |
 | CG rules | 62 active (85 total) |

@@ -1,6 +1,6 @@
 # Architecture
 
-MCE processes Finnish text through four computational machines, each grounded in a different mathematical model. The entire system compiles to a 365KB WASM module that runs offline in the browser.
+MCE processes Finnish text through four computational machines, each grounded in a different mathematical model. The entire system compiles to a ~395KB WASM module that runs offline in the browser.
 
 ## The Big Picture
 
@@ -28,7 +28,7 @@ Existing Finnish NLP systems fall into two camps. Rule-based systems (Omorfi, Vo
 
 MCE takes a different approach: **decompose the problem into four heterogeneous computation models, each optimal for its subproblem.** A succinct trie (M1) is optimal for dictionary lookup in constrained memory. A comonad (M2) is optimal for composing character-level rules that involve deletion. A pushdown transducer (M3) is optimal for context-free compound decomposition. A weighted lattice (M4) is optimal for sequence disambiguation under uncertainty.
 
-This decomposition is the core architectural idea. No single formalism handles all four subproblems well — FSTs struggle with disambiguation, neural models are overkill for dictionary lookup, and neither provides a principled composition algebra for deletion rules. By matching each subproblem to its natural mathematical model, MCE achieves near-neural accuracy (94.58% UPOS) in 365KB of WASM — a size reduction of three to four orders of magnitude compared to transformer-based systems.
+This decomposition is the core architectural idea. No single formalism handles all four subproblems well — FSTs struggle with disambiguation, neural models are overkill for dictionary lookup, and neither provides a principled composition algebra for deletion rules. By matching each subproblem to its natural mathematical model, MCE achieves near-neural accuracy (94.58% UPOS) in ~395KB of WASM — a size reduction of three to four orders of magnitude compared to transformer-based systems.
 
 The most unusual choice is M2: using a **Writer Comonad** from category theory for morphophonological rules. This is, as far as we know, the first use of comonads in a production NLP system. The motivation was specific: Finnish consonant gradation deletes characters, and deletion breaks the standard FST composition pipeline. The Writer Comonad solves this by accumulating deletions as a monoid side-channel, keeping positions stable so that rules compose purely. The details are in [The Writer Comonad](#the-writer-comonad) below.
 
@@ -140,7 +140,7 @@ flowchart LR
   subgraph Browser
     app["Web App"]
     idb[("IndexedDB<br/>cache")]
-    wasm["WASM<br/>365KB"]
+    wasm["WASM<br/>~395KB"]
   end
 
   subgraph CDN
@@ -161,4 +161,4 @@ flowchart LR
   style idb fill:#e8daff,color:#161616,stroke:#8a3ffc
 ```
 
-The browser loads three assets: the WASM module (365KB), the Finnish dictionary (3.8MB), and optionally the suffix tagger model (5.0MB) — totaling ~9.2MB (~2-3MB gzip). After the first load, the dictionary and model are cached in IndexedDB — subsequent visits require zero network. All computation runs locally; no text ever leaves the device.
+The browser loads three assets: the WASM module (~395KB), the Finnish dictionary (3.8MB), and optionally the suffix tagger model (5.0MB) — totaling ~9.2MB (~2-3MB gzip). After the first load, the dictionary and model are cached in IndexedDB — subsequent visits require zero network. All computation runs locally; no text ever leaves the device.

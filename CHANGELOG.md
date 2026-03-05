@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-03-06
+
+### Changed
+- **Analysis internals**: HashMap<String,String> → enum-indexed fixed array (get 102x, clone 1.7x faster)
+- **Suffix tagger**: zero-allocation feature extraction (reusable buffer, ~96% heap allocation reduction)
+- **Build**: opt-level "z" → "s" + WASM SIMD enabled (+73.7% throughput)
+- **Throughput**: 42,090 → 88,285 tokens/sec (+110%)
+
+### Removed
+- Unused `serde` and `js-sys` dependencies (4 crates removed from build graph)
+
 ## [0.3.2] - 2026-03-05
 
 ### Added
@@ -125,7 +136,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - npm package: @yongsk0066/mce@0.1.0
 - 1,365 tests, ~41,800 LOC Rust
 
-[Unreleased]: https://github.com/yongsk0066/mce/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/yongsk0066/mce/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/yongsk0066/mce/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/yongsk0066/mce/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/yongsk0066/mce/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/yongsk0066/mce/compare/v0.2.0...v0.3.0

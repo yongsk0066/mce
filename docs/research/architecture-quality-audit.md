@@ -92,7 +92,7 @@ mce-core (0 deps)
 - `mce-fi`가 5개 내부 crate에 의존하는 것은 이 crate가 "Finnish language glue" 역할임을 고려하면 적절하다.
 - `mce-cli`가 모든 crate에 의존하는 것은 CLI 도구로서 자연스럽다.
 
-**외부 의존성 최소화**: workspace 외부 dep이 `thiserror`, `bytemuck`, `hashbrown`, `serde`, `wasm-bindgen`, `js-sys`, `serde-wasm-bindgen`, `criterion`뿐이다. WASM 타겟의 365KB 바이너리 사이즈를 고려하면 매우 절제된 선택.
+**외부 의존성 최소화**: workspace 외부 dep이 `thiserror`, `bytemuck`, `hashbrown`, `serde`, `wasm-bindgen`, `js-sys`, `serde-wasm-bindgen`, `criterion`뿐이다. WASM 타겟의 ~395KB 바이너리 사이즈를 고려하면 매우 절제된 선택.
 
 ### 2.3 추상화 레벨 일관성: 양호
 
@@ -249,10 +249,10 @@ assert_eq!(form, Some("puut".to_string())); // [loosened assertion]
 
 | 제약 | 목표 | 실제 | 상태 |
 |------|------|------|------|
-| WASM binary | 365KB | 365KB | 준수 |
-| Latency | <5ms/sentence | ~1.35ms | 초과 달성 |
+| WASM binary | ~395KB | ~395KB | 준수 |
+| Latency | <5ms/sentence | ~0.8ms | 초과 달성 |
 | Deploy size | ~9.2MB | ~9.2MB | 준수 |
-| CI check | perf.yml | 94.0% UPOS threshold, 390KB budget | 자동화됨 |
+| CI check | perf.yml | 94.0% UPOS threshold, 420KB budget | 자동화됨 |
 
 `profile.release`에서 `opt-level = "z"`, `lto = true`, `codegen-units = 1`, `strip = true`, `panic = "abort"`를 설정하여 바이너리 크기 최적화가 철저하다.
 

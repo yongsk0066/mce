@@ -4,7 +4,7 @@ WebAssembly bindings for the MCE Finnish NLP engine. Exposes 22 API methods via 
 
 ## Features
 
-- **~365KB** WASM binary, **<5ms/sentence** latency
+- **~395KB** WASM binary, **<5ms/sentence** latency
 - Morphological analysis, spell checking, grammar checking, hyphenation
 - Sentence-level POS disambiguation (Viterbi + CG + optional suffix tagger)
 - Compound word splitting, spelling suggestions, morphological generation
@@ -95,7 +95,7 @@ cargo install wasm-pack
 # Build WASM package
 wasm-pack build crates/mce-wasm --target web --release
 
-# Output: pkg/mce_wasm.js, pkg/mce_wasm_bg.wasm (~365KB)
+# Output: pkg/mce_wasm.js, pkg/mce_wasm_bg.wasm (~395KB)
 ```
 
 ## Dependencies

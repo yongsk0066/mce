@@ -19,7 +19,7 @@ MCE v0.3.0의 분석(analysis)과 생성(generation) 파이프라인은 구조�
 2. **방향성의 고정**: VFST 순회 알고리즘(`UnweightedTransducer::next_inner`)이 입력 심볼(`sym_in`) 매칭에 의한 순방향 탐색만 지원하며, 출력 심볼(`sym_out`)에 의한 역방향 탐색 경로가 없다.
 3. **Comonad의 단방향성**: Writer Comonad의 coKleisli 화살표들(`gradation_writer`, `harmony_writer`, `possessive_writer`)은 분석 방향(형태론적 표현 -> 표면형)으로 설계되었으며, 역방향(표면형 -> 형태론적 표현)은 정의되지 않았다.
 
-본 문서는 이 비대칭을 범주론적 프레임워크로 정밀하게 진단하고, FST 역방향 탐색의 실현 가능성을 평가하며, WASM 365KB / <5ms 제약 하에서의 실용적 아키텍처 옵션을 비교 평가한다.
+본 문서는 이 비대칭을 범주론적 프레임워크로 정밀하게 진단하고, FST 역방향 탐색의 실현 가능성을 평가하며, WASM ~395KB / <5ms 제약 하에서의 실용적 아키텍처 옵션을 비교 평가한다.
 
 **권장 아키텍처**: 옵션 D (하이브리드) — 분석 결과 캐시 기반 생성 + Comonad 정방향 파이프라인 + 예외 테이블. FST 역방향 탐색(옵션 A)은 VFST 포맷의 구조적 한계로 비실용적이며, 별도 생성 FST(옵션 B)는 바이너리 크기 제약에 위배된다.
 
@@ -330,7 +330,7 @@ VFST (Voikko FST)는 `voikko-fst`에서 유래하며, 설계 목적이 **분석 
 | 전이 테이블 매칭 (`sym_out` 기반) | 가능 | O (순차 스캔으로 동일 복잡도) |
 | 비결정성 제어 | 가능 (pruning 필요) | 삼각 (경로 폭발 위험) |
 | Flag diacritics 역전 | 이론적 가능 | X (역 의미론 구현 비용 과다) |
-| WASM 365KB 제약 내 구현 | 가능 | X (추가 코드량 ~2-3KB) |
+| WASM ~395KB 제약 내 구현 | 가능 | X (추가 코드량 ~2-3KB) |
 | 생성 품질 보장 | 불확실 | X (정확한 표면형 선택 보장 불가) |
 
 **판정: 비실용적**. VFST 역방향 탐색은 기술적으로 가능하나, flag diacritics 역 의미론과 비결정성 폭발 제어의 엔지니어링 비용이 매우 높으며, 생성 품질 보장이 어렵다.
@@ -616,11 +616,11 @@ MceEngine.generate_paradigm_verified(baseform) -> String
 
 ## 8. WASM 제약 내 실현 가능성 분석
 
-### 8.1 크기 제약 (365KB WASM + 9.2MB 배포)
+### 8.1 크기 제약 (~395KB WASM + 9.2MB 배포)
 
 | 구성 요소 | 현재 크기 | 옵션 D 추가 | 합계 |
 |----------|----------|-----------|------|
-| WASM binary | 365KB | +1-2KB | ~367KB |
+| WASM binary | ~395KB | +1-2KB | ~397KB |
 | mor.vfst | ~3.8MB | +0 | ~3.8MB |
 | suffix_tagger.bin | ~5.0MB | +0 | ~5.0MB |
 | wordlist.txt | ~0.4MB | +0 | ~0.4MB |
@@ -635,7 +635,7 @@ MceEngine.generate_paradigm_verified(baseform) -> String
 |------|------|:---:|:---:|:---:|
 | 단일 단어 생성 | <0.1ms | <0.1ms | <0.2ms | <1ms |
 | 패러다임 생성 (22형) | <1ms | <1ms | <3ms | <5ms (캐싱 시 <1ms) |
-| 문장 분석 | ~1.35ms | 동일 | 동일 | 동일 |
+| 문장 분석 | ~0.8ms | 동일 | 동일 | 동일 |
 
 **판정**: Phase 2(FST 검증)까지는 5ms 제약을 안전하게 충족. Phase 3(analyze-then-invert)은 첫 호출 시 지연이 있으나, LRU 캐시로 후속 호출은 <0.1ms.
 

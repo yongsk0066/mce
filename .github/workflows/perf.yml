@@ -79,7 +79,7 @@ jobs:
             | Lemma Accuracy | **${{ needs.accuracy.outputs.lemma }}%** | >= 85.0% | ${{ needs.accuracy.outputs.passed == 'true' && '✅' || '❌' }} |
             | Coverage | ${{ needs.accuracy.outputs.coverage }}% | — | ℹ️ |
             | Speed | ${{ needs.accuracy.outputs.speed }} tok/s | — | ℹ️ |
-            | WASM Size | **${{ needs.wasm-size.outputs.size-kb }}KB** | < 390KB | ${{ needs.wasm-size.outputs.passed == 'true' && '✅' || '❌' }} |
+            | WASM Size | **${{ needs.wasm-size.outputs.size-kb }}KB** | < 420KB | ${{ needs.wasm-size.outputs.passed == 'true' && '✅' || '❌' }} |
             | Tokens Evaluated | ${{ needs.accuracy.outputs.total-tokens }} | — | ℹ️ |
 
             <details><summary>Trie Benchmark (criterion)</summary>

@@ -5,7 +5,7 @@ inputs:
   max-size:
     description: 'Maximum WASM binary size in bytes'
     required: false
-    default: '400000'
+    default: '430000'
 
 outputs:
   size:
