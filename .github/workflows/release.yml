@@ -63,10 +63,10 @@ jobs:
           " --input-type=module
 
       - name: Publish to npm
-        working-directory: crates/mce-wasm/pkg
-        run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          cd crates/mce-wasm/pkg
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
+          npm publish --access public
 
       - name: GitHub Release
         uses: softprops/action-gh-release@v2
