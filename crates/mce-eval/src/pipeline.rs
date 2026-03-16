@@ -337,10 +337,6 @@ impl EvalPipeline {
             return;
         }
 
-        if !self.cg_rules.is_empty() {
-            word_analyses = apply_cg_rules(&word_analyses, &self.cg_rules);
-        }
-
         let word_refs: Vec<&str> = words.iter().map(|s| s.as_str()).collect();
         let best = self
             .disambiguator

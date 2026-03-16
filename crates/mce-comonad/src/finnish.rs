@@ -411,45 +411,30 @@ fn is_neutral_vowel(c: char) -> bool {
 /// front, or vice versa). The last consistent vowel class determines
 /// harmony for the suffix.
 fn detect_harmony_class(z: &Zipper<char>) -> HarmonyClass {
-    // Scan leftward to find the harmony class of the last compound component.
-    // A vowel-class switch across a consonant gap indicates a compound
-    // boundary; the nearer class wins.
+    // Scan leftward for the nearest non-neutral vowel. A vowel-class switch
+    // (back after front, or vice versa) signals a compound boundary; the
+    // class closer to the suffix wins.
 
     let mut found_class: Option<HarmonyClass> = None;
-    let mut consecutive_consonants: u32 = 0;
 
     for i in 1..=z.position() {
         if let Some(&c) = z.peek_left(i) {
             if is_back_vowel(c) {
                 if let Some(HarmonyClass::Front) = found_class {
-                    // Compound boundary: front vowels are closer to suffix.
                     return HarmonyClass::Front;
                 }
-                if found_class.is_none() && consecutive_consonants == 0 {
+                if found_class.is_none() {
                     found_class = Some(HarmonyClass::Back);
-                } else if found_class.is_none() {
-                    found_class = Some(HarmonyClass::Back);
-                }
-                if found_class == Some(HarmonyClass::Back) {
-                    consecutive_consonants = 0;
                 }
             } else if is_front_vowel(c) {
                 if let Some(HarmonyClass::Back) = found_class {
-                    // Compound boundary: back vowels are closer to suffix.
                     return HarmonyClass::Back;
                 }
                 if found_class.is_none() {
                     found_class = Some(HarmonyClass::Front);
                 }
-                if found_class == Some(HarmonyClass::Front) {
-                    consecutive_consonants = 0;
-                }
-            } else if is_neutral_vowel(c) {
-                // Neutral vowels are transparent but break consonant clusters.
-                consecutive_consonants = 0;
-            } else {
-                consecutive_consonants += 1;
             }
+            // Neutral vowels (e, i) and consonants: transparent, skip.
         }
     }
 
