@@ -90,20 +90,17 @@ impl GrammarRule for NumberAgreementRule {
             let numeral = window[0];
             let noun = window[1];
 
-            // Check if first token is a numeral requiring partitive.
             let num_lower = numeral.text.to_lowercase();
             if !NUMERALS_REQUIRING_PARTITIVE.contains(&num_lower.as_str()) {
                 continue;
             }
 
-            // Check if second token is a noun.
             let noun_class = match noun.analysis.as_ref().and_then(|a| a.get(ATTR_CLASS)) {
                 Some(c) if NOUN_CLASSES.contains(&c) => c,
                 _ => continue,
             };
             let _ = noun_class;
 
-            // Check number: should be singular.
             let noun_number = noun.analysis.as_ref().and_then(|a| a.get(ATTR_NUMBER));
 
             // Check case: should be partitive ("ospitkasija" / "ospitkasija"

@@ -104,10 +104,8 @@ impl FinnishSpellChecker {
     ///
     /// Returns [`VfstError`] if the VFST data is malformed.
     pub fn from_bytes(mor_vfst: &[u8]) -> Result<Self, VfstError> {
-        // Build the morph validator (owns its own FinnishAnalyzer).
         let morph = FinnishMorphValidator::from_bytes(mor_vfst)?;
 
-        // Build a separate analyzer for the compound analyzer's dictionary lookup.
         let compound_morph = FinnishAnalyzer::from_bytes(mor_vfst)?;
         let compound_lookup: Box<dyn Fn(&str) -> bool> = Box::new(move |word: &str| {
             let chars: Vec<char> = word.chars().collect();
@@ -119,10 +117,6 @@ impl FinnishSpellChecker {
         });
         let compound_analyzer = CompoundAnalyzer::new(compound_lookup);
 
-        // Build a trie from the FST's symbol table.
-        // We extract all single-character symbols (the alphabet) and
-        // multi-character symbol strings that look like real words.
-        // This gives us a small but useful base-form set for suggestions.
         let trie = build_trie_from_vfst(mor_vfst)?;
 
         let checker = SpellCheckerBuilder::new()
@@ -185,13 +179,11 @@ impl FinnishSpellChecker {
     /// dictionary, or is a valid compound word. Results are cached
     /// for repeated lookups.
     pub fn check(&mut self, word: &str) -> SpellResult {
-        // The underlying checker already handles trie, user dict, and morph.
         let result = self.checker.check(word);
         if result == SpellResult::Ok {
             return result;
         }
 
-        // Compound-aware check: try compound splitting.
         if let Some(ref ca) = self.compound_analyzer {
             let splits = ca.analyze(word);
             if splits.iter().any(|s| s.word_parts().len() >= 2) {
@@ -218,8 +210,7 @@ impl FinnishSpellChecker {
         match &self.freq_list {
             Some(fl) => {
                 let rank_fn = |candidate: &str| -> f64 {
-                    // Use log(1 + freq) so that very high frequencies don't
-                    // dominate excessively. Relative frequency is in [0, 1].
+                    // log(1 + freq) dampens very high frequencies.
                     let rel = fl.relative_frequency(candidate);
                     (1.0 + rel * 1_000_000.0).ln()
                 };
@@ -256,7 +247,6 @@ impl FinnishSpellChecker {
             let clen = chars.len();
             let morph = self.checker.morph();
             let analyses = morph.analyzer().analyze(&chars, clen);
-            // Take the POS class from the first analysis (most likely).
             analyses
                 .first()
                 .and_then(|a| a.get(ATTR_CLASS).map(|s| s.to_string()))
@@ -267,7 +257,6 @@ impl FinnishSpellChecker {
                 let bigram_model = BigramModel::finnish_defaults();
                 let freq_list = &self.freq_list;
                 let rank_fn = |candidate: &str| -> f64 {
-                    // Analyze the candidate to get its POS class.
                     let chars: Vec<char> = candidate.chars().collect();
                     let clen = chars.len();
                     let morph = self.checker.morph();
@@ -296,7 +285,6 @@ impl FinnishSpellChecker {
                     .suggest_ranked(word, max_edits, MAX_SUGGESTIONS, Some(rank_fn))
             }
             None => {
-                // No context available; use frequency-based or plain ranking.
                 match &self.freq_list {
                     Some(fl) => {
                         let rank_fn = |candidate: &str| -> f64 {
@@ -334,9 +322,6 @@ impl FinnishSpellChecker {
 
         let mut results: Vec<(usize, String)> = Vec::new();
 
-        // Strategy: try splitting the word at various positions.
-        // For each potential first-part length, check if the prefix is a
-        // valid word. If so, try to correct the remainder (and vice versa).
         let word_len = word.len();
         if word_len < 4 {
             return Vec::new();
@@ -350,7 +335,6 @@ impl FinnishSpellChecker {
             let prefix = &word[..split_pos];
             let suffix = &word[split_pos..];
 
-            // Case 1: prefix is valid, suffix needs correction.
             let prefix_valid = {
                 let chars: Vec<char> = prefix.chars().collect();
                 let clen = chars.len();
@@ -368,7 +352,6 @@ impl FinnishSpellChecker {
                         .suggest_ranked(suffix, max_edits, 3, None::<fn(&str) -> f64>);
                 for corrected_suffix in suffix_suggestions {
                     let compound = format!("{prefix}{corrected_suffix}");
-                    // Verify the compound is valid.
                     let compound_splits = ca.analyze(&compound);
                     if compound_splits.iter().any(|s| s.word_parts().len() >= 2) {
                         let dist = edit_distance_str(word, &compound);
@@ -379,7 +362,6 @@ impl FinnishSpellChecker {
                 }
             }
 
-            // Case 2: suffix is valid, prefix needs correction.
             let suffix_valid = {
                 let chars: Vec<char> = suffix.chars().collect();
                 let clen = chars.len();
@@ -408,7 +390,6 @@ impl FinnishSpellChecker {
             }
         }
 
-        // Deduplicate and sort by distance.
         results.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.cmp(&b.1)));
         results.dedup_by(|a, b| a.1 == b.1);
         results.into_iter().take(5).map(|(_, s)| s).collect()
@@ -454,9 +435,6 @@ fn build_trie_from_vfst(data: &[u8]) -> Result<SuccinctTrie, VfstError> {
 
     let mut builder = TrieBuilder::new();
 
-    // Insert all single-character symbols as trie entries.
-    // These are the "alphabet" of the transducer — useful as building
-    // blocks for fuzzy search even though they are not full words.
     let first = symbols.first_normal_char as usize;
     let multi = symbols.first_multi_char as usize;
 

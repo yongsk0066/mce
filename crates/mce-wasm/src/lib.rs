@@ -187,13 +187,7 @@ impl MceEngine {
 
         let trie = builder.build();
 
-        // Build the SpellChecker pipeline: wordlist trie + morph validator.
-        // The morph validator wraps a FinnishAnalyzer, providing morphological
-        // validation for candidates that are not in the trie (compounds,
-        // inflected forms, etc.).
-        //
-        // The trie is serialized and deserialized to create a second copy for
-        // the spell checker, since SuccinctTrie does not implement Clone.
+        // SuccinctTrie does not implement Clone, so round-trip via bytes.
         let trie_bytes = trie.to_bytes();
         let checker_trie = SuccinctTrie::from_bytes(&trie_bytes)
             .ok_or_else(|| JsValue::from_str("trie copy failed: invalid serialized trie data"))?;
@@ -245,8 +239,6 @@ impl MceEngine {
     /// the FST doesn't recognize as a single entry may still pass the
     /// compound check.
     pub fn spell_check(&self, word: &str) -> bool {
-        // When the SpellChecker pipeline is available (wordlist loaded),
-        // use it for trie-cached, morph-validated spell checking.
         if let Some(ref sc) = self.spell_checker {
             let result = sc.borrow_mut().check(word);
             if result == SpellResult::Ok {
@@ -300,14 +292,12 @@ impl MceEngine {
             return "[]".to_string();
         }
 
-        // Extract only word tokens for analysis and disambiguation.
         let words: Vec<&str> = all_tokens
             .iter()
             .filter(|(tt, _)| *tt == TokenType::Word)
             .map(|(_, s)| s.as_str())
             .collect();
 
-        // Analyze each word token.
         let word_analyses: Vec<Vec<Analysis>> = words
             .iter()
             .map(|word| {
@@ -317,12 +307,10 @@ impl MceEngine {
             })
             .collect();
 
-        // Disambiguate: pick the best reading for each word position.
         let disambiguated = self
             .disambiguator
             .disambiguate_with_words(&words, &word_analyses);
 
-        // Build JSON output including all tokens.
         let mut buf = String::from('[');
         let mut word_idx = 0;
         let mut first = true;
@@ -376,14 +364,10 @@ impl MceEngine {
         let analyses = self.analyzer.analyze(&chars, word_len);
 
         if !analyses.is_empty() {
-            // Word is valid; no suggestions needed.
             return "[]".to_string();
         }
 
-        // When the SpellChecker pipeline is available (wordlist loaded),
-        // use it for morph-validated, trie-based fuzzy suggestions.
-        // Auto-escalation: if no results at requested distance, retry once
-        // at distance+1 (capped at 3 to avoid combinatorial explosion).
+        // Auto-escalation: retry at distance+1 (capped at 3) if no results.
         if let Some(ref sc) = self.spell_checker {
             let checker = sc.borrow();
             let start = max_edits as usize;
@@ -545,14 +529,12 @@ impl MceEngine {
             return "[]".to_string();
         }
 
-        // Extract only word tokens for analysis and disambiguation.
         let words: Vec<&str> = all_tokens
             .iter()
             .filter(|(tt, _)| *tt == TokenType::Word)
             .map(|(_, s)| s.as_str())
             .collect();
 
-        // Analyze each word token.
         let word_analyses: Vec<Vec<Analysis>> = words
             .iter()
             .map(|word| {
@@ -562,12 +544,10 @@ impl MceEngine {
             })
             .collect();
 
-        // Disambiguate: pick the best reading for each word position.
         let disambiguated = self
             .disambiguator
             .disambiguate_with_words(&words, &word_analyses);
 
-        // Build JSON output with POS and baseform.
         let mut buf = String::from('[');
         let mut word_idx = 0;
         let mut first = true;
@@ -632,7 +612,6 @@ impl MceEngine {
             return word.to_string();
         }
 
-        // For a single word, use disambiguator to pick the best reading.
         let sentence = vec![analyses];
         let disambiguated = self.disambiguator.disambiguate(&sentence);
 
@@ -676,13 +655,9 @@ impl MceEngine {
         let analyses = self.analyzer.analyze(&chars, word_len);
 
         if !analyses.is_empty() {
-            // Word is valid; no suggestions needed.
             return "[]".to_string();
         }
 
-        // Use context-aware suggestion from the analyzer.
-        // We do a simple approach: analyze the previous word to get its POS,
-        // then rank candidates that produce valid analyses by POS bigram score.
         let prev_class = if !prev_word.is_empty() {
             let prev_chars: Vec<char> = prev_word.chars().collect();
             let prev_len = prev_chars.len();
@@ -694,7 +669,6 @@ impl MceEngine {
             None
         };
 
-        // Generate candidates via simple character-level edits and validate.
         let candidates = generate_edit_candidates(word, max_edits as usize);
 
         let bigram_model = mce_disambig::bigram::BigramModel::finnish_defaults();
@@ -710,7 +684,6 @@ impl MceEngine {
                     return None;
                 }
 
-                // Compute bigram score if we have context.
                 let bigram_score = match &prev_class {
                     Some(pc) => c_analyses
                         .iter()
@@ -733,11 +706,9 @@ impl MceEngine {
                 .then(a.2.cmp(&b.2))
         });
 
-        // Deduplicate and limit to 5.
         scored.dedup_by(|a, b| a.2 == b.2);
         scored.truncate(5);
 
-        // Build JSON array.
         let mut buf = String::from('[');
         for (i, (_, _, candidate)) in scored.iter().enumerate() {
             if i > 0 {
@@ -937,9 +908,7 @@ fn generate_edit_candidates(word: &str, max_edits: usize) -> Vec<(String, usize)
     let chars: Vec<char> = word.chars().collect();
     let len = chars.len();
 
-    // Distance 1 edits
     if max_edits >= 1 {
-        // Deletions
         for i in 0..len {
             let mut candidate: Vec<char> = Vec::with_capacity(len - 1);
             candidate.extend_from_slice(&chars[..i]);
@@ -948,7 +917,6 @@ fn generate_edit_candidates(word: &str, max_edits: usize) -> Vec<(String, usize)
             results.insert((s, 1));
         }
 
-        // Substitutions
         for i in 0..len {
             for &c in FINNISH_ALPHABET {
                 if c != chars[i] {
@@ -960,7 +928,6 @@ fn generate_edit_candidates(word: &str, max_edits: usize) -> Vec<(String, usize)
             }
         }
 
-        // Insertions
         for i in 0..=len {
             for &c in FINNISH_ALPHABET {
                 let mut candidate: Vec<char> = Vec::with_capacity(len + 1);
@@ -972,7 +939,6 @@ fn generate_edit_candidates(word: &str, max_edits: usize) -> Vec<(String, usize)
             }
         }
 
-        // Transpositions (adjacent swap)
         for i in 0..len.saturating_sub(1) {
             if chars[i] != chars[i + 1] {
                 let mut candidate = chars.clone();
@@ -993,7 +959,6 @@ fn generate_edit_candidates(word: &str, max_edits: usize) -> Vec<(String, usize)
             let d1_chars: Vec<char> = d1.chars().collect();
             let d1_len = d1_chars.len();
 
-            // Deletions
             for i in 0..d1_len {
                 let mut c: Vec<char> = Vec::with_capacity(d1_len - 1);
                 c.extend_from_slice(&d1_chars[..i]);
@@ -1002,7 +967,6 @@ fn generate_edit_candidates(word: &str, max_edits: usize) -> Vec<(String, usize)
                 results.insert((s, 2));
             }
 
-            // Substitutions
             for i in 0..d1_len {
                 for &ch in FINNISH_ALPHABET {
                     if ch != d1_chars[i] {
@@ -1014,7 +978,6 @@ fn generate_edit_candidates(word: &str, max_edits: usize) -> Vec<(String, usize)
                 }
             }
 
-            // Insertions
             for i in 0..=d1_len {
                 for &ch in FINNISH_ALPHABET {
                     let mut c: Vec<char> = Vec::with_capacity(d1_len + 1);
@@ -1026,7 +989,6 @@ fn generate_edit_candidates(word: &str, max_edits: usize) -> Vec<(String, usize)
                 }
             }
 
-            // Transpositions
             for i in 0..d1_len.saturating_sub(1) {
                 if d1_chars[i] != d1_chars[i + 1] {
                     let mut c = d1_chars.clone();
@@ -1038,7 +1000,6 @@ fn generate_edit_candidates(word: &str, max_edits: usize) -> Vec<(String, usize)
         }
     }
 
-    // Remove the original word from results.
     results.remove(&(word.to_string(), 1));
     results.remove(&(word.to_string(), 2));
 

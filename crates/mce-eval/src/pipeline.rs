@@ -208,7 +208,6 @@ impl EvalPipeline {
         skip_punct: bool,
         results: &mut EvalResults,
     ) {
-        // Filter tokens: skip punctuation if requested.
         let eval_tokens: Vec<_> = sentence
             .tokens
             .iter()
@@ -225,7 +224,6 @@ impl EvalPipeline {
             return;
         }
 
-        // Analyze each gold token with MCE.
         let mut words: Vec<String> = Vec::new();
         let mut word_analyses: Vec<Vec<Analysis>> = Vec::new();
         let mut has_analysis: Vec<bool> = Vec::new();
@@ -295,7 +293,6 @@ impl EvalPipeline {
                 let log_probs =
                     tagger.emission_scores_ext(&words[i], prev, next, prev2, next2, i, n);
 
-                // Find the best UPOS tag from the suffix tagger.
                 let classes = tagger.classes();
                 let best_idx = log_probs
                     .iter()
@@ -323,8 +320,6 @@ impl EvalPipeline {
                             .unwrap_or(&token.form)
                     });
 
-                // Apply dictionary lookup + case normalization.
-                // For OOV words (no FST analysis), try suffix stripping as fallback.
                 let pred_lemma = if is_oov[i] {
                     self.resolve_lemma_oov(&token.form, &pred_upos, fst_baseform)
                 } else {
@@ -342,20 +337,15 @@ impl EvalPipeline {
             return;
         }
 
-        // Apply CG rules to prune candidate readings before disambiguation.
-        // CG rules remove unlikely readings based on local context, which
-        // reduces ambiguity for the Viterbi disambiguator.
         if !self.cg_rules.is_empty() {
             word_analyses = apply_cg_rules(&word_analyses, &self.cg_rules);
         }
 
-        // Disambiguate.
         let word_refs: Vec<&str> = words.iter().map(|s| s.as_str()).collect();
         let best = self
             .disambiguator
             .disambiguate_with_words(&word_refs, &word_analyses);
 
-        // Compare predictions to gold.
         for (i, token) in eval_tokens.iter().enumerate() {
             let (pred_upos, pred_lemma) = if i < best.len() && has_analysis[i] {
                 let analysis = &best[i];
@@ -368,7 +358,6 @@ impl EvalPipeline {
                 };
                 (upos.to_string(), lemma)
             } else {
-                // No analysis available.
                 ("X".to_string(), String::new())
             };
 
@@ -395,7 +384,6 @@ impl EvalPipeline {
                 continue;
             }
 
-            // Tokenize with MCE.
             let chars: Vec<char> = sentence.text.chars().collect();
             let text_len = chars.len();
             let mut pos = 0;
@@ -417,18 +405,15 @@ impl EvalPipeline {
                 pos += token_len;
             }
 
-            // Apply CG rules to prune candidate readings before disambiguation.
             if !self.cg_rules.is_empty() {
                 mce_analyses = apply_cg_rules(&mce_analyses, &self.cg_rules);
             }
 
-            // Disambiguate.
             let word_refs: Vec<&str> = mce_words.iter().map(|s| s.as_str()).collect();
             let best = self
                 .disambiguator
                 .disambiguate_with_words(&word_refs, &mce_analyses);
 
-            // Build gold tokens (non-punct).
             let gold_tokens: Vec<_> = sentence
                 .tokens
                 .iter()
@@ -442,7 +427,6 @@ impl EvalPipeline {
                     break;
                 }
 
-                // Try to align: find the gold token matching this MCE word.
                 let gold_token = gold_tokens[gold_idx];
                 let forms_match = mce_word.to_lowercase() == gold_token.form.to_lowercase();
 

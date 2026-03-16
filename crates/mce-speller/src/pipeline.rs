@@ -61,12 +61,10 @@ impl<M: MorphValidator> SpellChecker<M> {
         let chars: Vec<char> = word.chars().collect();
         let wlen = chars.len();
 
-        // Stage 1: cache lookup.
         if self.cache.is_in_cache(&chars, wlen) {
             return self.cache.get_spell_result(&chars, wlen);
         }
 
-        // Stage 2: user dictionary lookup.
         if let Some(ref ud) = self.user_dict {
             if ud.contains(word) {
                 self.cache.set_spell_result(&chars, wlen, SpellResult::Ok);
@@ -74,13 +72,11 @@ impl<M: MorphValidator> SpellChecker<M> {
             }
         }
 
-        // Stage 3: exact trie lookup (byte-level).
         if self.trie.contains(word.as_bytes()) {
             self.cache.set_spell_result(&chars, wlen, SpellResult::Ok);
             return SpellResult::Ok;
         }
 
-        // Stage 4: morphological validation.
         if self.morph.is_valid(&chars, wlen) {
             self.cache.set_spell_result(&chars, wlen, SpellResult::Ok);
             return SpellResult::Ok;
@@ -101,10 +97,7 @@ impl<M: MorphValidator> SpellChecker<M> {
         let mut results: Vec<String> = raw_candidates
             .into_iter()
             .filter_map(|bytes| {
-                // Convert from byte key back to UTF-8 string.
                 let candidate = String::from_utf8(bytes).ok()?;
-
-                // Accept if in user dictionary or morphologically valid.
                 if self.is_candidate_valid(&candidate) {
                     Some(candidate)
                 } else {
@@ -113,7 +106,6 @@ impl<M: MorphValidator> SpellChecker<M> {
             })
             .collect();
 
-        // Also search user dictionary for nearby words.
         if let Some(ref ud) = self.user_dict {
             let word_bytes = word.as_bytes();
             for user_word in ud.words() {
@@ -176,8 +168,6 @@ impl<M: MorphValidator> SpellChecker<M> {
             .into_iter()
             .filter_map(|bytes| {
                 let candidate = String::from_utf8(bytes).ok()?;
-
-                // Accept if in user dictionary or morphologically valid.
                 if !self.is_candidate_valid(&candidate) {
                     return None;
                 }
@@ -187,7 +177,6 @@ impl<M: MorphValidator> SpellChecker<M> {
                 // exact distance for ranking).
                 let edit_dist = edit_distance(word_bytes, candidate.as_bytes());
 
-                // Apply optional rank function (higher = better).
                 let mut rank_score = rank_fn.as_ref().map_or(0.0, |f| f(&candidate));
 
                 // Add built-in frequency bonus if a frequency list is present.
@@ -200,7 +189,6 @@ impl<M: MorphValidator> SpellChecker<M> {
             })
             .collect();
 
-        // Also include user dictionary words within edit distance.
         if let Some(ref ud) = self.user_dict {
             let mut seen: std::collections::HashSet<String> =
                 scored.iter().map(|(_, _, s)| s.clone()).collect();
@@ -239,13 +227,11 @@ impl<M: MorphValidator> SpellChecker<M> {
     /// Check whether a candidate string is valid (either in user dictionary
     /// or morphologically valid).
     fn is_candidate_valid(&self, candidate: &str) -> bool {
-        // User dictionary words are always valid.
         if let Some(ref ud) = self.user_dict {
             if ud.contains(candidate) {
                 return true;
             }
         }
-        // Fall back to morphological validation.
         let chars: Vec<char> = candidate.chars().collect();
         let clen = chars.len();
         self.morph.is_valid(&chars, clen)
@@ -293,22 +279,18 @@ fn edit_distance(a: &[u8], b: &[u8]) -> usize {
 /// used with the `SpellerCache::spell_with_cache` mechanism.
 impl<M: MorphValidator> Speller for SpellChecker<M> {
     fn spell(&self, word: &[char], word_len: usize) -> SpellResult {
-        // Convert char slice to a UTF-8 string for trie lookup.
         let s: String = word[..word_len].iter().collect();
 
-        // Stage 1: user dictionary lookup.
         if let Some(ref ud) = self.user_dict {
             if ud.contains(&s) {
                 return SpellResult::Ok;
             }
         }
 
-        // Stage 2: exact trie lookup.
         if self.trie.contains(s.as_bytes()) {
             return SpellResult::Ok;
         }
 
-        // Stage 3: morphological validation.
         if self.morph.is_valid(word, word_len) {
             return SpellResult::Ok;
         }

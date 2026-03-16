@@ -85,7 +85,6 @@ impl GrammarRule for DoubleNegationRule {
 
         for token in tokens {
             if !token.is_word {
-                // Reset at sentence boundary.
                 if token.text.ends_with('.')
                     || token.text.ends_with('!')
                     || token.text.ends_with('?')
@@ -95,14 +94,12 @@ impl GrammarRule for DoubleNegationRule {
                 continue;
             }
 
-            // Skip false-positive words like "eikä", "ettei".
             if is_false_positive(&token.text) {
                 continue;
             }
 
             if is_negation_form(&token.text) {
                 if let Some(first) = first_negation {
-                    // Found a second negation in the same clause.
                     errors.push(GrammarError::new(
                         first.start,
                         token.end,

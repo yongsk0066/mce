@@ -297,7 +297,6 @@ pub fn apply_gradation(z: &Zipper<char>, grade: Grade) -> char {
     let left = z.peek_left(1).copied();
     let right = z.peek_right(1).copied();
 
-    // Check if the focus matches position 1 of some gradation pattern.
     if let Some(pat) = find_pattern_at_pos1(left, focus, right, grade) {
         let target = match grade {
             Grade::Weak => &pat.weak,
@@ -306,7 +305,6 @@ pub fn apply_gradation(z: &Zipper<char>, grade: Grade) -> char {
         return target[1];
     }
 
-    // No pattern matches; return focus unchanged.
     focus
 }
 
@@ -413,17 +411,9 @@ fn is_neutral_vowel(c: char) -> bool {
 /// front, or vice versa). The last consistent vowel class determines
 /// harmony for the suffix.
 fn detect_harmony_class(z: &Zipper<char>) -> HarmonyClass {
-    // We scan leftward from the focus, looking for the harmony class of
-    // the *last compound component* (the one closest to the suffix).
-    //
-    // Strategy: find the nearest non-neutral vowel. Then check if there's
-    // a compound boundary between it and the focus. A compound boundary
-    // is indicated by a vowel class switch across a consonant gap.
-    //
-    // More precisely: we scan left, collecting the vowel class of the
-    // nearest component. If we hit a vowel of the *opposite* class after
-    // passing through consonants (suggesting a different compound part),
-    // we stop — the previously found class is correct for the suffix.
+    // Scan leftward to find the harmony class of the last compound component.
+    // A vowel-class switch across a consonant gap indicates a compound
+    // boundary; the nearer class wins.
 
     let mut found_class: Option<HarmonyClass> = None;
     let mut consecutive_consonants: u32 = 0;
@@ -432,36 +422,20 @@ fn detect_harmony_class(z: &Zipper<char>) -> HarmonyClass {
         if let Some(&c) = z.peek_left(i) {
             if is_back_vowel(c) {
                 if let Some(HarmonyClass::Front) = found_class {
-                    // We already found front vowels closer to the suffix,
-                    // and now we see a back vowel further left. This means
-                    // there's a compound boundary between them. The suffix
-                    // should use the *closer* (front) harmony.
-                    //
-                    // However, we need to be careful: if the front vowels
-                    // were only neutral (e, i), they wouldn't have set
-                    // found_class. So if found_class == Front, we saw a
-                    // real front vowel (ä, ö, y) closer to the suffix.
+                    // Compound boundary: front vowels are closer to suffix.
                     return HarmonyClass::Front;
                 }
                 if found_class.is_none() && consecutive_consonants == 0 {
-                    // First vowel found, close to suffix — this component
-                    // is back harmony.
                     found_class = Some(HarmonyClass::Back);
                 } else if found_class.is_none() {
-                    // First non-neutral vowel, possibly across consonants.
                     found_class = Some(HarmonyClass::Back);
                 }
-                // If already Back, just continue (same component or
-                // an earlier component with the same class).
                 if found_class == Some(HarmonyClass::Back) {
                     consecutive_consonants = 0;
                 }
             } else if is_front_vowel(c) {
                 if let Some(HarmonyClass::Back) = found_class {
-                    // We already found back vowels closer to the suffix,
-                    // and now we see a front vowel further left. This
-                    // indicates a compound boundary. Keep the back class
-                    // for the suffix.
+                    // Compound boundary: back vowels are closer to suffix.
                     return HarmonyClass::Back;
                 }
                 if found_class.is_none() {
@@ -471,18 +445,15 @@ fn detect_harmony_class(z: &Zipper<char>) -> HarmonyClass {
                     consecutive_consonants = 0;
                 }
             } else if is_neutral_vowel(c) {
-                // Neutral vowels are transparent — don't change class,
-                // but do reset the consonant counter (they break a
-                // consonant cluster).
+                // Neutral vowels are transparent but break consonant clusters.
                 consecutive_consonants = 0;
             } else {
-                // Consonant
                 consecutive_consonants += 1;
             }
         }
     }
 
-    // Return the found class, or default to Front for neutral-only stems.
+    // Default to front for neutral-only stems (Finnish convention).
     found_class.unwrap_or(HarmonyClass::Front)
 }
 
@@ -641,7 +612,6 @@ pub fn morphophonological_pipeline_legacy(word: &str, grade: Grade) -> String {
 
     let chars: Vec<char> = word.chars().collect();
 
-    // Step 1: Consonant gradation.
     let z1 = match Zipper::new(chars) {
         Some(z) => z,
         None => return String::new(),
@@ -656,14 +626,12 @@ pub fn morphophonological_pipeline_legacy(word: &str, grade: Grade) -> String {
         .filter(|&c| c != '\0')
         .collect();
 
-    // Step 2: Vowel harmony.
     let z2 = match Zipper::new(filtered) {
         Some(z) => z,
         None => return String::new(),
     };
     let after_harmony = z2.extend(apply_vowel_harmony);
 
-    // Step 3: Possessive vowel copying.
     let z3 = match Zipper::new(after_harmony.to_vec()) {
         Some(z) => z,
         None => return String::new(),

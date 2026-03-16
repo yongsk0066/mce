@@ -52,11 +52,8 @@ impl SuccinctTrie {
         // row[j] = edit distance between empty string and query[0..j].
         let initial_row: Vec<usize> = (0..=query_len).collect();
 
-        // Collect results as (edit_distance, key).
         let mut results: Vec<(usize, Vec<u8>)> = Vec::new();
 
-        // Check the root itself (empty key) — it's terminal if the empty
-        // string was inserted.
         if self.is_terminal.get(0) && initial_row[query_len] <= max_edits {
             results.push((initial_row[query_len], Vec::new()));
         }
@@ -91,13 +88,10 @@ impl SuccinctTrie {
                 continue;
             }
 
-            // If this node is terminal and the final column is within
-            // max_edits, record the match.
             if self.is_terminal.get(node) && current_row[query_len] <= max_edits {
                 results.push((current_row[query_len], key.clone()));
             }
 
-            // Push children onto the stack for further exploration.
             for (child_label, child_node) in self.children(node) {
                 let mut child_key = key.clone();
                 child_key.push(child_label);
@@ -105,8 +99,6 @@ impl SuccinctTrie {
             }
         }
 
-        // Sort by (edit_distance, key) — ascending distance, then
-        // lexicographic order.
         results.sort();
         results.into_iter().map(|(_, key)| key).collect()
     }
@@ -283,8 +275,8 @@ impl TrieBuilder {
         let mut terminal_bits = Vec::new();
 
         // Super-root: one child (the real root)
-        tree_bits.push(true); // 1 child
-        tree_bits.push(false); // end
+        tree_bits.push(true);
+        tree_bits.push(false);
 
         let mut queue = std::collections::VecDeque::new();
         queue.push_back(0);
@@ -298,7 +290,7 @@ impl TrieBuilder {
                 labels.push(label);
                 queue.push_back(child_idx);
             }
-            tree_bits.push(false); // end of this node's children
+            tree_bits.push(false);
         }
 
         SuccinctTrie {

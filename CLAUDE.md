@@ -13,17 +13,17 @@ Browser-first Finnish NLP engine. Runs entirely offline in WebAssembly with no s
 
 | Metric | Value |
 |--------|-------|
-| UPOS (CG + Suffix Tagger) | **94.58%** |
-| UPOS (rule-only) | 82.71% |
-| Lemma | 88.44% |
-| Coverage | 99.64% |
-| Speed | 88,285 tokens/sec (~0.8ms/sentence) |
+| UPOS (CG + Suffix Tagger) | **94.66%** (dev) / **94.58%** (test) |
+| UPOS (rule-only) | 83.92% |
+| Lemma | 93.09% (dev) / 88.44% (test) |
+| Coverage | 99.35% |
+| Speed | 84,973 tokens/sec (~1.35ms/sentence) |
 | WASM binary | ~395KB |
 | Deploy (total) | ~9.2MB (gzip: ~2-3MB) |
 | CG rules | 62 active (85 total), 24 rule types, 23 phases |
 | Grammar rules | 21 (258 tests) |
 | Generation | Nouns: 22 forms (11 sg + 11 pl), Verbs: 4 conjugation types |
-| Tests | 1,619 passed (+ 18 proptest, 2 fuzz targets) |
+| Tests | 1,619 passed (+ 375 JS, 18 proptest, 2 fuzz targets) |
 | LOC | ~45,600 Rust |
 
 ## Architecture: MCE v3 (4 Machines)
@@ -168,8 +168,8 @@ Three papers based on MCE research:
 
 | Paper | Target | Status |
 |-------|--------|--------|
-| Paper-3: Comonadic Morphophonology | SCiL 2026 (deadline 3/12) | Ready to submit |
-| Paper-2: Morphological Fingerprint | SIGMORPHON 2026 | ~85% complete |
-| Paper-5: Comonadic Classification | ACL/EMNLP 2027 | Research phase |
+| Paper-3: Comonadic Morphophonology | SCiL 2026 | Submitted ([#14](https://openreview.net/forum?id=FYeH1Fiwx6)), review pending |
+| Paper-2: Morphological Fingerprint | EMNLP ARR May 2026 | ~85% complete |
+| Paper-5: Comonadic Classification | TACL / ACL 2027 | Research complete, impl pending |
 
 Research documents and paper drafts are in `~/oss/finnishNLP/mce-research/`.

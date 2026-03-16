@@ -236,15 +236,11 @@ impl<W: Monoid, A: Clone> WriterZipper<W, A> {
         B: Clone,
         F: Fn(&WriterZipper<W, A>) -> (W, B),
     {
-        // Apply f at the focus position.
         let (w_focus, b_focus) = f(self);
-
-        // Start accumulating from the existing log combined with the focus result.
         let mut accumulated_w = self.log.combine(&w_focus);
 
-        // Apply f at all positions to the left.
-        // WriterLefts yields writer-zippers from nearest-to-focus outward.
-        // We collect in that order then reverse to match the storage convention.
+        // Collect left results nearest-to-focus outward, then reverse
+        // to match the storage convention (farthest first).
         let mut left_results: Vec<B> = Vec::new();
         let mut current_left = self.move_left();
         while let Some(wz) = current_left {
@@ -255,7 +251,6 @@ impl<W: Monoid, A: Clone> WriterZipper<W, A> {
         }
         left_results.reverse();
 
-        // Apply f at all positions to the right.
         let mut right_results: Vec<B> = Vec::new();
         let mut current_right = self.move_right();
         while let Some(wz) = current_right {
@@ -265,7 +260,6 @@ impl<W: Monoid, A: Clone> WriterZipper<W, A> {
             current_right = wz.move_right();
         }
 
-        // Build the new zipper from the collected results.
         let focus_pos = left_results.len();
         let mut all_items = left_results;
         all_items.push(b_focus);
@@ -417,16 +411,10 @@ pub fn morphophonological_pipeline_pure(word: &str, grade: Grade) -> String {
 
     let writer = WriterZipper::<DeletionSet, char>::new(zipper);
 
-    // Step 1: Consonant gradation
     let after_gradation = writer.extend(|wz| gradation_writer(wz, grade));
-
-    // Step 2: Vowel harmony
     let after_harmony = after_gradation.extend(harmony_writer);
-
-    // Step 3: Possessive vowel copying
     let after_possessive = after_harmony.extend(possessive_writer);
 
-    // Apply all accumulated deletions at the very end.
     after_possessive.materialize_string()
 }
 

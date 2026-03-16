@@ -96,7 +96,6 @@ impl GrammarRule for CapitalizationRule {
 
         for token in tokens {
             if !token.is_word {
-                // Check if this non-word token is a sentence-ending punctuation.
                 if is_sentence_ending(&token.text) {
                     expect_sentence_start = true;
                 }
@@ -106,7 +105,6 @@ impl GrammarRule for CapitalizationRule {
             // --- Check 1: Sentence-initial capitalization ---
             if expect_sentence_start {
                 if !starts_uppercase(&token.text) && !token.text.is_empty() {
-                    // The first char is lowercase at sentence start.
                     let suggestion = capitalize_first(&token.text);
                     errors.push(GrammarError::with_suggestions(
                         token.start,

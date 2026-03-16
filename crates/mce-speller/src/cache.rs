@@ -71,7 +71,6 @@ impl SpellerCache {
         let hash_code = voikko_hash(word, wlen, HASH_ORDERS[wlen] + self.size_param as i32);
         let cache_offset = (CACHE_OFFSETS[wlen] << self.size_param) + hash_code * wlen;
 
-        // Compare the cached word with the input
         if cache_offset + wlen > self.words.len() {
             return false;
         }
@@ -108,12 +107,10 @@ impl SpellerCache {
         let cache_offset = (CACHE_OFFSETS[wlen] << self.size_param) + hash_code * wlen;
         let result_offset = (META_OFFSETS[wlen] << self.size_param) + hash_code;
 
-        // Store the word characters
         if cache_offset + wlen <= self.words.len() {
             self.words[cache_offset..cache_offset + wlen].copy_from_slice(&word[..wlen]);
         }
 
-        // Store the result marker
         if result_offset < self.spell_results.len() {
             self.spell_results[result_offset] = if result == SpellResult::Ok {
                 b'p'

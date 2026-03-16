@@ -154,8 +154,6 @@ impl<F: Fn(&str) -> bool> CompoundAnalyzer<F> {
             return Vec::new();
         }
 
-        // Handle hyphenated compounds: split at hyphens first, then analyze
-        // each segment.
         if word.contains('-') {
             return self.analyze_hyphenated(word);
         }
@@ -165,7 +163,6 @@ impl<F: Fn(&str) -> bool> CompoundAnalyzer<F> {
 
         self.recurse(word, 0, &mut path, &mut results);
 
-        // Only keep splits with at least 2 word parts.
         results.retain(|s| s.word_parts().len() >= 2);
 
         results.sort_by_key(|s| s.penalty);
@@ -184,17 +181,14 @@ impl<F: Fn(&str) -> bool> CompoundAnalyzer<F> {
             return Vec::new();
         }
 
-        // Check that we do not exceed max_parts.
         if segments.len() > self.max_parts {
             return Vec::new();
         }
 
-        // Check that no segment is empty (consecutive hyphens or leading/trailing).
         if segments.iter().any(|s| s.is_empty()) {
             return Vec::new();
         }
 
-        // Try treating each segment as a single dictionary word.
         let all_known = segments.iter().all(|s| (self.lookup)(s));
 
         let mut results: Vec<CompoundSplit> = Vec::new();
@@ -205,7 +199,6 @@ impl<F: Fn(&str) -> bool> CompoundAnalyzer<F> {
 
             for (i, seg) in segments.iter().enumerate() {
                 if i > 0 {
-                    // Account for the hyphen.
                     parts.push(CompoundPart {
                         surface: "-".to_string(),
                         start: byte_offset,
@@ -246,7 +239,6 @@ impl<F: Fn(&str) -> bool> CompoundAnalyzer<F> {
         let remaining = &word[pos..];
 
         if remaining.is_empty() {
-            // We have consumed the entire word.
             let penalty = compute_penalty(path);
             results.push(CompoundSplit {
                 parts: path.clone(),
@@ -255,17 +247,14 @@ impl<F: Fn(&str) -> bool> CompoundAnalyzer<F> {
             return;
         }
 
-        // Count current word parts (non-linking) to enforce max_parts.
         let word_part_count = path.iter().filter(|p| !p.is_linking).count();
         if word_part_count >= self.max_parts {
             return;
         }
 
-        // Try matching dictionary words of increasing length starting from `pos`.
         let byte_len = remaining.len();
 
         for end_byte in self.min_part_len..=byte_len {
-            // Only split on char boundaries.
             if !remaining.is_char_boundary(end_byte) {
                 continue;
             }
@@ -286,7 +275,6 @@ impl<F: Fn(&str) -> bool> CompoundAnalyzer<F> {
                 if at_end {
                     self.recurse(word, next_pos, path, results);
                 } else {
-                    // Try continuing directly (no linking element).
                     self.recurse(word, next_pos, path, results);
 
                     // Try linking elements *after* this word, before the next part.
@@ -294,7 +282,6 @@ impl<F: Fn(&str) -> bool> CompoundAnalyzer<F> {
                     for &link in LINKING_ELEMENTS {
                         if after.starts_with(link) {
                             let link_end = next_pos + link.len();
-                            // Make sure there is still room for another word part after.
                             if link_end + self.min_part_len <= word.len() {
                                 path.push(CompoundPart {
                                     surface: link.to_string(),
@@ -303,13 +290,13 @@ impl<F: Fn(&str) -> bool> CompoundAnalyzer<F> {
                                     is_linking: true,
                                 });
                                 self.recurse(word, link_end, path, results);
-                                path.pop(); // backtrack linking element
+                                path.pop();
                             }
                         }
                     }
                 }
 
-                path.pop(); // backtrack dictionary word
+                path.pop();
             }
 
             // --- Strategy 2: Linking morpheme fused into left part ---
@@ -325,15 +312,11 @@ impl<F: Fn(&str) -> bool> CompoundAnalyzer<F> {
                     if candidate.len() > link.len() && candidate.ends_with(link) {
                         let stem = &candidate[..candidate.len() - link.len()];
 
-                        // The bare stem must meet minimum length.
                         if stem.len() < self.min_part_len {
                             continue;
                         }
 
-                        // Check if the bare stem itself is a dictionary word.
                         let stem_is_word = (self.lookup)(stem);
-
-                        // Try stem reconstruction via the callback.
                         let reconstructed_match = self
                             .stem_reconstructor
                             .as_ref()
@@ -341,8 +324,6 @@ impl<F: Fn(&str) -> bool> CompoundAnalyzer<F> {
                             .unwrap_or(false);
 
                         if stem_is_word || reconstructed_match {
-                            // Record the stem as the word part and the linking
-                            // morpheme as a separate linking element.
                             let stem_end = pos + stem.len();
                             let link_end = next_pos;
 
@@ -361,8 +342,8 @@ impl<F: Fn(&str) -> bool> CompoundAnalyzer<F> {
 
                             self.recurse(word, link_end, path, results);
 
-                            path.pop(); // backtrack linking element
-                            path.pop(); // backtrack stem
+                            path.pop();
+                            path.pop();
                         }
                     }
                 }

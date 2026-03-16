@@ -216,7 +216,6 @@ fn print_usage() {
 fn main() {
     let args = parse_args();
 
-    // Load dictionary.
     let dict_file = args.dict_path.join("mor.vfst");
     eprintln!("Loading dictionary from {} ...", dict_file.display());
 
@@ -233,7 +232,6 @@ fn main() {
         dict_data.len() as f64 / 1_048_576.0
     );
 
-    // Build pipeline.
     let mut pipeline = if let Some(ref train_path) = args.train_path {
         eprintln!("Loading training data from {} ...", train_path.display());
         let train_data = match fs::read_to_string(train_path) {
@@ -272,7 +270,6 @@ fn main() {
         }
     };
 
-    // Load lemma dictionary if provided.
     if let Some(ref lemma_dict_path) = args.lemma_dict_path {
         eprintln!(
             "Loading lemma dictionary from {} ...",
@@ -290,7 +287,6 @@ fn main() {
         }
     }
 
-    // Enable Compressed Sensing scorer if requested.
     if args.enable_cs {
         eprintln!(
             "Enabling Compressed Sensing (FISTA) scorer: m={}, lambda={}{}",
@@ -305,7 +301,6 @@ fn main() {
         pipeline.enable_cs(args.cs_measurements, args.cs_lambda);
     }
 
-    // Parse CoNLL-U file.
     eprintln!("Parsing CoNLL-U file: {} ...", args.conllu_path.display());
 
     let mut sentences = match parse_conllu_file(&args.conllu_path) {
@@ -318,7 +313,6 @@ fn main() {
 
     eprintln!("Parsed {} sentences.", sentences.len());
 
-    // Apply max-sentences limit.
     if let Some(max) = args.max_sentences {
         if max < sentences.len() {
             sentences.truncate(max);
@@ -326,11 +320,9 @@ fn main() {
         }
     }
 
-    // Count tokens for progress reporting.
     let total_tokens: usize = sentences.iter().map(|s| s.tokens.len()).sum();
     eprintln!("Total tokens: {}", total_tokens);
 
-    // Run evaluation.
     let mode = if args.end_to_end {
         "end-to-end (MCE tokenizer)"
     } else {
@@ -348,7 +340,6 @@ fn main() {
 
     let elapsed = start.elapsed();
 
-    // Print results.
     println!();
     println!("{}", results);
     println!();

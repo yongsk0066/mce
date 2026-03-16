@@ -73,12 +73,10 @@ pub fn parse_conllu_pos_bigrams(conllu_content: &str) -> HashMap<(String, String
     for line in conllu_content.lines() {
         let line = line.trim();
 
-        // Comment lines — skip.
         if line.starts_with('#') {
             continue;
         }
 
-        // Blank line — sentence boundary.
         if line.is_empty() {
             if !current_tags.is_empty() {
                 flush_sentence(&current_tags, &mut bigrams);
@@ -87,7 +85,6 @@ pub fn parse_conllu_pos_bigrams(conllu_content: &str) -> HashMap<(String, String
             continue;
         }
 
-        // Token line — parse columns.
         let columns: Vec<&str> = line.split('\t').collect();
         if columns.len() < 4 {
             continue;
@@ -125,19 +122,16 @@ fn flush_sentence(tags: &[String], bigrams: &mut HashMap<(String, String), u64>)
         return;
     }
 
-    // BOS -> first tag
     *bigrams
         .entry((BOS.to_string(), tags[0].clone()))
         .or_insert(0) += 1;
 
-    // Consecutive tag pairs
     for window in tags.windows(2) {
         *bigrams
             .entry((window[0].clone(), window[1].clone()))
             .or_insert(0) += 1;
     }
 
-    // Last tag -> EOS
     *bigrams
         .entry((tags[tags.len() - 1].clone(), EOS.to_string()))
         .or_insert(0) += 1;
@@ -176,7 +170,6 @@ pub fn build_model_from_conllu(conllu_content: &str) -> BigramModel {
 /// A map from lowercased word form to a map of `{ POS tag -> probability }`.
 /// Probabilities for each word sum to 1.0.
 pub fn extract_emission_priors(conllu_content: &str) -> HashMap<String, HashMap<String, f64>> {
-    // First pass: collect raw counts.
     let mut counts: HashMap<String, HashMap<String, u64>> = HashMap::new();
 
     for line in conllu_content.lines() {
@@ -210,7 +203,6 @@ pub fn extract_emission_priors(conllu_content: &str) -> HashMap<String, HashMap<
             .or_insert(0) += 1;
     }
 
-    // Second pass: normalize counts to probabilities.
     let mut result: HashMap<String, HashMap<String, f64>> = HashMap::new();
     for (word, pos_counts) in &counts {
         let total: u64 = pos_counts.values().sum();

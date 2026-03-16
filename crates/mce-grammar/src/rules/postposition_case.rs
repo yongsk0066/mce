@@ -94,19 +94,16 @@ impl GrammarRule for PostpositionCaseRule {
             let noun = window[0];
             let postp = window[1];
 
-            // Check if the second word is a postposition.
             if !is_genitive_postposition(&postp.text) {
                 continue;
             }
 
-            // Check if the first word is a noun.
             let noun_class = match noun.analysis.as_ref().and_then(|a| a.get(ATTR_CLASS)) {
                 Some(c) if NOUN_CLASSES.contains(&c) => c,
                 _ => continue,
             };
             let _ = noun_class;
 
-            // Check that the noun is in genitive case.
             let case = match noun.analysis.as_ref().and_then(|a| a.get(ATTR_SIJAMUOTO)) {
                 Some(c) => c,
                 None => continue, // no case info, skip

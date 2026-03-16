@@ -9,7 +9,6 @@ use std::collections::HashSet;
 /// Lower priority values indicate better suggestions.
 #[derive(Debug, Clone)]
 pub struct Suggestion {
-    /// The suggested word.
     pub word: String,
     /// Priority of the suggestion (lower is better).
     pub priority: i32,
@@ -23,17 +22,13 @@ pub struct Suggestion {
 /// to control the computational budget (e.g., 800 for typing, 2000
 /// for OCR).
 pub struct SuggestionStatus<'a> {
-    /// The word for which suggestions are being generated (char slice).
     word: &'a [char],
-    /// Maximum number of suggestions that can be collected.
     max_suggestions: usize,
-    /// Maximum computational cost before aborting.
+    /// Budget limit; abort when exceeded (doubled if no suggestions found yet).
     max_cost: usize,
-    /// Current computational cost.
     current_cost: usize,
-    /// Collected suggestions.
     suggestions: Vec<Suggestion>,
-    /// Set of already-seen suggestion strings for deduplication.
+    /// Deduplication set for suggestion strings.
     seen: HashSet<String>,
 }
 

@@ -67,19 +67,16 @@ impl GrammarRule for RepeatedWordRule {
     fn check(&self, tokens: &[AnnotatedToken]) -> Vec<GrammarError> {
         let mut errors = Vec::new();
 
-        // Collect only word tokens for adjacency checking.
         let word_tokens: Vec<&AnnotatedToken> = tokens.iter().filter(|t| t.is_word).collect();
 
         for window in word_tokens.windows(2) {
             let prev = window[0];
             let curr = window[1];
 
-            // Case-insensitive comparison.
             let prev_lower = prev.text.to_lowercase();
             let curr_lower = curr.text.to_lowercase();
 
             if prev_lower == curr_lower {
-                // Check allowlist.
                 if ALLOWED_REPETITIONS.contains(&prev_lower.as_str()) {
                     continue;
                 }

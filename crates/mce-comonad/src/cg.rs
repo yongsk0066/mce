@@ -10,7 +10,7 @@
 //!
 //! - [`ReadingSet`]: A type alias for the set of candidate analyses at one position.
 //! - [`CgRule`]: A trait for individual CG rules (coKleisli arrows).
-//! - Concrete rules (19 types):
+//! - Concrete rules (24 types):
 //!   - Context-based: [`RemoveIfPreceded`], [`RemoveIfFollowed`],
 //!     [`RemoveIfNotPreceded`], [`RemoveIfNotFollowed`],
 //!     [`SelectIfFollowed`], [`SelectIfPreceded`],
@@ -20,8 +20,10 @@
 //!     [`RemoveByBaseformList`], [`RemoveIfFollowedByBaseformList`].
 //!   - Attribute-based: [`RemoveByClass`], [`RemoveIfCase`],
 //!     [`SelectIfAttr`], [`RemoveIfAttr`].
-//!   - Multi-context: [`RemoveIfSandwiched`], [`SelectIfSandwiched`].
-//!   - Positional: [`RemoveAtSentenceStart`].
+//!   - Multi-context: [`RemoveIfSandwiched`], [`SelectIfSandwiched`],
+//!     [`SelectIfPrecededByBaseformAndFollowed`], [`RemoveIfPrecededAndAttr`].
+//!   - Positional: [`RemoveAtSentenceStart`], [`SelectAtSentenceStart`].
+//!   - Current-baseform: [`RemoveByCurrentBaseformList`].
 //! - [`finnish_disambiguation_rules`]: Pre-built Finnish CG rule set (62 rules)
 //!   targeting the top UPOS confusions (ADJ/NOUN, ADV/NOUN, NOUN/PROPN,
 //!   NOUN/VERB, PRON/NOUN, ADP/ADV, VERB/AUX, and more).
@@ -129,9 +131,7 @@ where
 /// verb readings from the current position.
 #[derive(Debug, Clone)]
 pub struct RemoveIfPreceded {
-    /// The CLASS value to remove from the current position.
     pub remove_class: String,
-    /// The CLASS value that must be present at position -1.
     pub preceded_by_class: String,
 }
 
@@ -139,7 +139,6 @@ impl CgRule for RemoveIfPreceded {
     fn apply(&self, z: &Zipper<ReadingSet>) -> ReadingSet {
         let current = z.extract();
 
-        // Check if position -1 has the required class.
         let preceded = z
             .peek_left(1)
             .is_some_and(|left| has_class(left, &self.preceded_by_class));
@@ -164,9 +163,7 @@ impl CgRule for RemoveIfPreceded {
 /// verb readings at the current position.
 #[derive(Debug, Clone)]
 pub struct SelectIfFollowed {
-    /// The CLASS value to select (keep) at the current position.
     pub select_class: String,
-    /// The CLASS value that must be present at position +1.
     pub followed_by_class: String,
 }
 
@@ -174,7 +171,6 @@ impl CgRule for SelectIfFollowed {
     fn apply(&self, z: &Zipper<ReadingSet>) -> ReadingSet {
         let current = z.extract();
 
-        // Check if position +1 has the required class.
         let followed = z
             .peek_right(1)
             .is_some_and(|right| has_class(right, &self.followed_by_class));
@@ -195,9 +191,7 @@ impl CgRule for SelectIfFollowed {
 /// determiner, remove adjective readings.
 #[derive(Debug, Clone)]
 pub struct RemoveIfNotPreceded {
-    /// The CLASS value to remove from the current position.
     pub remove_class: String,
-    /// The CLASS value that must be ABSENT at position -1 for removal to fire.
     pub not_preceded_by_class: String,
 }
 
@@ -205,8 +199,6 @@ impl CgRule for RemoveIfNotPreceded {
     fn apply(&self, z: &Zipper<ReadingSet>) -> ReadingSet {
         let current = z.extract();
 
-        // Check that position -1 does NOT have the required class.
-        // If there is no left neighbor, the class is absent by definition.
         let has_required_class = z
             .peek_left(1)
             .is_some_and(|left| has_class(left, &self.not_preceded_by_class));
@@ -236,12 +228,8 @@ impl CgRule for RemoveIfNotPreceded {
 ///   reading, remove noun readings (prefer "kolme" as numeral, not noun).
 #[derive(Debug, Clone)]
 pub struct RemoveByClass {
-    /// The CLASS value to remove from the current position.
     pub remove_class: String,
-    /// The CLASS value that must be present at position -1.
     pub context_class: String,
-    /// The CLASS value that must also be present in the current readings
-    /// (as a safe alternative).
     pub require_alternative: String,
 }
 
@@ -249,7 +237,6 @@ impl CgRule for RemoveByClass {
     fn apply(&self, z: &Zipper<ReadingSet>) -> ReadingSet {
         let current = z.extract();
 
-        // Check context at position -1.
         let context_ok = z
             .peek_left(1)
             .is_some_and(|left| has_class(left, &self.context_class));
@@ -258,7 +245,6 @@ impl CgRule for RemoveByClass {
             return current.clone();
         }
 
-        // Check that the current position has the required alternative reading.
         if !has_class(current, &self.require_alternative) {
             return current.clone();
         }
@@ -276,9 +262,7 @@ impl CgRule for RemoveByClass {
 ///   — if preceded by the negation verb "ei", select verb readings.
 #[derive(Debug, Clone)]
 pub struct SelectByBaseform {
-    /// The CLASS value to select at the current position.
     pub select_class: String,
-    /// The BASEFORM value that must appear in at least one reading at position -1.
     pub preceded_by_baseform: String,
 }
 
@@ -307,9 +291,7 @@ impl CgRule for SelectByBaseform {
 ///   — if NOT followed by a verb, prefer noun readings (adjective-as-noun).
 #[derive(Debug, Clone)]
 pub struct SelectIfNotFollowed {
-    /// The CLASS value to select at the current position.
     pub select_class: String,
-    /// The CLASS value that must be ABSENT at position +1 for selection to fire.
     pub not_followed_by_class: String,
 }
 
@@ -317,13 +299,11 @@ impl CgRule for SelectIfNotFollowed {
     fn apply(&self, z: &Zipper<ReadingSet>) -> ReadingSet {
         let current = z.extract();
 
-        // Check that position +1 does NOT have the specified class.
         let has_class_right = z
             .peek_right(1)
             .is_some_and(|right| has_class(right, &self.not_followed_by_class));
 
         if has_class_right {
-            // The class IS present at +1, so the NOT condition fails.
             return current.clone();
         }
 
@@ -344,9 +324,7 @@ impl CgRule for SelectIfNotFollowed {
 ///   — if followed by a verb, remove noun readings (prefer adjective/adverb).
 #[derive(Debug, Clone)]
 pub struct RemoveIfFollowed {
-    /// The CLASS value to remove from the current position.
     pub remove_class: String,
-    /// The CLASS value that must be present at position +1.
     pub followed_by_class: String,
 }
 
@@ -374,9 +352,7 @@ impl CgRule for RemoveIfFollowed {
 ///   -- if preceded by a negation verb, select verb readings.
 #[derive(Debug, Clone)]
 pub struct SelectIfPreceded {
-    /// The CLASS value to select (keep) at the current position.
     pub select_class: String,
-    /// The CLASS value that must be present at position -1.
     pub preceded_by_class: String,
 }
 
@@ -404,9 +380,7 @@ impl CgRule for SelectIfPreceded {
 /// multiple baseforms. Useful for patterns like "after any personal pronoun".
 #[derive(Debug, Clone)]
 pub struct SelectByBaseformList {
-    /// The CLASS value to select at the current position.
     pub select_class: String,
-    /// Any of these BASEFORM values at position -1 triggers the rule.
     pub preceded_by_baseforms: Vec<String>,
 }
 
@@ -442,9 +416,7 @@ impl CgRule for SelectByBaseformList {
 ///   Words ending in -ssa/-ssa with inessive case are nouns, not verbs.
 #[derive(Debug, Clone)]
 pub struct RemoveIfCase {
-    /// The CLASS value to remove.
     pub remove_class: String,
-    /// The SIJAMUOTO value that must appear in at least one reading.
     pub has_case: String,
 }
 
@@ -452,7 +424,6 @@ impl CgRule for RemoveIfCase {
     fn apply(&self, z: &Zipper<ReadingSet>) -> ReadingSet {
         let current = z.extract();
 
-        // Check if any reading at this position has the specified case.
         let has_case_reading = current
             .iter()
             .any(|a| a.get(ATTR_SIJAMUOTO) == Some(self.has_case.as_str()));
@@ -470,9 +441,7 @@ impl CgRule for RemoveIfCase {
 /// CG notation: `SELECT (X) IF (1 BASEFORM IN list)`
 #[derive(Debug, Clone)]
 pub struct SelectIfFollowedByBaseformList {
-    /// The CLASS value to select at the current position.
     pub select_class: String,
-    /// Any of these BASEFORM values at position +1 triggers the rule.
     pub followed_by_baseforms: Vec<String>,
 }
 
@@ -503,9 +472,7 @@ impl CgRule for SelectIfFollowedByBaseformList {
 /// CG notation: `REMOVE (X) IF (-1 BASEFORM IN list)`
 #[derive(Debug, Clone)]
 pub struct RemoveByBaseformList {
-    /// The CLASS value to remove at the current position.
     pub remove_class: String,
-    /// Any of these BASEFORM values at position -1 triggers the rule.
     pub preceded_by_baseforms: Vec<String>,
 }
 
@@ -536,7 +503,6 @@ impl CgRule for RemoveByBaseformList {
 // ---------------------------------------------------------------------------
 
 /// Returns `true` if any analysis in `readings` has `ATTR_BASEFORM` matching any in the list.
-// Phase 2 CG expansion: baseform/attribute-based disambiguation rules
 #[allow(dead_code)]
 fn has_baseform_in(readings: &[Analysis], baseforms: &[String]) -> bool {
     readings.iter().any(|a| {
@@ -549,7 +515,6 @@ fn has_baseform_in(readings: &[Analysis], baseforms: &[String]) -> bool {
 }
 
 /// Returns `true` if any analysis has the given attribute with the given value.
-// Phase 2 CG expansion: baseform/attribute-based disambiguation rules
 #[allow(dead_code)]
 fn has_attr(readings: &[Analysis], attr: &str, value: &str) -> bool {
     readings.iter().any(|a| a.get(attr) == Some(value))
@@ -563,9 +528,7 @@ fn has_attr(readings: &[Analysis], attr: &str, value: &str) -> bool {
 ///   -- if NOT followed by a noun, the adposition reading is unlikely.
 #[derive(Debug, Clone)]
 pub struct RemoveIfNotFollowed {
-    /// The CLASS value to remove from the current position.
     pub remove_class: String,
-    /// The CLASS value that must be ABSENT at position +1 for removal to fire.
     pub not_followed_by_class: String,
 }
 
@@ -573,13 +536,11 @@ impl CgRule for RemoveIfNotFollowed {
     fn apply(&self, z: &Zipper<ReadingSet>) -> ReadingSet {
         let current = z.extract();
 
-        // Check that position +1 does NOT have the specified class.
         let has_class_right = z
             .peek_right(1)
             .is_some_and(|right| has_class(right, &self.not_followed_by_class));
 
         if has_class_right {
-            // The class IS present at +1, so the NOT condition fails.
             return current.clone();
         }
 
@@ -596,11 +557,8 @@ impl CgRule for RemoveIfNotFollowed {
 ///   -- if the word has a comparative form, prefer adjective reading.
 #[derive(Debug, Clone)]
 pub struct SelectIfAttr {
-    /// The CLASS value to select.
     pub select_class: String,
-    /// The attribute name to check.
     pub attr_name: String,
-    /// The attribute value that must appear in at least one reading.
     pub attr_value: String,
 }
 
@@ -608,7 +566,6 @@ impl CgRule for SelectIfAttr {
     fn apply(&self, z: &Zipper<ReadingSet>) -> ReadingSet {
         let current = z.extract();
 
-        // Check if any reading has the required attribute.
         let has_attr_reading = current
             .iter()
             .any(|a| a.get(&self.attr_name) == Some(self.attr_value.as_str()));
@@ -630,11 +587,8 @@ impl CgRule for SelectIfAttr {
 ///   -- if geographic name flag is set, remove plain noun readings.
 #[derive(Debug, Clone)]
 pub struct RemoveIfAttr {
-    /// The CLASS value to remove.
     pub remove_class: String,
-    /// The attribute name to check.
     pub attr_name: String,
-    /// The attribute value that must appear in at least one reading.
     pub attr_value: String,
 }
 
@@ -662,9 +616,7 @@ impl CgRule for RemoveIfAttr {
 ///   -- if the baseform is an auxiliary verb, prefer verb reading.
 #[derive(Debug, Clone)]
 pub struct SelectByCurrentBaseformList {
-    /// The CLASS value to select.
     pub select_class: String,
-    /// The BASEFORM values that trigger selection.
     pub baseforms: Vec<String>,
 }
 
@@ -672,7 +624,6 @@ impl CgRule for SelectByCurrentBaseformList {
     fn apply(&self, z: &Zipper<ReadingSet>) -> ReadingSet {
         let current = z.extract();
 
-        // Check if any reading at this position has a matching baseform.
         let has_matching_baseform = current.iter().any(|a| {
             if let Some(bf) = a.get(ATTR_BASEFORM) {
                 self.baseforms.iter().any(|b| b == bf)
@@ -698,11 +649,8 @@ impl CgRule for SelectByCurrentBaseformList {
 ///   -- noun-adverb-noun pattern unlikely; remove adverb.
 #[derive(Debug, Clone)]
 pub struct RemoveIfSandwiched {
-    /// The CLASS value to remove from the current position.
     pub remove_class: String,
-    /// The CLASS value that must be present at position -1.
     pub preceded_by_class: String,
-    /// The CLASS value that must be present at position +1.
     pub followed_by_class: String,
 }
 
@@ -735,11 +683,8 @@ impl CgRule for RemoveIfSandwiched {
 ///   -- between two nouns, prefer adjective reading.
 #[derive(Debug, Clone)]
 pub struct SelectIfSandwiched {
-    /// The CLASS value to select at the current position.
     pub select_class: String,
-    /// The CLASS value that must be present at position -1.
     pub preceded_by_class: String,
-    /// The CLASS value that must be present at position +1.
     pub followed_by_class: String,
 }
 
@@ -772,7 +717,6 @@ impl CgRule for SelectIfSandwiched {
 ///   -- sentence-initial adposition is unlikely.
 #[derive(Debug, Clone)]
 pub struct RemoveAtSentenceStart {
-    /// The CLASS value to remove at sentence start.
     pub remove_class: String,
 }
 
@@ -780,7 +724,6 @@ impl CgRule for RemoveAtSentenceStart {
     fn apply(&self, z: &Zipper<ReadingSet>) -> ReadingSet {
         let current = z.extract();
 
-        // Check if we're at sentence start (no left neighbor).
         if z.peek_left(1).is_some() {
             return current.clone();
         }
@@ -801,9 +744,7 @@ impl CgRule for RemoveAtSentenceStart {
 ///   -- before auxiliary "olla", prefer verb reading (participle + aux).
 #[derive(Debug, Clone)]
 pub struct RemoveIfFollowedByBaseformList {
-    /// The CLASS value to remove from the current position.
     pub remove_class: String,
-    /// Any of these BASEFORM values at position +1 triggers the rule.
     pub followed_by_baseforms: Vec<String>,
 }
 
@@ -842,7 +783,6 @@ impl CgRule for RemoveIfFollowedByBaseformList {
 ///   -- sentence-initial common noun is more likely than proper noun.
 #[derive(Debug, Clone)]
 pub struct SelectAtSentenceStart {
-    /// The CLASS value to select at sentence start.
     pub select_class: String,
 }
 
@@ -850,7 +790,6 @@ impl CgRule for SelectAtSentenceStart {
     fn apply(&self, z: &Zipper<ReadingSet>) -> ReadingSet {
         let current = z.extract();
 
-        // Check if we're at sentence start (no left neighbor).
         if z.peek_left(1).is_some() {
             return current.clone();
         }
@@ -874,9 +813,7 @@ impl CgRule for SelectAtSentenceStart {
 ///   the word should be AUX).
 #[derive(Debug, Clone)]
 pub struct RemoveByCurrentBaseformList {
-    /// The CLASS value to remove.
     pub remove_class: String,
-    /// The BASEFORM values that trigger removal.
     pub baseforms: Vec<String>,
 }
 
@@ -884,7 +821,6 @@ impl CgRule for RemoveByCurrentBaseformList {
     fn apply(&self, z: &Zipper<ReadingSet>) -> ReadingSet {
         let current = z.extract();
 
-        // Check if any reading at this position has a matching baseform.
         let has_matching_baseform = current.iter().any(|a| {
             if let Some(bf) = a.get(ATTR_BASEFORM) {
                 self.baseforms.iter().any(|b| b == bf)
@@ -910,11 +846,8 @@ impl CgRule for RemoveByCurrentBaseformList {
 ///   -- after negation and before noun, select verb (connegative + object).
 #[derive(Debug, Clone)]
 pub struct SelectIfPrecededByBaseformAndFollowed {
-    /// The CLASS value to select at the current position.
     pub select_class: String,
-    /// Any of these BASEFORM values at position -1 triggers.
     pub preceded_by_baseforms: Vec<String>,
-    /// The CLASS value that must be present at position +1.
     pub followed_by_class: String,
 }
 
@@ -953,13 +886,9 @@ impl CgRule for SelectIfPrecededByBaseformAndFollowed {
 ///   -- after adverb, if the word has genitive case, prefer noun over verb.
 #[derive(Debug, Clone)]
 pub struct RemoveIfPrecededAndAttr {
-    /// The CLASS value to remove.
     pub remove_class: String,
-    /// The CLASS value that must be present at position -1.
     pub preceded_by_class: String,
-    /// The attribute name to check in the current position.
     pub attr_name: String,
-    /// The attribute value that must be present.
     pub attr_value: String,
 }
 
@@ -1013,13 +942,14 @@ impl CgRule for RemoveIfPrecededAndAttr {
 /// the full sentence. Earlier rules prune readings that later rules
 /// can exploit.
 ///
-/// The 53 rules are organized into 15 phases:
+/// The 62 rules are organized into 23 phases:
 /// - Phases 1-3: High-confidence patterns (negation, pronouns, numerals)
 /// - Phases 4-5: Subject-verb and adposition patterns
 /// - Phases 6-7: Case-based and context patterns
 /// - Phases 8-9: Adjective and adverb patterns
 /// - Phases 10-11: Genitive/partitive and conjunction patterns
 /// - Phases 12-15: Extended patterns (PROPN, ADP, sandwich, attribute-based)
+/// - Phases 16-23: Participle, case-verb, modal, relative clause patterns
 pub fn finnish_disambiguation_rules() -> Vec<Box<dyn CgRule>> {
     vec![
         // =================================================================
@@ -2071,7 +2001,6 @@ pub fn apply_cg_rules(sentence: &[ReadingSet], rules: &[Box<dyn CgRule>]) -> Vec
     let mut current: Vec<ReadingSet> = sentence.to_vec();
 
     for rule in rules {
-        // Build a zipper from the current sentence state.
         if let Some(z) = Zipper::new(current.clone()) {
             let result = z.extend(|focused| rule.apply(focused));
             current = result.to_vec();

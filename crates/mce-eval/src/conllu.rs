@@ -61,7 +61,6 @@ pub fn parse_conllu(content: &str) -> Vec<ConlluSentence> {
 
     for line in content.lines() {
         if line.is_empty() {
-            // End of sentence.
             if !current_tokens.is_empty() {
                 sentences.push(ConlluSentence {
                     sent_id: std::mem::take(&mut current_sent_id),
@@ -82,7 +81,6 @@ pub fn parse_conllu(content: &str) -> Vec<ConlluSentence> {
             continue;
         }
 
-        // Tab-separated fields.
         let fields: Vec<&str> = line.split('\t').collect();
         if fields.len() < 10 {
             continue;

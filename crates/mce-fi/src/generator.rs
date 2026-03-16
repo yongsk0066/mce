@@ -365,13 +365,11 @@ impl MorphGenerator {
     /// );
     /// ```
     pub fn generate(&self, baseform: &str, features: &[(&str, &str)]) -> Option<String> {
-        // Find the requested case.
         let case_name = features
             .iter()
             .find(|(k, _)| *k == "SIJAMUOTO")
             .map(|(_, v)| *v)?;
 
-        // Determine number (default to singular).
         let number = features
             .iter()
             .find(|(k, _)| *k == "LUKU")
@@ -409,14 +407,12 @@ impl MorphGenerator {
     pub fn generate_paradigm(&self, baseform: &str) -> Vec<(String, String)> {
         let mut result = Vec::with_capacity(22);
 
-        // 11 singular forms
         for case_info in SINGULAR_CASES {
             let form = apply_case(baseform, case_info);
             let label = format!("{} sg", case_info.name);
             result.push((label, form));
         }
 
-        // 11 plural forms
         for case_info in PLURAL_CASES {
             let form = apply_plural_case(baseform, case_info);
             let label = format!("{} pl", case_info.name);
@@ -566,19 +562,10 @@ fn apply_case(baseform: &str, case_info: &CaseInfo) -> String {
         return baseform.to_string();
     }
 
-    // Step 1: Apply consonant gradation to the stem only.
-    // Use gradate_stem() to restrict gradation to the last gradation site,
-    // avoiding false positives on earlier consonants (e.g., kaupunki: only
-    // nk→ng, not p→v).
+    // Gradation restricted to the last site (e.g., kaupunki: nk->ng only, not p->v).
     let graded_stem = gradate_stem(baseform, case_info.grade);
-
-    // Step 2: Concatenate graded stem + archiphonemic suffix.
     let intermediate = format!("{}{}", graded_stem, case_info.suffix);
-
-    // Step 3: Apply vowel harmony to the entire word.
     let after_harmony = harmonize(&intermediate);
-
-    // Step 4: Apply possessive vowel copying.
     apply_possessive_to_word(&after_harmony)
 }
 
@@ -614,25 +601,18 @@ fn gradate_stem(word: &str, grade: Grade) -> String {
         return gradate(word, grade);
     }
 
-    // Find the LAST gradation-susceptible consonant position in the word.
-    // We scan from the end to find the rightmost gradation site.
-    // A gradation site is one of:
-    //   Geminate: pp, tt, kk
-    //   Cluster:  mp, nt, nk, lt, rt
-    //   Single:   Vp, Vt, Vk (vowel + single stop)
+    // Gradation sites: geminate (pp/tt/kk), cluster (mp/nt/nk/lt/rt),
+    // or vowel + single stop (Vp/Vt/Vk). Find the rightmost one.
     let mut site_start: Option<usize> = None;
 
-    // Scan backwards looking for the last gradation site
     for i in (1..len).rev() {
         let prev = chars[i - 1];
         let curr = chars[i];
 
-        // Check geminate patterns (2 chars)
         if prev == curr && matches!(curr, 'p' | 't' | 'k') {
             site_start = Some(i - 1);
             break;
         }
-        // Check cluster patterns (2 chars)
         if matches!(
             (prev, curr),
             ('m', 'p') | ('n', 't') | ('n', 'k') | ('l', 't') | ('r', 't')
@@ -640,10 +620,8 @@ fn gradate_stem(word: &str, grade: Grade) -> String {
             site_start = Some(i - 1);
             break;
         }
-        // Check single consonant patterns (vowel + stop)
+        // Vowel + single stop (not start of a geminate)
         if is_vowel(prev) && matches!(curr, 'p' | 't' | 'k') {
-            // Make sure it's not the first consonant of a geminate
-            // (next char would be the same)
             let is_geminate_start = if i + 1 < len {
                 chars[i + 1] == curr
             } else {
@@ -658,9 +636,7 @@ fn gradate_stem(word: &str, grade: Grade) -> String {
 
     match site_start {
         Some(pos) => {
-            // We need at least one character of left context for the
-            // gradation arrow to examine neighbors. Include one char before
-            // the site start.
+            // Include one char of left context for the gradation arrow.
             let split = if pos > 0 { pos - 1 } else { 0 };
             let prefix: String = chars[..split].iter().collect();
             let suffix: String = chars[split..].iter().collect();
@@ -668,7 +644,6 @@ fn gradate_stem(word: &str, grade: Grade) -> String {
             format!("{}{}", prefix, graded_suffix)
         }
         None => {
-            // No gradation site found; apply normally (should be a no-op)
             gradate(word, grade)
         }
     }
@@ -678,9 +653,6 @@ fn gradate_stem(word: &str, grade: Grade) -> String {
 // Plural noun generation internals
 // ---------------------------------------------------------------------------
 
-/// Check if a character is a Finnish vowel (lowercase).
-///
-/// All callers in this module pass lowercase characters (baseforms, stems).
 fn is_vowel(c: char) -> bool {
     mce_core::character::is_finnish_vowel(c)
 }
@@ -758,19 +730,15 @@ fn genitive_plural(baseform: &str) -> String {
     }
     let last = chars[chars.len() - 1];
     match last {
-        // -a/-ä: plural stem (strong grade) + -en
-        // koira -> koiri + en = koirien
+        // koira -> koirien
         'a' | '\u{00E4}' => {
             let ps = plural_stem(baseform);
             let graded = gradate_stem(&ps, Grade::Strong);
             format!("{}en", graded)
         }
-        // -o/-ö/-u/-y/-e: baseform + -jen/-jën
-        // talo -> talojen, koulu -> koulujen, perhe -> perheiden (irregular)
-        // Simplified: baseform + "jen"
+        // talo -> talojen, koulu -> koulujen
         'o' | '\u{00F6}' | 'u' | 'y' | 'e' => {
             let graded = gradate_stem(baseform, Grade::Strong);
-            // Genitive plural for these is -jen/-jën: talojen, koulujen
             let marker = harmony_marker(baseform);
             if marker == "\u{00E4}" {
                 format!("{}j\u{00E4}n", graded)
@@ -778,11 +746,7 @@ fn genitive_plural(baseform: &str) -> String {
                 format!("{}jen", graded)
             }
         }
-        // -i: plural stem uses -e-, so: stem + "en" = suome + n = suomen?
-        // Actually suomi -> suomien (genitive pl)
-        // plural_stem("suomi") = "suome", then + "n" would give "suomen" (singular gen!)
-        // For genitive plural: suom + i + en = suomien
-        // Let's use: drop -i, add -ien
+        // -i: drop -i, add -ien (suomi -> suomien)
         'i' => {
             let stem: String = chars[..chars.len() - 1].iter().collect();
             let graded = gradate_stem(&stem, Grade::Strong);
@@ -848,7 +812,6 @@ fn partitive_plural(baseform: &str) -> String {
 /// archiphonemes. This function returns `"a"` for back harmony or `"\u{00E4}"`
 /// for front harmony, based on the baseform.
 fn harmony_marker(baseform: &str) -> &'static str {
-    // Check for back vowels (a, o, u) in the baseform.
     for c in baseform.chars() {
         match c {
             'a' | 'o' | 'u' => return "a",
@@ -856,7 +819,7 @@ fn harmony_marker(baseform: &str) -> &'static str {
             _ => {}
         }
     }
-    // Default: back harmony (Finnish default for neutral-only words).
+    // Neutral-only words default to back harmony.
     "a"
 }
 
@@ -885,7 +848,6 @@ fn apply_plural_case(baseform: &str, case_info: &CaseInfo) -> String {
         return format!("{}t", graded);
     }
 
-    // Special cases: genitive and partitive plural have complex suffixes
     if case_info.name == "genitive" {
         return genitive_plural(baseform);
     }
@@ -893,10 +855,7 @@ fn apply_plural_case(baseform: &str, case_info: &CaseInfo) -> String {
         return partitive_plural(baseform);
     }
 
-    // For illative plural: depends on the baseform ending.
-    // - Words ending in -a/-ä: plural stem + "in" (koira -> koiriin)
-    // - Words ending in -i: plural stem + "hin" (kaupunki -> kaupunkeihin)
-    // - Other vowels: plural stem + "hin" (talo -> taloihin)
+    // Illative plural: -a/-ä -> -iin, -i -> -eihin, others -> -ihin.
     if case_info.name == "illative" {
         let ps = plural_stem(baseform);
         let graded = gradate_stem(&ps, Grade::Strong);
@@ -912,24 +871,15 @@ fn apply_plural_case(baseform: &str, case_info: &CaseInfo) -> String {
         };
     }
 
-    // Standard plural cases: plural stem + gradation + suffix + harmony
     let ps = plural_stem(baseform);
-
-    // Apply consonant gradation to the plural stem.
     let graded = gradate_stem(&ps, case_info.grade);
 
-    // Build intermediate with a harmony hint: append a back/front vowel from
-    // the original baseform to ensure correct archiphoneme resolution, then
-    // remove it after harmonization.
-    //
-    // The issue: when we drop -a/-ä from the stem, the remaining plural stem
-    // may contain only neutral vowels (e, i), causing harmonize() to default
-    // to front vowels. We work around this by temporarily appending the
-    // original harmony marker.
+    // Append a harmony hint from the original baseform: the plural stem may
+    // contain only neutral vowels (e, i) after dropping -a/-ä, which would
+    // cause harmonize() to default incorrectly.
     let marker = harmony_marker(baseform);
     let intermediate = format!("{}{}{}", graded, case_info.suffix, marker);
     let harmonized = harmonize(&intermediate);
-    // Remove the trailing harmony marker character.
     let mut chars: Vec<char> = harmonized.chars().collect();
     chars.pop();
     chars.into_iter().collect()
@@ -939,8 +889,6 @@ fn apply_plural_case(baseform: &str, case_info: &CaseInfo) -> String {
 // Verb generation internals
 // ---------------------------------------------------------------------------
 
-/// Check if a character is a Finnish vowel (lowercase).
-/// Alias for [`is_vowel`] used in verb generation.
 fn is_vowel_char(c: char) -> bool {
     mce_core::character::is_finnish_vowel(c)
 }
@@ -979,14 +927,9 @@ fn reverse_weak_gradation(stem: &str) -> String {
         return stem.to_string();
     }
 
-    // Scan from the end to find the LAST gradation site to reverse.
-
-    // 1. Check for cluster gradation (doubled sonorant -> sonorant + stop):
-    //    mm -> mp, nn -> nt, ll -> lt, rr -> rt
+    // 1. Cluster gradation reversal: mm->mp, nn->nt (ll/rr skipped, see below).
     for i in (1..len).rev() {
         if chars[i] == chars[i - 1] {
-            // Check if this doubled sonorant is from cluster gradation
-            // (must be preceded by a vowel to be a valid gradation site)
             let preceded_by_vowel = if i >= 2 {
                 is_vowel(chars[i - 2])
             } else {
@@ -1002,30 +945,23 @@ fn reverse_weak_gradation(stem: &str) -> String {
                         chars[i] = 't';
                         return chars.into_iter().collect();
                     }
-                    // NOTE: ll -> lt and rr -> rt are NOT reversed here because
-                    // in Type 3 infinitives, the doubled l/r is the infinitive
-                    // marker (e.g., tulla = tul+la), not from lt->ll gradation.
-                    // If the raw stem still has ll/rr after dropping the suffix,
-                    // it's from an inner gradation site, not the infinitive doubling.
-                    // This case is rare enough to skip for the simplified generator.
+                    // ll/rr: not reversed -- in Type 3 infinitives the doubled
+                    // l/r is the infinitive marker (tulla = tul+la), not gradation.
                     _ => {}
                 }
             }
         }
     }
 
-    // 2. Check for geminate weakening (single stop preceded by vowel -> doubled):
-    //    V+p -> V+pp, V+t -> V+tt, V+k -> V+kk
+    // 2. Geminate weakening reversal: V+p -> V+pp, V+t -> V+tt, V+k -> V+kk.
     for i in (1..len).rev() {
         let c = chars[i];
         if matches!(c, 'p' | 't' | 'k') && is_vowel(chars[i - 1]) {
-            // Make sure it's not already a geminate (next char is the same)
             let already_geminate = if i + 1 < len {
                 chars[i + 1] == c
             } else {
                 false
             };
-            // Also check it's not part of a cluster pattern
             let is_cluster = if i + 1 < len {
                 matches!(
                     (c, chars[i + 1]),
@@ -1050,8 +986,7 @@ fn reverse_weak_gradation(stem: &str) -> String {
 fn classify_verb(infinitive: &str) -> Option<VerbType> {
     let lower = infinitive.to_lowercase();
 
-    // Type 3: consonant doubling + a/ä (tulla, mennä, purra, nousta)
-    // -lla/-llä, -nna/-nnä, -rra/-rrä, -sta/-stä
+    // Type 3: -lla/-llä, -nna/-nnä, -rra/-rrä, -sta/-stä
     if lower.ends_with("lla")
         || lower.ends_with("ll\u{00E4}")
         || lower.ends_with("nna")
@@ -1067,7 +1002,6 @@ fn classify_verb(infinitive: &str) -> Option<VerbType> {
     // Type 2: vowel + da/dä (syödä, juoda, viedä)
     if lower.ends_with("da") || lower.ends_with("d\u{00E4}") {
         let chars: Vec<char> = lower.chars().collect();
-        // 'dä' is 2 chars, so drop last 2 chars to get what's before da/dä
         if chars.len() >= 3 {
             let before_last = chars[chars.len() - 3];
             if is_vowel_char(before_last) {
@@ -1077,12 +1011,9 @@ fn classify_verb(infinitive: &str) -> Option<VerbType> {
     }
 
     // Type 4: vowel + ta/tä (haluta, pelätä, tavata)
-    // NOTE (Bug 6 fix): Use char-based indexing instead of byte-based slicing.
-    // "tä" is 3 bytes in UTF-8, so `lower.len() - "ta".len()` would slice
-    // incorrectly for front-vowel verbs like "pelätä".
+    // NOTE (Bug 6 fix): char-based indexing required -- "tä" is 3 bytes in UTF-8.
     if lower.ends_with("ta") || lower.ends_with("t\u{00E4}") {
         let chars: Vec<char> = lower.chars().collect();
-        // Drop last 2 chars (t + a/ä) to get what's before ta/tä
         if chars.len() >= 3 {
             let before_last = chars[chars.len() - 3];
             if is_vowel_char(before_last) {
@@ -1091,9 +1022,8 @@ fn classify_verb(infinitive: &str) -> Option<VerbType> {
         }
     }
 
-    // Type 1: vowel + a/ä (puhua, lukea, antaa) or two vowels ending
+    // Type 1: vowel + a/ä (puhua, lukea, antaa)
     if lower.ends_with('a') || lower.ends_with('\u{00E4}') {
-        // Check there are at least 2 characters and the char before last is a vowel
         let chars: Vec<char> = lower.chars().collect();
         if chars.len() >= 2 {
             let penult = chars[chars.len() - 2];
@@ -1114,53 +1044,37 @@ fn extract_stem(infinitive: &str, verb_type: VerbType) -> String {
     let chars: Vec<char> = infinitive.chars().collect();
     match verb_type {
         VerbType::Type1 => {
-            // Drop the last two characters (vowel + a/ä infinitive marker).
             // puhua -> puhu, lukea -> luke, antaa -> anta
             let stem: String = chars[..chars.len() - 1].iter().collect();
             stem
         }
         VerbType::Type2 => {
-            // Drop '-da'/'-dä': syödä -> syö, juoda -> juo
+            // syödä -> syö, juoda -> juo
             let stem: String = chars[..chars.len() - 2].iter().collect();
             stem
         }
         VerbType::Type3 => {
-            // Drop the doubled consonant + a/ä, add 'e'.
-            // tulla -> tule, mennä -> mene, purra -> pure, nousta -> nouse
-            //
-            // Bug 4 fix: The infinitive form uses weak grade because the
-            // doubled consonant closes the syllable. We must reverse the
-            // weak-grade gradation to recover the strong-grade present stem.
-            // Examples: ajatella -> ajatel -> reverse(ajatel) = ajattel + e = ajattele
-            //           jutella -> jutel -> reverse(jutel) = juttel + e = juttele
-            //           kuunnella -> kuunnel -> reverse(kuunnel) = kuuntel + e = kuuntele
+            // tulla -> tule, mennä -> mene, nousta -> nouse
+            // Bug 4 fix: reverse weak gradation from the infinitive's closed syllable.
+            // ajatella -> ajatel -> ajattel + e = ajattele
             if infinitive.to_lowercase().ends_with("sta")
                 || infinitive.to_lowercase().ends_with("st\u{00E4}")
             {
-                // nousta -> nous + e -> nouse
                 let stem: String = chars[..chars.len() - 2].iter().collect();
                 format!("{}e", stem)
             } else {
-                // tulla -> tul + e -> tule (drop last 2: la/lä)
-                // ajatella -> ajatel -> ajattel + e -> ajattele (reverse gradation)
                 let raw_stem: String = chars[..chars.len() - 2].iter().collect();
                 let strong_stem = reverse_weak_gradation(&raw_stem);
                 format!("{}e", strong_stem)
             }
         }
         VerbType::Type4 => {
-            // Drop '-ta'/'-tä', add 'a'/'ä' (the infinitive final vowel).
-            // haluta -> halua (drop 'ta', add 'a')
-            // pelätä -> peläa (drop 'tä', add 'ä')
-            //
-            // Bug 5 fix: The infinitive form uses weak grade because the
-            // '-ta'/'-tä' suffix closes the preceding syllable. Apply strong
-            // grade to recover the correct present stem.
+            // haluta -> halua, pelätä -> peläa
+            // Bug 5 fix: apply strong grade (infinitive uses weak due to closed syllable).
             // tavata -> tava -> gradate(Strong) -> tapa -> + a -> tapaa
             let before_ta: String = chars[..chars.len() - 2].iter().collect();
             let strong_stem = gradate_stem(&before_ta, Grade::Strong);
-            // The vowel to add is the infinitive's final vowel (a or ä)
-            let inf_vowel = chars[chars.len() - 1]; // 'a' or 'ä'
+            let inf_vowel = chars[chars.len() - 1];
             format!("{}{}", strong_stem, inf_vowel)
         }
     }
@@ -1180,22 +1094,11 @@ fn extract_stem(infinitive: &str, verb_type: VerbType) -> String {
 fn extract_connegative_stem(infinitive: &str, verb_type: VerbType) -> String {
     let chars: Vec<char> = infinitive.chars().collect();
     match verb_type {
-        VerbType::Type1 => {
-            // puhua -> puhu (drop final 'a')
-            chars[..chars.len() - 1].iter().collect()
-        }
-        VerbType::Type2 => {
-            // syödä -> syö (drop 'dä')
-            chars[..chars.len() - 2].iter().collect()
-        }
-        VerbType::Type3 => {
-            // tulla -> tule (same as present stem -- connegative = present stem)
-            extract_stem(infinitive, VerbType::Type3)
-        }
-        VerbType::Type4 => {
-            // haluta -> halua (same as present stem)
-            extract_stem(infinitive, VerbType::Type4)
-        }
+        VerbType::Type1 => chars[..chars.len() - 1].iter().collect(),
+        VerbType::Type2 => chars[..chars.len() - 2].iter().collect(),
+        // Type 3/4: connegative = present stem.
+        VerbType::Type3 => extract_stem(infinitive, VerbType::Type3),
+        VerbType::Type4 => extract_stem(infinitive, VerbType::Type4),
     }
 }
 
@@ -1214,52 +1117,38 @@ fn extract_past_stem(infinitive: &str, verb_type: VerbType) -> String {
     let chars: Vec<char> = infinitive.chars().collect();
     match verb_type {
         VerbType::Type1 => {
-            // Drop final 'a'/'ä' (infinitive marker).
-            // The stem vowel changes depending on what it is:
-            //   e -> (drop): lukea -> luke -> luk (+i = luki)
-            //   a -> o:      antaa -> anta -> anto (+i = antoi)
-            //   ä -> (drop): elää  -> elä  -> el  (+i = eli)
-            //   u/y/o/ö/i:   kept as-is (puhua -> puhu +i = puhui)
-            //
-            // Bug 1 fix: apply past-tense vowel changes for 'a' and 'ä'.
+            // Past-tense vowel changes: e drops, a->o, ä drops, others kept.
+            // Bug 1 fix: apply vowel changes for 'a' and 'ä'.
             let stem: String = chars[..chars.len() - 1].iter().collect();
             let stem_chars: Vec<char> = stem.chars().collect();
             if let Some(&last_vowel) = stem_chars.last() {
                 match last_vowel {
                     'e' => {
-                        // luke + i -> luki: drop 'e', caller adds 'i'
+                        // luke -> luk (caller adds 'i' -> luki)
                         let without_e: String = stem_chars[..stem_chars.len() - 1].iter().collect();
                         return without_e;
                     }
                     'a' => {
-                        // anta + i -> antoi: change 'a' to 'o', caller adds 'i'
+                        // anta -> anto (caller adds 'i' -> antoi)
                         let mut modified = stem_chars.clone();
                         modified[stem_chars.len() - 1] = 'o';
                         return modified.into_iter().collect();
                     }
                     '\u{00E4}' => {
-                        // elä + i -> eli: drop 'ä', caller adds 'i'
-                        // NOTE: This is a simplification. Some -ää verbs have
-                        // different past patterns, but dropping ä is the most
-                        // common pattern for the simplified generator.
+                        // elä -> el (caller adds 'i' -> eli)
                         let without_a: String = stem_chars[..stem_chars.len() - 1].iter().collect();
                         return without_a;
                     }
                     _ => {}
                 }
             }
-            // For other stem vowels (u, y, o, ö, i), keep the stem vowel.
-            // The 'i' tense marker is appended by the caller.
             stem
         }
         VerbType::Type2 => {
-            // syödä -> syö, juoda -> juo: drop 'dä'/'da'
-            // Past: syö + i -> syöi (simplified, correct is söi)
+            // syödä -> syö, juoda -> juo
             let stem: String = chars[..chars.len() - 2].iter().collect();
-            // Bug 3 fix: For -oida/-öidä verbs (stem ends in 'i'), the past
-            // tense marker -i- merges with the stem-final -i-. Drop the
-            // trailing 'i' so the caller's 'i' suffix doesn't double it.
-            // ahkeroida -> ahkeroi -> ahkero (+ caller adds 'i' = ahkeroi)
+            // Bug 3 fix: -oida/-öidä verbs merge stem-final -i- with tense -i-.
+            // ahkeroida -> ahkeroi -> ahkero (caller adds 'i' = ahkeroi)
             let stem_chars: Vec<char> = stem.chars().collect();
             if let Some(&last) = stem_chars.last() {
                 if last == 'i' {
@@ -1269,23 +1158,18 @@ fn extract_past_stem(infinitive: &str, verb_type: VerbType) -> String {
             stem
         }
         VerbType::Type3 => {
-            // tulla -> tul, mennä -> men: drop doubled consonant + a/ä
-            // Bug 4 fix: also reverse weak gradation for past stem.
-            // ajatella -> ajatel -> ajattel (reverse gradation)
+            // Bug 4 fix: reverse weak gradation for past stem.
             if infinitive.to_lowercase().ends_with("sta")
                 || infinitive.to_lowercase().ends_with("st\u{00E4}")
             {
-                // nousta -> nous: drop 'ta'
                 chars[..chars.len() - 2].iter().collect()
             } else {
-                // tulla -> tul: drop 'la'
                 let raw_stem: String = chars[..chars.len() - 2].iter().collect();
                 reverse_weak_gradation(&raw_stem)
             }
         }
         VerbType::Type4 => {
-            // haluta -> halus: replace 'ta' with 's'
-            // pelätä -> peläs: replace 'tä' with 's'
+            // haluta -> halus, pelätä -> peläs
             let without_ta: String = chars[..chars.len() - 2].iter().collect();
             format!("{}s", without_ta)
         }
@@ -1307,17 +1191,10 @@ fn extract_past_stem(infinitive: &str, verb_type: VerbType) -> String {
 /// for the negative past construction.
 fn extract_participle_stem(infinitive: &str, verb_type: VerbType) -> String {
     match verb_type {
-        // For Type 1 and 2: use the connegative (bare) stem, NOT the past stem
-        // which has vowel changes. This gives correct participles:
-        // puhua -> puhu + nut = puhunut
-        // antaa -> anta + nut = antanut (not antonut)
-        // lukea -> luke + nut = lukenut (simplified; correct is lukenut)
+        // Type 1/2: connegative stem (no past vowel changes).
+        // puhua -> puhunut, antaa -> antanut (not antonut).
         VerbType::Type1 | VerbType::Type2 => extract_connegative_stem(infinitive, verb_type),
-        // For Type 3 and 4: use the past stem (which is the consonant stem).
-        // tulla -> tul + lut = tullut (handled via gradation separately)
-        // haluta -> halus + i -> but participle is halunnut...
-        // NOTE: Type 3/4 past participles are complex. Using past stem
-        // as approximation.
+        // Type 3/4: past stem as approximation (complex participle formation).
         _ => extract_past_stem(infinitive, verb_type),
     }
 }
@@ -1390,24 +1267,9 @@ fn conjugate_present_affirmative(
 ) -> String {
     let stem = extract_stem(infinitive, verb_type);
 
-    // In Finnish verbs, gradation grade depends on the syllable structure:
-    // - The present stem takes **weak** grade for forms that add a
-    //   consonant-initial suffix (closing the syllable).
-    // - 3sg has strong grade (open syllable: stem vowel lengthening).
-    //
-    // In Finnish verbs, gradation grade depends on the syllable structure:
-    // - The present stem takes **weak** grade for forms that add a
-    //   consonant-initial suffix (closing the syllable).
-    // - 3sg has strong grade (open syllable: stem vowel lengthening).
-    //
-    // However, Type 2 and Type 3 verbs do NOT have consonant gradation in
-    // their present tense forms. Type 4 has it applied during stem extraction
-    // (extract_stem applies gradate_stem with Strong grade). Only Type 1
-    // verbs have active gradation in the present tense conjugation.
-    //
-    // For Type 1:
-    // - 3sg: strong grade
-    // - All others: weak grade (the personal suffix closes the syllable)
+    // Only Type 1 has active gradation in present tense conjugation.
+    // 3sg: strong grade (open syllable), others: weak (suffix closes syllable).
+    // Types 2/3 have no gradation; Type 4 grades during stem extraction.
     let graded = match verb_type {
         VerbType::Type1 => {
             let grade = match (person, number) {
@@ -1416,17 +1278,13 @@ fn conjugate_present_affirmative(
             };
             gradate_stem(&stem, grade)
         }
-        // Type 2, 3, 4: no further gradation needed. The stem is already
-        // in the correct grade from extract_stem().
         _ => stem.clone(),
     };
 
-    // Build the suffixed form with archiphonemic characters.
     let suffixed = match (person, number) {
         (VerbPerson::First, VerbNumber::Singular) => format!("{}n", graded),
         (VerbPerson::Second, VerbNumber::Singular) => format!("{}t", graded),
         (VerbPerson::Third, VerbNumber::Singular) => {
-            // 3sg: lengthen the stem-final vowel.
             if let Some(v) = last_vowel(&graded) {
                 format!("{}{}", graded, v)
             } else {
@@ -1438,7 +1296,6 @@ fn conjugate_present_affirmative(
         (VerbPerson::Third, VerbNumber::Plural) => format!("{}vAt", graded),
     };
 
-    // Apply vowel harmony.
     harmonize(&suffixed)
 }
 
@@ -1453,13 +1310,7 @@ fn conjugate_past_affirmative(
 ) -> String {
     let past_stem = extract_past_stem(infinitive, verb_type);
 
-    // Apply gradation only for Type 1.
-    // Past tense grade follows the same pattern as present:
-    // - 3sg: strong grade (open syllable: just -i suffix, no closing consonant)
-    // - All others: weak grade (person suffix closes the syllable)
-    //
-    // antaa -> anto: 3sg antoi (strong), 1sg annoin (weak: nt->nn)
-    // Type 2, 3, 4: no gradation in past tense forms
+    // Type 1 only: 3sg strong (antoi), others weak (annoin: nt->nn).
     let graded = match verb_type {
         VerbType::Type1 => {
             let grade = match (person, number) {
@@ -1471,7 +1322,6 @@ fn conjugate_past_affirmative(
         _ => past_stem.clone(),
     };
 
-    // Append tense marker 'i' and person suffix.
     let suffixed = match (person, number) {
         (VerbPerson::First, VerbNumber::Singular) => format!("{}in", graded),
         (VerbPerson::Second, VerbNumber::Singular) => format!("{}it", graded),
@@ -1497,24 +1347,17 @@ fn extract_conditional_stem(infinitive: &str, verb_type: VerbType) -> String {
     let chars: Vec<char> = infinitive.chars().collect();
     match verb_type {
         VerbType::Type1 => {
-            // Drop final 'a'/'ä' infinitive marker, keep stem vowel unchanged.
-            // puhua -> puhu, antaa -> anta, lukea -> luke, elää -> elä
-            // For Type 1 with 'e' stem: lukea -> luke (keep 'e' for conditional: lukeisin)
-            // NOTE: lukea conditional = lukisin (e drops), but that matches the
-            // past stem. However, the most common pattern is to keep the stem as-is.
-            // We handle 'e' specially: drop it (same as past).
+            // Keep stem vowel unchanged except 'e' which drops (lukea -> luk + isi).
             let stem: String = chars[..chars.len() - 1].iter().collect();
             let stem_chars: Vec<char> = stem.chars().collect();
             if let Some(&last) = stem_chars.last() {
                 if last == 'e' {
-                    // lukea -> luk (drop 'e', same as past stem)
                     return stem_chars[..stem_chars.len() - 1].iter().collect();
                 }
             }
             stem
         }
         VerbType::Type4 => {
-            // haluta -> halu (drop 'ta'/'tä')
             chars[..chars.len() - 2].iter().collect()
         }
         _ => extract_past_stem(infinitive, verb_type),
@@ -1532,10 +1375,7 @@ fn conjugate_conditional_affirmative(
 ) -> String {
     let cond_stem = extract_conditional_stem(infinitive, verb_type);
 
-    // The conditional mood in Finnish does NOT have person-based consonant
-    // gradation. The stem stays in strong grade for all persons:
-    // antaa -> anta + isin (not anna + isin)
-    // So we skip gradation entirely for the conditional.
+    // Conditional has no person-based gradation (strong for all persons).
     let graded = cond_stem;
 
     let suffixed = match (person, number) {
@@ -1566,7 +1406,6 @@ fn conjugate_negative(
 
     match tense {
         VerbTense::Present => {
-            // Connegative present = bare stem (weak grade for Type 1 only).
             let stem = extract_connegative_stem(infinitive, verb_type);
             let graded = match verb_type {
                 VerbType::Type1 => gradate_stem(&stem, Grade::Weak),
@@ -1575,12 +1414,7 @@ fn conjugate_negative(
             format!("{} {}", aux_harmonized, graded)
         }
         VerbTense::Past => {
-            // Negative past uses the past participle (e.g., "ei puhunut").
-            // The past participle stem does NOT have past-tense vowel changes
-            // (a stays a, ä stays ä). It uses the connegative/present stem.
-            // puhua -> puhu + nut = puhunut
-            // antaa -> anta + nut = antanut (not antonut!)
-            // tulla -> tul + lut = tullut (Type 3 special)
+            // Past participle: no past-tense vowel changes (antanut, not antonut).
             let stem = extract_participle_stem(infinitive, verb_type);
             let graded = match verb_type {
                 VerbType::Type1 => gradate_stem(&stem, Grade::Weak),
@@ -1591,7 +1425,6 @@ fn conjugate_negative(
             format!("{} {}", aux_harmonized, harmonized)
         }
         VerbTense::Conditional => {
-            // Negative conditional: "en puhuisi"
             let cond_stem = extract_conditional_stem(infinitive, verb_type);
             let graded = match verb_type {
                 VerbType::Type1 => gradate_stem(&cond_stem, Grade::Weak),

@@ -184,69 +184,59 @@ fn hash_baseform(baseform: &str) -> usize {
 pub fn encode_analysis(analysis: &Analysis) -> Vec<f64> {
     let mut vec = vec![0.0; FEATURE_DIM];
 
-    // POS class
     if let Some(class) = analysis.get(ATTR_CLASS) {
         if let Some(idx) = lookup_index(POS_CLASSES, class) {
             vec[POS_OFFSET + idx] = 1.0;
         }
     }
 
-    // Case (sijamuoto)
     if let Some(case) = analysis.get(ATTR_SIJAMUOTO) {
         if let Some(idx) = lookup_index(CASES, case) {
             vec[CASE_OFFSET + idx] = 1.0;
         }
     }
 
-    // Number
     if let Some(number) = analysis.get(ATTR_NUMBER) {
         if let Some(idx) = lookup_index(NUMBERS, number) {
             vec[NUMBER_OFFSET + idx] = 1.0;
         }
     }
 
-    // Person
     if let Some(person) = analysis.get(ATTR_PERSON) {
         if let Some(idx) = lookup_index(PERSONS, person) {
             vec[PERSON_OFFSET + idx] = 1.0;
         }
     }
 
-    // Tense
     if let Some(tense) = analysis.get(ATTR_TENSE) {
         if let Some(idx) = lookup_index(TENSES, tense) {
             vec[TENSE_OFFSET + idx] = 1.0;
         }
     }
 
-    // Mood
     if let Some(mood) = analysis.get(ATTR_MOOD) {
         if let Some(idx) = lookup_index(MOODS, mood) {
             vec[MOOD_OFFSET + idx] = 1.0;
         }
     }
 
-    // Participle
     if let Some(participle) = analysis.get(ATTR_PARTICIPLE) {
         if let Some(idx) = lookup_index(PARTICIPLES, participle) {
             vec[PARTICIPLE_OFFSET + idx] = 1.0;
         }
     }
 
-    // Possessive
     if let Some(possessive) = analysis.get(ATTR_POSSESSIVE) {
         if let Some(idx) = lookup_index(POSSESSIVES, possessive) {
             vec[POSSESSIVE_OFFSET + idx] = 1.0;
         }
     }
 
-    // Structure length (normalized: len / 20.0, capped at 1.0)
     if let Some(structure) = analysis.get(ATTR_STRUCTURE) {
         let normalized = (structure.len() as f64 / 20.0).min(1.0);
         vec[STRUCTURE_OFFSET] = normalized;
     }
 
-    // Baseform hash features
     if let Some(baseform) = analysis.get(ATTR_BASEFORM) {
         let idx = hash_baseform(baseform);
         vec[HASH_OFFSET + idx] = 1.0;
@@ -391,7 +381,6 @@ pub fn soft_threshold(value: f64, threshold: f64) -> f64 {
 pub fn power_iteration(ata: &[f64], n: usize, num_iters: usize) -> f64 {
     debug_assert_eq!(ata.len(), n * n);
 
-    // Initialize with a deterministic vector.
     let mut v: Vec<f64> = (0..n).map(|i| ((i + 1) as f64).sin()).collect();
     let norm = vec_norm(&v);
     if norm < 1e-15 {
@@ -404,17 +393,14 @@ pub fn power_iteration(ata: &[f64], n: usize, num_iters: usize) -> f64 {
     let mut eigenvalue = 1.0;
 
     for _ in 0..num_iters {
-        // w = ata * v
         let w = mat_vec_mul(ata, n, n, &v);
         let w_norm = vec_norm(&w);
         if w_norm < 1e-15 {
             break;
         }
 
-        // Rayleigh quotient: eigenvalue = v^T * w
         eigenvalue = v.iter().zip(w.iter()).map(|(&vi, &wi)| vi * wi).sum();
 
-        // Normalize
         for (vi, &wi) in v.iter_mut().zip(w.iter()) {
             *vi = wi / w_norm;
         }
@@ -562,18 +548,16 @@ impl SparseRecovery {
         let m = self.m;
         let n = self.n;
 
-        // Compute Lipschitz constant L = largest eigenvalue of A^T * A
+        // L = spectral radius of A^T * A (Lipschitz constant for the gradient)
         let ata = compute_ata(a, m, n);
         let lipschitz = power_iteration(&ata, n, 50);
 
-        // Initialize
         let mut x_prev = vec![0.0; n];
         let mut x_curr = vec![0.0; n];
         let mut y = vec![0.0; n];
         let mut t_curr = 1.0_f64;
 
         for _ in 0..self.max_iter {
-            // gradient = A^T * (A * y - observation)
             let ay = mat_vec_mul(a, m, n, &y);
             let residual: Vec<f64> = ay
                 .iter()
@@ -582,14 +566,12 @@ impl SparseRecovery {
                 .collect();
             let gradient = mat_t_vec_mul(a, m, n, &residual);
 
-            // z = y - (1/L) * gradient, then soft-threshold
             let threshold = self.lambda / lipschitz;
             for j in 0..n {
                 let z_j = y[j] - gradient[j] / lipschitz;
                 x_curr[j] = soft_threshold(z_j, threshold);
             }
 
-            // Check convergence
             let diff = vec_sub(&x_curr, &x_prev);
             let diff_norm = vec_norm(&diff);
             let x_norm = vec_norm(&x_curr).max(1e-10);
@@ -597,7 +579,6 @@ impl SparseRecovery {
                 break;
             }
 
-            // Momentum update
             let t_next = (1.0 + (1.0 + 4.0 * t_curr * t_curr).sqrt()) / 2.0;
             let momentum = (t_curr - 1.0) / t_next;
 

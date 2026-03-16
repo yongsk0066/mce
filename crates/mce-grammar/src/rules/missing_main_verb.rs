@@ -76,7 +76,6 @@ impl GrammarRule for MissingMainVerbRule {
     fn check(&self, tokens: &[AnnotatedToken]) -> Vec<GrammarError> {
         let mut errors = Vec::new();
 
-        // Accumulate words per sentence.
         let mut sentence_words: Vec<&AnnotatedToken> = Vec::new();
         let mut sentence_start: Option<usize> = None;
         let mut has_analysis = false;
@@ -91,7 +90,6 @@ impl GrammarRule for MissingMainVerbRule {
                 }
                 sentence_words.push(token);
             } else if is_sentence_ending(&token.text) {
-                // End of sentence — check accumulated words.
                 if has_analysis
                     && sentence_words.len() >= MIN_SENTENCE_WORDS
                     && !sentence_words.iter().any(|t| is_verb(t))

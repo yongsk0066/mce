@@ -213,7 +213,6 @@ fn cmd_sentence(text: &str) {
         }
     };
 
-    // Tokenize the input text.
     let chars: Vec<char> = text.chars().collect();
     let text_len = chars.len();
     let mut pos = 0;
@@ -242,11 +241,9 @@ fn cmd_sentence(text: &str) {
         return;
     }
 
-    // Disambiguate if there is ambiguity.
     let disambiguator = ViterbiDisambiguator::with_finnish_defaults();
     let best = disambiguator.disambiguate(&word_analyses);
 
-    // Print results.
     for (i, word_str) in words.iter().enumerate() {
         let analysis_count = word_analyses[i].len();
 
@@ -361,7 +358,6 @@ fn cmd_generate(args: &[String]) {
         process::exit(1);
     }
 
-    // Check if this is a verb generation request.
     if args[0] == "--verb" {
         cmd_generate_verb(&args[1..]);
         return;
@@ -397,7 +393,6 @@ fn cmd_generate(args: &[String]) {
     let generator = MorphGenerator::new();
 
     if show_all {
-        // Generate full paradigm.
         let paradigm = generator.generate_paradigm(baseform);
         println!("Paradigm for: {baseform}");
         println!("{:-<40}", "");
@@ -405,7 +400,6 @@ fn cmd_generate(args: &[String]) {
             println!("  {:<15} {}", case, form);
         }
     } else if let Some(ref cn) = case_name {
-        // Generate a single case form.
         match generator.generate(baseform, &[("SIJAMUOTO", cn)]) {
             Some(form) => println!("{form}"),
             None => {
@@ -420,7 +414,6 @@ fn cmd_generate(args: &[String]) {
             }
         }
     } else {
-        // Default: show full paradigm.
         let paradigm = generator.generate_paradigm(baseform);
         println!("Paradigm for: {baseform}");
         println!("{:-<40}", "");
@@ -748,7 +741,6 @@ fn cmd_eval(args: &[String]) {
 
     let data = load_dictionary();
 
-    // Build pipeline.
     let mut pipeline = if let Some(ref tp) = train_path {
         eprintln!("Loading training data from {} ...", tp.display());
         let train_data = match fs::read_to_string(tp) {
@@ -817,7 +809,6 @@ fn cmd_eval(args: &[String]) {
         }
     }
 
-    // Parse CoNLL-U file.
     eprintln!("Parsing CoNLL-U file: {} ...", conllu_path.display());
     let sentences = match parse_conllu_file(&conllu_path) {
         Ok(s) => s,
@@ -834,7 +825,6 @@ fn cmd_eval(args: &[String]) {
         total_tokens
     );
 
-    // Run evaluation.
     let start = Instant::now();
     let results = pipeline.evaluate(&sentences);
     let elapsed = start.elapsed();
@@ -981,7 +971,6 @@ fn cmd_benchmark(args: &[String]) {
 
     let data = load_dictionary();
 
-    // Initialize all components.
     let analyzer = match FinnishAnalyzer::from_bytes(&data) {
         Ok(a) => a,
         Err(e) => {
@@ -1008,7 +997,6 @@ fn cmd_benchmark(args: &[String]) {
     let mut total_pipeline_ns = 0u128;
 
     for (label, text) in sentences {
-        // Tokenize once to count tokens.
         let chars: Vec<char> = text.chars().collect();
         let text_len = chars.len();
         let (words, _) = tokenize_text(&chars, text_len, &analyzer);
@@ -1081,7 +1069,6 @@ fn cmd_benchmark(args: &[String]) {
         println!();
     }
 
-    // Summary.
     let total_secs = total_pipeline_ns as f64 / 1_000_000_000.0;
     let tokens_per_sec = if total_secs > 0.0 {
         total_tokens as f64 / total_secs
@@ -1133,12 +1120,10 @@ fn tokenize_text(
 
 /// Run a benchmark phase: warmup, then measure average duration per iteration.
 fn bench_phase<F: FnMut()>(warmup: usize, iterations: usize, mut f: F) -> std::time::Duration {
-    // Warmup.
     for _ in 0..warmup {
         f();
     }
 
-    // Measure.
     let start = Instant::now();
     for _ in 0..iterations {
         f();

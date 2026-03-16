@@ -43,7 +43,6 @@ impl FrequencyList {
         for line in content.lines() {
             let line = line.trim();
 
-            // Skip comments and empty lines.
             if line.is_empty() || line.starts_with('#') {
                 continue;
             }

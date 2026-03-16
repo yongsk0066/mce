@@ -64,7 +64,6 @@ impl GrammarRule for ExcessiveExclamationRule {
                 continue;
             }
 
-            // Count consecutive ! and ? characters.
             let mark_count = token.text.chars().filter(|&c| c == '!' || c == '?').count();
 
             // Only flag if ALL characters in the token are ! or ? marks
@@ -73,7 +72,6 @@ impl GrammarRule for ExcessiveExclamationRule {
                 !token.text.is_empty() && token.text.chars().all(|c| c == '!' || c == '?');
 
             if all_marks && mark_count >= MIN_EXCESSIVE_COUNT {
-                // Determine the appropriate single replacement.
                 let has_question = token.text.contains('?');
                 let has_exclamation = token.text.contains('!');
                 let suggestion = if has_question && has_exclamation {

@@ -24,5 +24,15 @@ docs/mor.vfst
 docs/suffix_tagger.bin
 docs/wordlist.txt
 
+# Fuzz build artifacts
+fuzz/target/
+fuzz/Cargo.lock
+
+# Claude Code local state
+.claude/
+
+# Anonymous submission archive (rebuilt by script)
+supplementary-code.zip
+
 # WASM demo build artifacts
 demo/mor.vfst

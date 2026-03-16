@@ -629,7 +629,6 @@ pub(crate) fn parse_baseform(fst_output: &[char], structure: &[char]) -> Option<
                 is_de = false;
             }
 
-            // Apply structure-based capitalization
             while structure_pos < structure_len {
                 let pattern_char = structure[structure_pos];
                 structure_pos += 1;
@@ -1051,7 +1050,6 @@ pub(crate) fn parse_debug_attributes(fst_output: &[char]) -> DebugAttributes {
         i += 1;
     }
 
-    // Handle trailing [Xj] content
     if !xp_buffer.is_empty() {
         word_bases.truncate(base_pos_last);
         word_ids.truncate(id_pos_last);

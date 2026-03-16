@@ -51,7 +51,6 @@ pub fn viterbi(lattice: &Lattice, transition: &TransitionFn) -> Vec<usize> {
 
     let n = lattice.len();
 
-    // Validate: every position must have at least one reading.
     for node in &lattice.nodes {
         if node.readings.is_empty() {
             return Vec::new();

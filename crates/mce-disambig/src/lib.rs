@@ -223,9 +223,8 @@ impl ViterbiDisambiguator {
         sentence: &[Vec<Analysis>],
         words: Option<&[&str]>,
     ) -> Lattice {
-        // Pre-compute suffix tagger emission scores for all positions.
-        // This is done once per sentence, outside the per-reading loop.
-        // Uses extended context (prev-2 and next-2 words) when available.
+        // Pre-compute suffix tagger emission scores for all positions at once
+        // to avoid redundant context lookups in the per-reading loop.
         let suffix_emissions: Option<Vec<Vec<f64>>> = match (&self.suffix_tagger, words) {
             (Some(tagger), Some(ws)) => {
                 let n = ws.len();
@@ -248,7 +247,6 @@ impl ViterbiDisambiguator {
             .iter()
             .enumerate()
             .map(|(pos, analyses)| {
-                // Compute CS scores for all analyses at this position (if configured).
                 let cs_scores = self
                     .cs_scorer
                     .as_ref()
@@ -263,19 +261,16 @@ impl ViterbiDisambiguator {
                             .and_then(|w| w.parse::<f64>().ok())
                             .unwrap_or(0.0);
 
-                        // Apply emission scorer adjustments if available.
                         if let (Some(scorer), Some(ws)) = (&self.emission_scorer, words) {
                             if pos < ws.len() {
                                 score += scorer.score(ws[pos], a);
                             }
                         }
 
-                        // Apply CS scorer adjustments if available.
                         if let Some(ref cs) = cs_scores {
                             score += cs[idx];
                         }
 
-                        // Apply suffix tagger emission scores if available.
                         if let Some(ref emissions) = suffix_emissions {
                             if pos < emissions.len() {
                                 if let Some(ref tagger) = self.suffix_tagger {
@@ -352,12 +347,10 @@ impl Disambiguator for ViterbiDisambiguator {
             return Vec::new();
         }
 
-        // Check for positions with no candidates.
         if sentence.iter().any(|readings| readings.is_empty()) {
             return Vec::new();
         }
 
-        // Fast path: if every position has exactly one reading, no disambiguation needed.
         if sentence.iter().all(|readings| readings.len() == 1) {
             return sentence.iter().map(|r| r[0].clone()).collect();
         }

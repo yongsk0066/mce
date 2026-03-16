@@ -49,14 +49,14 @@ pub const SPLIT_VOWELS: &[[char; 2]] = &[
     ['\u{00F6}', 'e'],
 ];
 
-/// Check if a character is a Finnish vowel (case-insensitive).
+/// Finnish vowel test (case-insensitive).
 ///
-/// Delegates to [`mce_core::character::is_finnish_vowel`] after lowercasing.
+/// Delegates to [`mce_core::character::is_finnish_vowel`].
 pub fn is_vowel(c: char) -> bool {
     mce_core::character::is_finnish_vowel(mce_core::character::simple_lower(c))
 }
 
-/// Check if a character is a Finnish consonant (case-insensitive).
+/// Finnish consonant test (case-insensitive).
 pub fn is_consonant(c: char) -> bool {
     let lower = mce_core::character::simple_lower(c);
     CONSONANTS.contains(&lower)

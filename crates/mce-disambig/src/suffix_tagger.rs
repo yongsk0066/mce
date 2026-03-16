@@ -524,7 +524,6 @@ impl SuffixTagger {
     /// Returns `Err` if the data is truncated, has invalid magic bytes,
     /// or uses an unsupported format version.
     pub fn from_bytes(data: &[u8]) -> Result<Self, SuffixTaggerError> {
-        // ── Header (16 bytes) ──
         if data.len() < 16 {
             return Err(SuffixTaggerError::TruncatedData {
                 expected: 16,
@@ -546,7 +545,6 @@ impl SuffixTagger {
         let n_classes = u32::from_le_bytes(data[12..16].try_into().unwrap());
         let mut cursor = 16;
 
-        // ── Class names ──
         let mut classes = Vec::with_capacity(n_classes as usize);
         for _ in 0..n_classes {
             let (name, new_cursor) = read_length_prefixed_string(data, cursor)?;
@@ -554,7 +552,6 @@ impl SuffixTagger {
             cursor = new_cursor;
         }
 
-        // ── Feature vocabulary ──
         let mut feature_vocab = HashMap::with_capacity(n_features as usize);
         for _ in 0..n_features {
             let (name, new_cursor) = read_length_prefixed_string(data, cursor)?;
@@ -569,7 +566,6 @@ impl SuffixTagger {
             cursor = new_cursor + 4;
         }
 
-        // ── Intercepts ──
         let intercept_bytes = n_classes as usize * 4;
         if cursor + intercept_bytes > data.len() {
             return Err(SuffixTaggerError::TruncatedData {
@@ -585,7 +581,6 @@ impl SuffixTagger {
         }
         cursor += intercept_bytes;
 
-        // ── Scale ──
         if cursor + 4 > data.len() {
             return Err(SuffixTaggerError::TruncatedData {
                 expected: cursor + 4,
@@ -595,7 +590,6 @@ impl SuffixTagger {
         let scale = f32::from_le_bytes(data[cursor..cursor + 4].try_into().unwrap());
         cursor += 4;
 
-        // ── Weight matrix ──
         let weight_count = n_classes as usize * n_features as usize;
         if cursor + weight_count > data.len() {
             return Err(SuffixTaggerError::TruncatedData {
@@ -719,12 +713,11 @@ impl SuffixTagger {
 
         let mut scores = vec![0.0f64; nc];
 
-        // Add intercepts.
         for (c, intercept) in self.intercepts.iter().enumerate() {
             scores[c] = *intercept as f64;
         }
 
-        // Sparse dot product: only iterate over active (present) features.
+        // Sparse dot product: only active features contribute.
         for feat_name in features {
             if let Some(&idx) = self.feature_vocab.get(feat_name) {
                 let idx = idx as usize;
@@ -737,13 +730,11 @@ impl SuffixTagger {
             }
         }
 
-        // Log-softmax.
         log_softmax_in_place(&mut scores);
         scores
     }
 
-    /// Accumulate the weight for a feature (looked up by name in a reusable buffer)
-    /// into the score array. The buffer is cleared after lookup.
+    /// Accumulate the weight for a single feature into the score array.
     #[inline]
     fn accumulate_feature(&self, buf: &str, scores: &mut [f64], nf: usize, scale: f64) {
         if let Some(&idx) = self.feature_vocab.get(buf) {
@@ -781,12 +772,10 @@ impl SuffixTagger {
 
         let mut scores = vec![0.0f64; nc];
 
-        // Add intercepts.
         for (c, intercept) in self.intercepts.iter().enumerate() {
             scores[c] = *intercept as f64;
         }
 
-        // Reusable buffer for feature names -- avoids heap allocation per feature.
         let mut buf = String::with_capacity(64);
 
         let lower = word.to_lowercase();
@@ -1085,7 +1074,6 @@ impl SuffixTagger {
             self.accumulate_feature(&buf, &mut scores, nf, scale);
         }
 
-        // Log-softmax.
         log_softmax_in_place(&mut scores);
         scores
     }
@@ -1146,10 +1134,8 @@ fn log_softmax_in_place(scores: &mut [f64]) {
         return;
     }
 
-    // Find max for numerical stability.
     let max_score = scores.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
 
-    // Compute log-sum-exp.
     let log_sum_exp: f64 = scores
         .iter()
         .map(|&s| (s - max_score).exp())
@@ -1157,7 +1143,6 @@ fn log_softmax_in_place(scores: &mut [f64]) {
         .ln()
         + max_score;
 
-    // Subtract to get log-softmax.
     for s in scores.iter_mut() {
         *s -= log_sum_exp;
     }
@@ -1202,20 +1187,18 @@ fn read_length_prefixed_string(
 pub fn serialize_model(tagger: &SuffixTagger) -> Vec<u8> {
     let mut buf = Vec::new();
 
-    // Header.
     buf.extend_from_slice(MODEL_MAGIC);
     buf.extend_from_slice(&MODEL_VERSION.to_le_bytes());
     buf.extend_from_slice(&tagger.n_features.to_le_bytes());
     buf.extend_from_slice(&tagger.n_classes.to_le_bytes());
 
-    // Class names.
     for class in &tagger.classes {
         let bytes = class.as_bytes();
         buf.extend_from_slice(&(bytes.len() as u16).to_le_bytes());
         buf.extend_from_slice(bytes);
     }
 
-    // Feature vocabulary: sort by index to ensure deterministic output.
+    // Sort by index for deterministic output.
     let mut feat_entries: Vec<(&String, &u32)> = tagger.feature_vocab.iter().collect();
     feat_entries.sort_by_key(|(_, idx)| **idx);
     for (name, idx) in feat_entries {
@@ -1225,15 +1208,12 @@ pub fn serialize_model(tagger: &SuffixTagger) -> Vec<u8> {
         buf.extend_from_slice(&idx.to_le_bytes());
     }
 
-    // Intercepts.
     for &intercept in &tagger.intercepts {
         buf.extend_from_slice(&intercept.to_le_bytes());
     }
 
-    // Scale.
     buf.extend_from_slice(&tagger.scale.to_le_bytes());
 
-    // Weights.
     for &w in &tagger.weights {
         buf.push(w as u8);
     }

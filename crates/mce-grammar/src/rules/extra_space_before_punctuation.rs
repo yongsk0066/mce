@@ -128,7 +128,6 @@ impl GrammarRule for ExtraSpaceBeforePunctuationRule {
                 continue;
             }
 
-            // The remaining text starts with a no-space punctuation character.
             if starts_with_no_space_punct(trimmed) {
                 let punct_char = trimmed.chars().next().unwrap();
                 errors.push(GrammarError::with_suggestions(

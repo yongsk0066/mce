@@ -148,14 +148,10 @@ impl FinnishHyphenator {
             return Vec::new();
         }
 
-        // Convert syllable boundaries to char offsets.
         let mut points = Vec::new();
         let mut offset = 0;
         for (i, syl) in syllables.iter().enumerate() {
             if i > 0 {
-                // Check minimum fragment constraint:
-                // - At least `min_fragment` chars before the break
-                // - At least `min_fragment` chars after the break
                 let chars_before = offset;
                 let chars_after = len - offset;
                 if chars_before >= self.min_fragment && chars_after >= self.min_fragment {
@@ -200,7 +196,6 @@ impl FinnishHyphenator {
         let lower: Vec<char> = chars.iter().map(|&c| simple_lower(c)).collect();
         let boundaries = syllabify_chars(&lower);
 
-        // Map boundaries back to the original (possibly mixed-case) chars.
         let mut result = Vec::with_capacity(boundaries.len());
         let mut offset = 0;
         for syl in &boundaries {
@@ -216,12 +211,12 @@ impl FinnishHyphenator {
 // Core syllabification
 // ---------------------------------------------------------------------------
 
-/// Check whether a vowel pair (both lowercase) forms a Finnish diphthong.
+/// True if the vowel pair (both lowercase) forms a Finnish diphthong.
 fn is_diphthong(a: char, b: char) -> bool {
     DIPHTHONGS.contains(&[a, b])
 }
 
-/// Check whether a sequence of lowercase consonants forms a valid foreign onset cluster.
+/// True if the lowercase consonant sequence forms a valid foreign onset cluster.
 #[cfg(test)]
 fn is_foreign_onset(chars: &[char]) -> bool {
     FOREIGN_ONSETS.iter().any(|onset| **onset == *chars)
@@ -245,42 +240,33 @@ fn syllabify_chars(word: &[char]) -> Vec<&[char]> {
         return Vec::new();
     }
 
-    // Classify each char as vowel (true) or consonant (false).
     let is_v: Vec<bool> = word.iter().map(|&c| is_vowel(c)).collect();
-
-    // Identify vowel nuclei.
     let nuclei = find_nuclei(word, &is_v);
     if nuclei.is_empty() {
         // No vowels at all — return the whole thing as one "syllable".
         return vec![word];
     }
 
-    // Compute syllable break points between consecutive nuclei.
     let mut breaks: Vec<usize> = Vec::new();
 
     for pair in nuclei.windows(2) {
         let (_, n1_end) = pair[0]; // end of first nucleus (exclusive)
         let (n2_start, _) = pair[1]; // start of second nucleus
 
-        // The consonant cluster is word[n1_end..n2_start].
         let cluster_len = n2_start - n1_end;
 
         if cluster_len == 0 {
-            // Two adjacent nuclei (hiatus): break between them.
+            // Hiatus: break between adjacent nuclei.
             breaks.push(n2_start);
         } else if cluster_len == 1 {
-            // Single consonant between nuclei: it becomes the onset of the next syllable.
+            // Single consonant becomes onset of next syllable.
             breaks.push(n1_end);
         } else {
-            // Multiple consonants. In native Finnish, only one consonant
-            // goes to the onset of the next syllable.
-            // Foreign onset clusters (pr, tr, str, ...) are only valid at
-            // the absolute start of a word, not between syllables.
+            // Native Finnish rule: single-consonant onset.
             breaks.push(n2_start - 1);
         }
     }
 
-    // Build syllable slices from break points.
     let mut syllables = Vec::new();
     let mut start = 0;
     for &bp in &breaks {
@@ -293,7 +279,6 @@ fn syllabify_chars(word: &[char]) -> Vec<&[char]> {
         syllables.push(&word[start..len]);
     }
 
-    // Handle edge case: if we somehow produced empty syllables, merge them.
     syllables.retain(|s| !s.is_empty());
 
     syllables
@@ -316,36 +301,31 @@ fn find_nuclei(word: &[char], is_v: &[bool]) -> Vec<(usize, usize)> {
             continue;
         }
 
-        // Start of a vowel sequence.
         let start = i;
         i += 1;
 
-        // Try to extend: long vowel or diphthong.
         if i < len && is_v[i] {
             let a = word[start];
             let b = word[i];
 
             if a == b {
-                // Long vowel: consume both.
+                // Long vowel.
                 i += 1;
                 nuclei.push((start, i));
                 continue;
             }
 
             if is_diphthong(a, b) {
-                // Diphthong: consume both.
                 i += 1;
                 nuclei.push((start, i));
                 continue;
             }
 
-            // Hiatus: first vowel is its own nucleus.
+            // Hiatus: first vowel alone; second starts a new nucleus.
             nuclei.push((start, start + 1));
-            // Don't advance i — the second vowel starts a new nucleus.
             continue;
         }
 
-        // Single vowel nucleus.
         nuclei.push((start, i));
     }
 

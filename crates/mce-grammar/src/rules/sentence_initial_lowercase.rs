@@ -79,7 +79,6 @@ impl GrammarRule for SentenceInitialLowercaseRule {
 
         for token in tokens {
             if !token.is_word {
-                // Reset on sentence-ending punctuation.
                 if token.text.ends_with('.')
                     || token.text.ends_with('!')
                     || token.text.ends_with('?')
@@ -87,7 +86,6 @@ impl GrammarRule for SentenceInitialLowercaseRule {
                     after_colon = false;
                     words_after_colon = 0;
                 }
-                // Detect colon/semicolon.
                 if token.text.contains(':') || token.text.contains(';') {
                     after_colon = true;
                     words_after_colon = 0;
@@ -98,12 +96,7 @@ impl GrammarRule for SentenceInitialLowercaseRule {
             if after_colon {
                 words_after_colon += 1;
 
-                // Only flag the first word after colon, and only if it starts lowercase.
                 if words_after_colon == 1 && starts_lowercase(&token.text) {
-                    // We'll tentatively record the position but only report if
-                    // the clause is long enough (we peek ahead by counting words
-                    // until next punctuation). For simplicity, we flag immediately
-                    // since we're being conservative.
                     let suggestion = capitalize_first(&token.text);
                     errors.push(GrammarError::with_suggestions(
                         token.start,

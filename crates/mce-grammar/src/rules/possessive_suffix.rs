@@ -118,8 +118,6 @@ impl GrammarRule for PossessiveSuffixRule {
                 continue;
             }
 
-            // The possessive pronoun is redundant when the noun already
-            // has a possessive suffix.
             errors.push(GrammarError::with_suggestions(
                 pronoun.start,
                 noun.end,

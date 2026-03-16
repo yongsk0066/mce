@@ -55,12 +55,10 @@ impl GrammarRule for DoubleSpaceRule {
         let mut errors = Vec::new();
 
         for token in tokens {
-            // Only look at non-word tokens (whitespace/punctuation).
             if token.is_word {
                 continue;
             }
 
-            // Count consecutive spaces in this token.
             let space_count = token.text.chars().filter(|&c| c == ' ').count();
             let all_spaces = token.text.chars().all(|c| c == ' ');
 

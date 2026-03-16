@@ -108,7 +108,6 @@ impl BitVec {
         let mut remaining = i - self.rank_index[block] as usize;
         let mut word = self.data[block];
 
-        // Find the position within the word
         loop {
             if word == 0 {
                 return None;

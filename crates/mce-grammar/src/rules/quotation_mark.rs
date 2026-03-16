@@ -127,7 +127,6 @@ impl GrammarRule for QuotationMarkRule {
             }
         }
 
-        // Any remaining unmatched opening quotes are errors.
         for unmatched in &stack {
             let label = match unmatched.kind {
                 QuoteKind::Straight => "\"",

@@ -165,18 +165,13 @@ impl<T: Clone> Zipper<T> {
     where
         F: Fn(&Zipper<T>) -> U,
     {
-        // Compute the result for the current focus position.
         let focus_result = f(self);
 
-        // Compute results for all positions to the left of focus.
-        // The Lefts iterator yields zippers from nearest-to-focus outward,
-        // but `self.left` stores elements from farthest to nearest.
-        // We collect in iterator order (nearest first) then reverse to
-        // match the storage convention of `left`.
+        // Collect left results nearest-to-focus outward, then reverse
+        // to match `self.left` storage convention (farthest first).
         let mut left_results: Vec<U> = Lefts::new(self).map(|z| f(&z)).collect();
         left_results.reverse();
 
-        // Compute results for all positions to the right of focus.
         let right_results: Vec<U> = Rights::new(self).map(|z| f(&z)).collect();
 
         Zipper {

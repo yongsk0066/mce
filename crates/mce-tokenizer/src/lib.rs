@@ -58,18 +58,15 @@ fn is_url_unknown_char(c: char) -> bool {
 fn find_url_or_email(text: &[char]) -> usize {
     let textlen = text.len();
 
-    // Try HTTP/HTTPS URL first.
-    // 12 is a rough lower bound for a reasonable real-world HTTP URL.
+    // Min length 12: shortest real HTTP URL is ~12 chars (e.g. http://a.b.c).
     let is_http = textlen >= 12 && starts_with_chars(text, &['h', 't', 't', 'p', ':', '/', '/']);
     let is_https =
         textlen >= 12 && starts_with_chars(text, &['h', 't', 't', 'p', 's', ':', '/', '/']);
 
     if !is_http && !is_https {
-        // Try finding an email address instead.
         return find_email(text);
     }
 
-    // URL mode: scan from after the protocol prefix.
     let start = if is_https { 8 } else { 7 };
     for i in start..textlen {
         match get_char_type(text[i]) {
@@ -172,7 +169,6 @@ fn starts_with_chars(text: &[char], prefix: &[char]) -> bool {
 fn word_length(text: &[char], ignore_dot: bool) -> usize {
     let textlen = text.len();
 
-    // Check for URL/email first.
     let url_length = find_url_or_email(text);
     if url_length != 0 {
         return url_length;

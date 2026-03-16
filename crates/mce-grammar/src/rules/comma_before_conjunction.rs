@@ -70,15 +70,12 @@ impl GrammarRule for CommaBeforeConjunctionRule {
     fn check(&self, tokens: &[AnnotatedToken]) -> Vec<GrammarError> {
         let mut errors = Vec::new();
 
-        // We need to track the previous word and whether a comma appeared
-        // between the previous word and the current word.
         let mut prev_word: Option<&AnnotatedToken> = None;
         let mut comma_seen_since_last_word = false;
         let mut sentence_start = true;
 
         for token in tokens {
             if !token.is_word {
-                // Track commas and sentence-ending punctuation.
                 if token.text.contains(',') {
                     comma_seen_since_last_word = true;
                 }
@@ -101,7 +98,6 @@ impl GrammarRule for CommaBeforeConjunctionRule {
                 continue;
             }
 
-            // Check if this word is a subordinating conjunction.
             if let Some(prev) = prev_word {
                 if is_subordinating_conjunction(&token.text) && !comma_seen_since_last_word {
                     errors.push(GrammarError::with_suggestions(

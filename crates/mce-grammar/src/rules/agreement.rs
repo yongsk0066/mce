@@ -113,7 +113,6 @@ impl GrammarRule for AgreementRule {
     fn check(&self, tokens: &[AnnotatedToken]) -> Vec<GrammarError> {
         let mut errors = Vec::new();
 
-        // Filter to word tokens only.
         let word_tokens: Vec<&AnnotatedToken> = tokens.iter().filter(|t| t.is_word).collect();
 
         for window in word_tokens.windows(2) {

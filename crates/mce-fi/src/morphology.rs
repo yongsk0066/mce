@@ -62,9 +62,8 @@ impl FinnishAnalyzer {
         let mut analyses = Vec::new();
         let mut config = self.config.borrow_mut();
 
-        if !self.transducer.prepare(&mut config, &word_lower) {
-            // Unknown character; traversal may still partially work
-        }
+        // Unknown characters don't prevent partial traversal.
+        self.transducer.prepare(&mut config, &word_lower);
 
         let mut output_buf = String::new();
         let mut analysis_count = 0;
@@ -180,7 +179,7 @@ fn post_process_attributes(analysis: &mut Analysis) {
     let mood = analysis.get(ATTR_MOOD).map(str::to_string);
     let participle = analysis.get(ATTR_PARTICIPLE).map(str::to_string);
 
-    // 1. Remove NEGATIVE from non-verbs or certain infinitive forms
+    // Remove NEGATIVE from non-verbs or nominal infinitive forms.
     if analysis.contains_key(ATTR_NEGATIVE) {
         let is_non_verb = wclass.as_deref().is_some_and(|c| c != "teonsana");
         let is_nominal_infinitive = mood.as_deref().is_some_and(|m| {
@@ -191,7 +190,7 @@ fn post_process_attributes(analysis: &mut Analysis) {
         }
     }
 
-    // 2. Past passive participle forces class to "laatusana"
+    // Past passive participle forces class to "laatusana".
     if participle.as_deref() == Some("past_passive") && wclass.as_deref() != Some("laatusana") {
         analysis.remove(ATTR_CLASS);
         analysis.set(ATTR_CLASS, "laatusana");
@@ -199,12 +198,12 @@ fn post_process_attributes(analysis: &mut Analysis) {
 
     let wclass = analysis.get(ATTR_CLASS).map(str::to_string);
 
-    // 3. Remove NUMBER for "kerrontosti" case
+    // "kerrontosti" (manner adverb) has no number distinction.
     if analysis.contains_key(ATTR_NUMBER) && sijamuoto.as_deref() == Some("kerrontosti") {
         analysis.remove(ATTR_NUMBER);
     }
 
-    // 4. Default COMPARISON for adjectives
+    // Default COMPARISON for adjectives.
     if !analysis.contains_key(ATTR_COMPARISON) {
         if matches!(
             wclass.as_deref(),
@@ -213,7 +212,7 @@ fn post_process_attributes(analysis: &mut Analysis) {
             analysis.set(ATTR_COMPARISON, "positive");
         }
     } else if wclass.as_deref() == Some("nimisana") {
-        // 5. Remove COMPARISON from plain nouns
+        // Plain nouns have no comparison.
         analysis.remove(ATTR_COMPARISON);
     }
 }
@@ -279,7 +278,6 @@ fn duplicate_org_name(analysis: &Analysis, fst_output: &[char]) -> Option<Analys
     None
 }
 
-// Re-export parse_structure for internal use by analyze_full
 use crate::tag_parser::parse_structure;
 
 #[cfg(test)]

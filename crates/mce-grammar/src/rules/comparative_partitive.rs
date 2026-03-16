@@ -94,7 +94,6 @@ impl GrammarRule for ComparativePartitiveRule {
 
         let word_tokens: Vec<&AnnotatedToken> = tokens.iter().filter(|t| t.is_word).collect();
 
-        // Look for: comparative adjective + partitive noun (without "kuin" between).
         for window in word_tokens.windows(2) {
             let adj = window[0];
             let noun = window[1];
@@ -107,7 +106,6 @@ impl GrammarRule for ComparativePartitiveRule {
                 continue;
             }
 
-            // This pattern (comparative + partitive without kuin) is suspicious.
             errors.push(GrammarError::new(
                 adj.start,
                 noun.end,

@@ -199,7 +199,6 @@ impl BigramModel {
     /// assert!(model.get_weight("nimisana", "teonsana") > model.get_weight("laatusana", "nimisana"));
     /// ```
     pub fn from_counts(transitions: &[((&str, &str), u64)]) -> Self {
-        // Collect all distinct POS tags for vocabulary size.
         let mut tags: std::collections::HashSet<&str> = std::collections::HashSet::new();
         for &((prev, curr), _) in transitions {
             tags.insert(prev);
@@ -207,13 +206,11 @@ impl BigramModel {
         }
         let vocab_size = tags.len().max(1) as f64;
 
-        // Sum counts per prev_class for normalization.
         let mut prev_totals: HashMap<String, u64> = HashMap::new();
         for &((prev, _), count) in transitions {
             *prev_totals.entry(prev.to_string()).or_insert(0) += count;
         }
 
-        // Compute log-probabilities with Laplace smoothing.
         let mut model = Self::new(0.0);
 
         for &((prev, curr), count) in transitions {
@@ -433,17 +430,14 @@ impl EmissionScorer {
     pub fn score(&self, word: &str, analysis: &Analysis) -> f64 {
         let mut adjustment = 0.0;
 
-        // Baseform match: if BASEFORM == surface form, the word is likely
-        // in its base (uninflected) form, which is a common reading.
         if let Some(baseform) = analysis.get(ATTR_BASEFORM) {
             if baseform == word {
                 adjustment += self.baseform_match_bonus;
             }
         }
 
-        // Structure length penalty: shorter STRUCTURE means simpler
-        // morphological decomposition. STRUCTURE encodes the morpheme
-        // pattern (e.g., "=pp" for a simple word, "=pp=pp" for a compound).
+        // STRUCTURE encodes morpheme boundaries (e.g. "=pp" simple, "=pp=pp" compound).
+        // Shorter = simpler analysis = generally preferred.
         if let Some(structure) = analysis.get(ATTR_STRUCTURE) {
             let len = structure.len();
             if len > 1 {
@@ -451,8 +445,6 @@ impl EmissionScorer {
             }
         }
 
-        // Word-level POS prior: if we have corpus-derived P(UPOS|word),
-        // boost analyses whose CLASS maps to a high-probability UPOS.
         if !self.word_pos_priors.is_empty() {
             let lower = word
                 .chars()

@@ -197,7 +197,6 @@ mod tests {
         cfg.input_length = 8;
         cfg.state_index_stack[0] = 42;
         cfg.current_transition_stack[0] = 99;
-        // Set some flag values.
         cfg.current_flags_mut()[0] = 10;
         cfg.current_flags_mut()[1] = 20;
 

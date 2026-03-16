@@ -122,7 +122,6 @@ impl FinnishGrammarChecker {
 
             let token_text: String = chars[char_pos..char_pos + token_len].iter().collect();
 
-            // Compute byte offset from char position.
             let byte_start = char_offset_to_byte(text, &chars, char_pos);
             let byte_end = char_offset_to_byte(text, &chars, char_pos + token_len);
 
@@ -148,7 +147,6 @@ impl FinnishGrammarChecker {
             None => return,
         };
 
-        // Collect word tokens' indices and their analyses.
         let word_indices: Vec<usize> = tokens
             .iter()
             .enumerate()
@@ -160,7 +158,6 @@ impl FinnishGrammarChecker {
             return;
         }
 
-        // Analyze each word.
         let word_analyses: Vec<Vec<mce_core::analysis::Analysis>> = word_indices
             .iter()
             .map(|&i| {
@@ -170,7 +167,6 @@ impl FinnishGrammarChecker {
             })
             .collect();
 
-        // Disambiguate.
         let word_refs: Vec<&str> = word_indices
             .iter()
             .map(|&i| tokens[i].text.as_str())
@@ -179,7 +175,6 @@ impl FinnishGrammarChecker {
             .disambiguator
             .disambiguate_with_words(&word_refs, &word_analyses);
 
-        // Attach disambiguated analysis to each word token.
         for (slot, &token_idx) in word_indices.iter().enumerate() {
             if slot < disambiguated.len() {
                 tokens[token_idx].analysis = Some(disambiguated[slot].clone());
@@ -194,19 +189,14 @@ impl GrammarChecker for FinnishGrammarChecker {
             return Vec::new();
         }
 
-        // Step 1: Tokenize with byte offsets.
         let mut tokens = Self::tokenize_with_offsets(text);
-
-        // Step 2-3: Analyze and disambiguate.
         self.analyze_tokens(&mut tokens);
 
-        // Step 4: Run all rules.
         let mut errors = Vec::new();
         for rule in &self.rules {
             errors.extend(rule.check(&tokens));
         }
 
-        // Sort errors by position for deterministic output.
         errors.sort_by_key(|e| (e.start, e.end));
         errors
     }
@@ -215,7 +205,6 @@ impl GrammarChecker for FinnishGrammarChecker {
 /// Build the default set of Finnish grammar rules.
 fn default_rules() -> Vec<Box<dyn GrammarRule>> {
     vec![
-        // --- Original 10 rules ---
         Box::new(RepeatedWordRule::new()),
         Box::new(CapitalizationRule::new()),
         Box::new(AgreementRule::new()),
@@ -226,7 +215,6 @@ fn default_rules() -> Vec<Box<dyn GrammarRule>> {
         Box::new(NumberAgreementRule::new()),
         Box::new(NegationAgreementRule::new()),
         Box::new(DoubleNegationRule::new()),
-        // --- New 11 rules ---
         Box::new(MissingSpaceAfterPunctuationRule::new()),
         Box::new(ExtraSpaceBeforePunctuationRule::new()),
         Box::new(PartitiveObjectRule::new()),
@@ -245,7 +233,6 @@ fn default_rules() -> Vec<Box<dyn GrammarRule>> {
 ///
 /// This handles multi-byte UTF-8 characters correctly.
 fn char_offset_to_byte(text: &str, chars: &[char], char_offset: usize) -> usize {
-    // Sum the byte lengths of all characters before char_offset.
     chars[..char_offset]
         .iter()
         .map(|c| c.len_utf8())

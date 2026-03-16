@@ -67,7 +67,6 @@ impl EvalResults {
             self.unknown_count += 1;
         }
 
-        // Lemma accuracy (case-insensitive comparison).
         if !result.gold_lemma.is_empty() && !result.pred_lemma.is_empty() {
             let gold_lower: String = result.gold_lemma.to_lowercase();
             let pred_lower: String = result.pred_lemma.to_lowercase();
@@ -91,14 +90,12 @@ impl EvalResults {
                 .or_insert((0, 0, 0));
             entry.0 += 1; // TP
         } else {
-            // FP for the predicted tag (it predicted this tag incorrectly).
             let fp_entry = self
                 .per_pos
                 .entry(result.pred_upos.clone())
                 .or_insert((0, 0, 0));
             fp_entry.1 += 1; // FP
 
-            // FN for the gold tag (it missed this tag).
             let fn_entry = self
                 .per_pos
                 .entry(result.gold_upos.clone())

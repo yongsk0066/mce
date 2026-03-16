@@ -58,12 +58,10 @@ pub struct RuleBenchmark {
 /// Run a closure `iterations` times, collecting per-iteration durations
 /// in nanoseconds. Returns (mean_us, std_us).
 fn measure_stats<F: FnMut()>(iterations: usize, warmup: usize, mut f: F) -> (f64, f64) {
-    // Warmup phase.
     for _ in 0..warmup {
         f();
     }
 
-    // Measurement phase: collect each iteration's duration.
     let mut durations_ns = Vec::with_capacity(iterations);
     for _ in 0..iterations {
         let start = Instant::now();
@@ -72,12 +70,10 @@ fn measure_stats<F: FnMut()>(iterations: usize, warmup: usize, mut f: F) -> (f64
         durations_ns.push(elapsed.as_nanos() as f64);
     }
 
-    // Compute mean in microseconds.
     let sum: f64 = durations_ns.iter().sum();
     let mean_ns = sum / iterations as f64;
     let mean_us = mean_ns / 1_000.0;
 
-    // Compute standard deviation in microseconds.
     let variance: f64 = durations_ns
         .iter()
         .map(|&d| {
@@ -525,14 +521,12 @@ pub fn bench_cg_rules(iterations: usize) -> Vec<RuleBenchmark> {
     ];
 
     for (rule_name, rule) in &rule_type_samples {
-        // Apply the rule directly via Zipper::extend (single rule pass).
         let (mean_us, std_us) = measure_stats(iterations, warmup, || {
             if let Some(z) = Zipper::new(sentence.clone()) {
                 let _ = z.extend(|focused| rule.apply(focused));
             }
         });
 
-        // For output, compute the result once.
         let output = if let Some(z) = Zipper::new(sentence.clone()) {
             let result = z.extend(|focused| rule.apply(focused));
             let counts: Vec<usize> = result.to_vec().iter().map(|rs| rs.len()).collect();
@@ -552,7 +546,7 @@ pub fn bench_cg_rules(iterations: usize) -> Vec<RuleBenchmark> {
     }
 
     // -----------------------------------------------------------------------
-    // 2. Full Finnish CG pipeline (53 rules)
+    // 2. Full Finnish CG pipeline (62 rules)
     // -----------------------------------------------------------------------
     {
         let rules = finnish_disambiguation_rules();
@@ -565,7 +559,7 @@ pub fn bench_cg_rules(iterations: usize) -> Vec<RuleBenchmark> {
         let counts: Vec<usize> = disambiguated.iter().map(|rs| rs.len()).collect();
 
         results.push(RuleBenchmark {
-            rule_name: "cg_full_pipeline (53 rules)".to_string(),
+            rule_name: "cg_full_pipeline (62 rules)".to_string(),
             mean_us,
             std_us,
             iterations,

@@ -15,7 +15,7 @@ COMMIT_SHA=$(git -C "$PROJECT_ROOT" rev-parse --short HEAD 2>/dev/null || echo "
 if [ "$COMMIT_SHA" != "nogit" ] && ! git -C "$PROJECT_ROOT" diff --quiet HEAD 2>/dev/null; then
   echo "WARNING: Working tree has uncommitted changes (commit SHA may not match archive contents)"
 fi
-OUTPUT_ZIP="$PROJECT_ROOT/supplementary-${DATESTAMP}-${COMMIT_SHA}.zip"
+OUTPUT_ZIP="$PROJECT_ROOT/supplementary-code.zip"
 
 # Crates to include (paper-relevant only)
 INCLUDE_CRATES=(
@@ -99,6 +99,7 @@ members = ["crates/*"]
 resolver = "2"
 
 [workspace.package]
+version = "0.0.0"
 edition = "2024"
 rust-version = "1.86"
 license = "Apache-2.0"
@@ -107,6 +108,7 @@ categories = ["text-processing"]
 
 [workspace.dependencies]
 criterion = { version = "0.8", features = ["html_reports"] }
+proptest = "1"
 thiserror = "2"
 bytemuck = { version = "1", features = ["derive"] }
 hashbrown = "0.16"
@@ -176,13 +178,13 @@ crates/
 
 | Metric | Value |
 |--------|-------|
-| UPOS (CG + Suffix Tagger) | 94.58% |
-| UPOS (rule-only) | 82.71% |
-| Lemma | 88.44% |
-| Coverage | 99.64% |
-| Speed | ~85K tokens/sec |
+| UPOS (CG + Suffix Tagger) | 94.66% |
+| UPOS (rule-only) | 83.92% |
+| Lemma | 93.09% |
+| Coverage | 99.35% |
+| Speed | 84,973 tokens/sec |
 
-Evaluated on UD Finnish-TDT v2.14 test set.
+Evaluated on UD Finnish-TDT v2.14 dev set (gold tokenization).
 README_EOF
 
 # Create anonymous data/README.md
@@ -254,6 +256,10 @@ find "$ARCHIVE_DIR/crates" -name "LEARNING.md" -delete 2>/dev/null || true
 find "$ARCHIVE_DIR/crates" -name "CHANGELOG.md" -delete 2>/dev/null || true
 find "$ARCHIVE_DIR/crates" -name "ARCHITECTURE.md" -delete 2>/dev/null || true
 find "$ARCHIVE_DIR/crates" -name "README.md" -delete 2>/dev/null || true
+
+# Remove test files that import excluded crates (mce-grammar)
+rm -f "$ARCHIVE_DIR/crates/mce-fi/tests/full_pipeline_integration.rs"
+rm -f "$ARCHIVE_DIR/crates/mce-fi/tests/npm_consumer_tests.rs"
 
 # Remove dev-dependencies on excluded crates (mce-grammar, mce-wasm, mce-cli)
 # mce-fi has mce-grammar as dev-dependency

@@ -76,8 +76,6 @@ impl GrammarRule for MissingSpaceAfterPunctuationRule {
             let prev = &window[0];
             let curr = &window[1];
 
-            // We need: prev is a non-word ending with punctuation,
-            // curr is a word, and there is no gap between them.
             if prev.is_word || !curr.is_word {
                 continue;
             }
@@ -86,7 +84,6 @@ impl GrammarRule for MissingSpaceAfterPunctuationRule {
                 continue;
             }
 
-            // Check adjacency: the word starts exactly where the punctuation ends.
             if curr.start == prev.end {
                 let punct_char = prev.text.chars().last().unwrap();
                 errors.push(GrammarError::with_suggestions(
