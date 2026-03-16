@@ -12,8 +12,10 @@ use mce_core::analysis::{
     MAX_WORD_CHARS,
 };
 use mce_core::case::CaseType;
+use mce_fst::Transducer;
 use mce_fst::unweighted::UnweightedTransducer;
-use mce_fst::{Transducer, VfstError};
+
+use crate::FiError;
 
 use crate::tag_parser::{
     BUFFER_SIZE, BasicAttributes, MAX_ANALYSIS_COUNT, fix_structure, is_valid_analysis,
@@ -39,7 +41,7 @@ pub struct FinnishAnalyzer {
 
 impl FinnishAnalyzer {
     /// Create a new FinnishAnalyzer from raw VFST binary data (mor.vfst).
-    pub fn from_bytes(data: &[u8]) -> Result<Self, VfstError> {
+    pub fn from_bytes(data: &[u8]) -> Result<Self, FiError> {
         let transducer = UnweightedTransducer::from_bytes(data)?;
         let config = RefCell::new(transducer.new_config(BUFFER_SIZE));
         Ok(Self { transducer, config })

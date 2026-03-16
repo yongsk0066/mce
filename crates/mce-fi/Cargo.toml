@@ -12,6 +12,12 @@ mce-fst.workspace = true
 mce-speller.workspace = true
 mce-disambig.workspace = true
 mce-comonad.workspace = true
+thiserror.workspace = true
 
 [dev-dependencies]
+criterion.workspace = true
 mce-grammar.workspace = true
+
+[[bench]]
+name = "pipeline_bench"
+harness = false

@@ -37,7 +37,7 @@ pub struct EvalPipeline {
 
 impl EvalPipeline {
     /// Create a pipeline from raw VFST dictionary bytes.
-    pub fn from_bytes(data: &[u8]) -> Result<Self, mce_fst::VfstError> {
+    pub fn from_bytes(data: &[u8]) -> Result<Self, mce_fi::FiError> {
         let analyzer = FinnishAnalyzer::from_bytes(data)?;
         let disambiguator = ViterbiDisambiguator::with_finnish_defaults_and_emission();
         let cg_rules = finnish_disambiguation_rules();
@@ -59,7 +59,7 @@ impl EvalPipeline {
     pub fn from_bytes_with_corpus(
         data: &[u8],
         train_conllu: &str,
-    ) -> Result<Self, mce_fst::VfstError> {
+    ) -> Result<Self, mce_fi::FiError> {
         let analyzer = FinnishAnalyzer::from_bytes(data)?;
         let corpus_model = build_model_from_conllu(train_conllu);
 
@@ -90,7 +90,7 @@ impl EvalPipeline {
     pub fn from_bytes_with_corpus_no_emission(
         data: &[u8],
         train_conllu: &str,
-    ) -> Result<Self, mce_fst::VfstError> {
+    ) -> Result<Self, mce_fi::FiError> {
         let analyzer = FinnishAnalyzer::from_bytes(data)?;
         let corpus_model = build_model_from_conllu(train_conllu);
 

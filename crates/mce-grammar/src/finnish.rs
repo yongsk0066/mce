@@ -20,6 +20,8 @@ use mce_disambig::ViterbiDisambiguator;
 use mce_fi::morphology::{Analyzer, FinnishAnalyzer};
 use mce_tokenizer::next_token;
 
+use crate::InitError;
+
 use crate::rules::{
     AgreementRule, CapitalizationRule, CommaBeforeConjunctionRule, CommaInSubordinateRule,
     ComparativePartitiveRule, CompoundSpacingRule, DoubleNegationRule, DoubleSpaceRule,
@@ -58,7 +60,7 @@ impl FinnishGrammarChecker {
     /// # Errors
     ///
     /// Returns an error if the VFST data is malformed.
-    pub fn new(mor_vfst: &[u8]) -> Result<Self, mce_fst::VfstError> {
+    pub fn new(mor_vfst: &[u8]) -> Result<Self, InitError> {
         let analyzer = FinnishAnalyzer::from_bytes(mor_vfst)?;
         Ok(Self {
             analyzer: Some(analyzer),
@@ -85,7 +87,7 @@ impl FinnishGrammarChecker {
     pub fn with_rules(
         mor_vfst: &[u8],
         rules: Vec<Box<dyn GrammarRule>>,
-    ) -> Result<Self, mce_fst::VfstError> {
+    ) -> Result<Self, InitError> {
         let analyzer = FinnishAnalyzer::from_bytes(mor_vfst)?;
         Ok(Self {
             analyzer: Some(analyzer),

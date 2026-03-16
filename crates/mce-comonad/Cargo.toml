@@ -10,4 +10,9 @@ license.workspace = true
 mce-core.workspace = true
 
 [dev-dependencies]
+criterion.workspace = true
 proptest.workspace = true
+
+[[bench]]
+name = "cg_bench"
+harness = false

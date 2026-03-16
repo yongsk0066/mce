@@ -338,4 +338,202 @@ mod tests {
         // "NUM" is the feature, "@" (no value after dot) maps to FLAG_VALUE_ANY.
         assert_eq!(ofv.value, FLAG_VALUE_ANY);
     }
+
+    #[test]
+    fn parse_empty_string_rejected() {
+        let mut parser = FlagDiacriticParser::new();
+        assert!(parser.parse("").is_err());
+    }
+
+    #[test]
+    fn parse_too_short_string_rejected() {
+        let mut parser = FlagDiacriticParser::new();
+        // 4 bytes or fewer is rejected
+        assert!(parser.parse("@P@").is_err());
+        assert!(parser.parse("@P.@").is_err());
+        assert!(parser.parse("ABCD").is_err());
+    }
+
+    #[test]
+    fn parse_unknown_operation_letter_rejected() {
+        let mut parser = FlagDiacriticParser::new();
+        assert!(parser.parse("@Z.FOO.BAR@").is_err());
+        assert!(parser.parse("@A.FOO.BAR@").is_err());
+    }
+
+    #[test]
+    fn parse_disallow_flag() {
+        let mut parser = FlagDiacriticParser::new();
+        let ofv = parser.parse("@D.CASE.NOM@").unwrap();
+        assert_eq!(ofv.op, FlagOp::D);
+    }
+
+    #[test]
+    fn parse_unification_flag() {
+        let mut parser = FlagDiacriticParser::new();
+        let ofv = parser.parse("@U.NUM.PL@").unwrap();
+        assert_eq!(ofv.op, FlagOp::U);
+    }
+
+    #[test]
+    fn parse_require_flag() {
+        let mut parser = FlagDiacriticParser::new();
+        let ofv = parser.parse("@R.CASE.GEN@").unwrap();
+        assert_eq!(ofv.op, FlagOp::R);
+    }
+
+    #[test]
+    fn same_feature_gets_same_index() {
+        let mut parser = FlagDiacriticParser::new();
+        let ofv1 = parser.parse("@P.CASE.NOM@").unwrap();
+        let ofv2 = parser.parse("@R.CASE.GEN@").unwrap();
+        assert_eq!(ofv1.feature, ofv2.feature); // same feature "CASE"
+    }
+
+    #[test]
+    fn same_value_gets_same_index() {
+        let mut parser = FlagDiacriticParser::new();
+        let ofv1 = parser.parse("@P.CASE.NOM@").unwrap();
+        let ofv2 = parser.parse("@P.NUM.NOM@").unwrap();
+        assert_eq!(ofv1.value, ofv2.value); // same value "NOM"
+    }
+
+    #[test]
+    fn different_features_get_different_indices() {
+        let mut parser = FlagDiacriticParser::new();
+        let ofv1 = parser.parse("@P.CASE.NOM@").unwrap();
+        let ofv2 = parser.parse("@P.NUM.SG@").unwrap();
+        assert_ne!(ofv1.feature, ofv2.feature);
+    }
+
+    #[test]
+    fn feature_count_increments() {
+        let mut parser = FlagDiacriticParser::new();
+        assert_eq!(parser.feature_count(), 0);
+        parser.parse("@P.CASE.NOM@").unwrap();
+        assert_eq!(parser.feature_count(), 1);
+        parser.parse("@P.NUM.SG@").unwrap();
+        assert_eq!(parser.feature_count(), 2);
+        // Same feature doesn't increment
+        parser.parse("@R.CASE.GEN@").unwrap();
+        assert_eq!(parser.feature_count(), 2);
+    }
+
+    #[test]
+    fn flag_without_dot_value_uses_any() {
+        // "@C.NUM@" — no dot in inner part means value = "@" = FLAG_VALUE_ANY
+        let mut parser = FlagDiacriticParser::new();
+        let ofv = parser.parse("@C.NUM@").unwrap();
+        assert_eq!(ofv.value, FLAG_VALUE_ANY);
+    }
+
+    #[test]
+    fn positive_set_overwrites_any_current_value() {
+        let ofv = OpFeatureValue {
+            op: FlagOp::P,
+            feature: 0,
+            value: 10,
+        };
+        // P always accepts and updates, regardless of current value
+        assert_eq!(
+            check_flag(&ofv, 0),
+            FlagCheckResult::AcceptAndUpdate {
+                feature: 0,
+                value: 10,
+            }
+        );
+        assert_eq!(
+            check_flag(&ofv, 999),
+            FlagCheckResult::AcceptAndUpdate {
+                feature: 0,
+                value: 10,
+            }
+        );
+    }
+
+    #[test]
+    fn clear_ignores_its_own_value_field() {
+        let ofv1 = OpFeatureValue {
+            op: FlagOp::C,
+            feature: 0,
+            value: 42,
+        };
+        let ofv2 = OpFeatureValue {
+            op: FlagOp::C,
+            feature: 0,
+            value: 99,
+        };
+        // Both should reset to NEUTRAL regardless of their value field
+        assert_eq!(
+            check_flag(&ofv1, 5),
+            FlagCheckResult::AcceptAndUpdate {
+                feature: 0,
+                value: FLAG_VALUE_NEUTRAL,
+            }
+        );
+        assert_eq!(
+            check_flag(&ofv2, 5),
+            FlagCheckResult::AcceptAndUpdate {
+                feature: 0,
+                value: FLAG_VALUE_NEUTRAL,
+            }
+        );
+    }
+
+    #[test]
+    fn require_any_accepts_non_neutral() {
+        let ofv = OpFeatureValue {
+            op: FlagOp::R,
+            feature: 0,
+            value: FLAG_VALUE_ANY,
+        };
+        assert_eq!(
+            check_flag(&ofv, 5),
+            FlagCheckResult::AcceptNoUpdate { feature: 0 }
+        );
+        assert_eq!(
+            check_flag(&ofv, 100),
+            FlagCheckResult::AcceptNoUpdate { feature: 0 }
+        );
+    }
+
+    #[test]
+    fn disallow_specific_value_accepts_different() {
+        let ofv = OpFeatureValue {
+            op: FlagOp::D,
+            feature: 0,
+            value: 5,
+        };
+        // Current value != disallowed value -> accept
+        assert_eq!(
+            check_flag(&ofv, 3),
+            FlagCheckResult::AcceptNoUpdate { feature: 0 }
+        );
+        // Neutral is also accepted
+        assert_eq!(
+            check_flag(&ofv, FLAG_VALUE_NEUTRAL),
+            FlagCheckResult::AcceptNoUpdate { feature: 0 }
+        );
+    }
+
+    #[test]
+    fn disallow_any_accepts_neutral() {
+        let ofv = OpFeatureValue {
+            op: FlagOp::D,
+            feature: 0,
+            value: FLAG_VALUE_ANY,
+        };
+        assert_eq!(
+            check_flag(&ofv, FLAG_VALUE_NEUTRAL),
+            FlagCheckResult::AcceptNoUpdate { feature: 0 }
+        );
+    }
+
+    #[test]
+    fn default_op_feature_value() {
+        let ofv = OpFeatureValue::default();
+        assert_eq!(ofv.op, FlagOp::P);
+        assert_eq!(ofv.feature, 0);
+        assert_eq!(ofv.value, FLAG_VALUE_NEUTRAL);
+    }
 }

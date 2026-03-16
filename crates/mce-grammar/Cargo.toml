@@ -8,7 +8,7 @@ license.workspace = true
 
 [dependencies]
 mce-core.workspace = true
-mce-fst.workspace = true
 mce-fi.workspace = true
 mce-tokenizer.workspace = true
 mce-disambig.workspace = true
+thiserror.workspace = true

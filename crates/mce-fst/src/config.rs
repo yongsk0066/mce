@@ -212,4 +212,130 @@ mod tests {
         assert_eq!(cfg.current_flags()[0], 0);
         assert_eq!(cfg.current_flags()[1], 0);
     }
+
+    #[test]
+    fn unweighted_config_initial_state() {
+        let cfg = UnweightedConfig::new(3, 50);
+        assert_eq!(cfg.buffer_size, 50);
+        assert_eq!(cfg.stack_depth, 0);
+        assert_eq!(cfg.flag_depth, 0);
+        assert_eq!(cfg.input_depth, 0);
+        assert_eq!(cfg.input_length, 0);
+        assert_eq!(cfg.current_flag_values.len(), 3);
+        assert_eq!(cfg.flag_undo_value.len(), 50);
+        assert_eq!(cfg.flag_undo_feature.len(), 50);
+        assert_eq!(cfg.state_index_stack.len(), 50);
+        assert_eq!(cfg.current_transition_stack.len(), 50);
+        assert_eq!(cfg.input_symbol_stack.len(), 50);
+        assert_eq!(cfg.output_symbol_stack.len(), 50);
+    }
+
+    #[test]
+    fn weighted_config_initial_state() {
+        let cfg = WeightedConfig::new(3, 20);
+        assert_eq!(cfg.buffer_size, 20);
+        assert_eq!(cfg.stack_depth, 0);
+        assert_eq!(cfg.flag_depth, 0);
+        assert_eq!(cfg.input_depth, 0);
+        assert_eq!(cfg.input_length, 0);
+        assert_eq!(cfg.flag_feature_count, 3);
+        assert_eq!(cfg.flag_value_stack.len(), 3 * 20);
+    }
+
+    #[test]
+    fn unweighted_reset_clears_flag_values() {
+        let mut cfg = UnweightedConfig::new(3, 10);
+        cfg.current_flag_values[0] = 100;
+        cfg.current_flag_values[1] = 200;
+        cfg.current_flag_values[2] = 300;
+        cfg.reset();
+        assert!(cfg.current_flag_values.iter().all(|&v| v == 0));
+    }
+
+    #[test]
+    fn unweighted_zero_flags_reset_no_panic() {
+        let mut cfg = UnweightedConfig::new(0, 10);
+        cfg.stack_depth = 5;
+        cfg.input_depth = 3;
+        cfg.reset();
+        assert_eq!(cfg.stack_depth, 0);
+        assert_eq!(cfg.input_depth, 0);
+    }
+
+    #[test]
+    fn weighted_zero_flags_reset_no_panic() {
+        let mut cfg = WeightedConfig::new(0, 10);
+        cfg.stack_depth = 5;
+        cfg.reset();
+        assert_eq!(cfg.stack_depth, 0);
+    }
+
+    #[test]
+    fn weighted_zero_flags_current_flags_empty() {
+        let cfg = WeightedConfig::new(0, 10);
+        assert!(cfg.current_flags().is_empty());
+    }
+
+    #[test]
+    fn weighted_zero_flags_push_flags_no_panic() {
+        let mut cfg = WeightedConfig::new(0, 10);
+        // push_flags with 0 features should be a no-op
+        cfg.push_flags();
+        assert_eq!(cfg.flag_depth, 0); // no increment because fc==0 returns early
+    }
+
+    #[test]
+    fn weighted_push_flags_copies_correctly() {
+        let mut cfg = WeightedConfig::new(2, 10);
+        cfg.current_flags_mut()[0] = 42;
+        cfg.current_flags_mut()[1] = 99;
+        cfg.push_flags();
+        // At depth 1, the values should be copied from depth 0
+        assert_eq!(cfg.current_flags()[0], 42);
+        assert_eq!(cfg.current_flags()[1], 99);
+    }
+
+    #[test]
+    fn weighted_push_flags_multiple_times() {
+        let mut cfg = WeightedConfig::new(2, 20);
+        cfg.current_flags_mut()[0] = 1;
+        cfg.push_flags();
+        cfg.current_flags_mut()[0] = 2;
+        cfg.push_flags();
+        cfg.current_flags_mut()[0] = 3;
+        assert_eq!(cfg.flag_depth, 2);
+        assert_eq!(cfg.current_flags()[0], 3);
+
+        // Pop back and verify
+        cfg.flag_depth -= 1;
+        assert_eq!(cfg.current_flags()[0], 2);
+        cfg.flag_depth -= 1;
+        assert_eq!(cfg.current_flags()[0], 1);
+    }
+
+    #[test]
+    fn weighted_current_flags_mut_modifies_in_place() {
+        let mut cfg = WeightedConfig::new(3, 10);
+        cfg.current_flags_mut()[0] = 10;
+        cfg.current_flags_mut()[1] = 20;
+        cfg.current_flags_mut()[2] = 30;
+        assert_eq!(cfg.current_flags()[0], 10);
+        assert_eq!(cfg.current_flags()[1], 20);
+        assert_eq!(cfg.current_flags()[2], 30);
+    }
+
+    #[test]
+    fn weighted_reset_after_push_restores_depth_zero() {
+        let mut cfg = WeightedConfig::new(2, 10);
+        cfg.current_flags_mut()[0] = 5;
+        cfg.push_flags();
+        cfg.current_flags_mut()[0] = 99;
+        cfg.stack_depth = 3;
+        cfg.reset();
+        assert_eq!(cfg.stack_depth, 0);
+        assert_eq!(cfg.flag_depth, 0);
+        // Flag values at depth 0 should be cleared
+        assert_eq!(cfg.current_flags()[0], 0);
+        assert_eq!(cfg.current_flags()[1], 0);
+    }
 }

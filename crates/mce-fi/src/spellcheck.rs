@@ -26,12 +26,12 @@ use mce_core::compound::CompoundAnalyzer;
 use mce_core::frequency::FrequencyList;
 use mce_core::trie::{SuccinctTrie, TrieBuilder};
 use mce_disambig::bigram::BigramModel;
-use mce_fst::VfstError;
 use mce_fst::unweighted::UnweightedTransducer;
 use mce_speller::SpellResult;
 use mce_speller::pipeline::{MorphValidator, SpellChecker, SpellCheckerBuilder};
 use mce_speller::user_dict::UserDictionary;
 
+use crate::FiError;
 use crate::morphology::{Analyzer, FinnishAnalyzer};
 
 /// Morphological validator backed by [`FinnishAnalyzer`].
@@ -45,7 +45,7 @@ pub struct FinnishMorphValidator {
 
 impl FinnishMorphValidator {
     /// Create a new morph validator from raw VFST binary data (mor.vfst).
-    pub fn from_bytes(data: &[u8]) -> Result<Self, VfstError> {
+    pub fn from_bytes(data: &[u8]) -> Result<Self, FiError> {
         let analyzer = FinnishAnalyzer::from_bytes(data)?;
         Ok(Self { analyzer })
     }
@@ -102,8 +102,8 @@ impl FinnishSpellChecker {
     ///
     /// # Errors
     ///
-    /// Returns [`VfstError`] if the VFST data is malformed.
-    pub fn from_bytes(mor_vfst: &[u8]) -> Result<Self, VfstError> {
+    /// Returns [`FiError`] if the VFST data is malformed.
+    pub fn from_bytes(mor_vfst: &[u8]) -> Result<Self, FiError> {
         let morph = FinnishMorphValidator::from_bytes(mor_vfst)?;
 
         let compound_morph = FinnishAnalyzer::from_bytes(mor_vfst)?;
@@ -429,7 +429,7 @@ fn edit_distance_str(a: &str, b: &str) -> usize {
 ///
 /// For a richer trie, callers can later extend this with a frequency-based
 /// word list or by selective FST traversal of common base forms.
-fn build_trie_from_vfst(data: &[u8]) -> Result<SuccinctTrie, VfstError> {
+fn build_trie_from_vfst(data: &[u8]) -> Result<SuccinctTrie, FiError> {
     let transducer = UnweightedTransducer::from_bytes(data)?;
     let symbols = transducer.symbols();
 

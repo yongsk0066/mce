@@ -181,4 +181,152 @@ mod tests {
         transitions.push(bytemuck::cast(oc));
         assert_eq!(weighted_max_tc(&transitions, 0), 401);
     }
+
+    #[test]
+    fn unweighted_max_tc_out_of_bounds_returns_zero() {
+        let transitions = vec![Transition {
+            sym_in: 0,
+            sym_out: 0,
+            trans_info: 0x02_000000,
+        }];
+        // Index beyond the slice
+        assert_eq!(unweighted_max_tc(&transitions, 5), 0);
+    }
+
+    #[test]
+    fn weighted_max_tc_out_of_bounds_returns_zero() {
+        let transitions = vec![WeightedTransition {
+            sym_in: 0,
+            sym_out: 0,
+            target_state: 0,
+            weight: 0,
+            more_transitions: 3,
+            _reserved: 0,
+        }];
+        assert_eq!(weighted_max_tc(&transitions, 10), 0);
+    }
+
+    #[test]
+    fn unweighted_max_tc_empty_slice_returns_zero() {
+        let transitions: Vec<Transition> = vec![];
+        assert_eq!(unweighted_max_tc(&transitions, 0), 0);
+    }
+
+    #[test]
+    fn weighted_max_tc_empty_slice_returns_zero() {
+        let transitions: Vec<WeightedTransition> = vec![];
+        assert_eq!(weighted_max_tc(&transitions, 0), 0);
+    }
+
+    #[test]
+    fn unweighted_overflow_missing_next_element_returns_zero() {
+        // more_transitions == 255 requires overflow cell at index+1, but slice has only 1 element
+        let transitions = vec![Transition {
+            sym_in: 0,
+            sym_out: 0,
+            trans_info: 0xFF_000000,
+        }];
+        assert_eq!(unweighted_max_tc(&transitions, 0), 0);
+    }
+
+    #[test]
+    fn weighted_overflow_missing_next_element_returns_zero() {
+        let transitions = vec![WeightedTransition {
+            sym_in: 0,
+            sym_out: 0,
+            target_state: 0,
+            weight: 0,
+            more_transitions: 255,
+            _reserved: 0,
+        }];
+        assert_eq!(weighted_max_tc(&transitions, 0), 0);
+    }
+
+    #[test]
+    fn transition_target_state_max_value() {
+        let t = Transition {
+            sym_in: 0,
+            sym_out: 0,
+            trans_info: 0x00FF_FFFF, // max 24-bit target
+        };
+        assert_eq!(t.target_state(), 0x00FF_FFFF);
+    }
+
+    #[test]
+    fn transition_target_state_zero() {
+        let t = Transition {
+            sym_in: 0,
+            sym_out: 0,
+            trans_info: 0xFF_000000, // more_transitions=0xFF, target=0
+        };
+        assert_eq!(t.target_state(), 0);
+        assert_eq!(t.more_transitions(), 0xFF);
+    }
+
+    #[test]
+    fn unweighted_final_sym_is_0xffff() {
+        assert_eq!(UNWEIGHTED_FINAL_SYM, 0xFFFF);
+    }
+
+    #[test]
+    fn weighted_final_sym_is_0xffffffff() {
+        assert_eq!(WEIGHTED_FINAL_SYM, 0xFFFF_FFFF);
+    }
+
+    #[test]
+    fn unweighted_max_tc_zero_more_transitions() {
+        let transitions = vec![Transition {
+            sym_in: 1,
+            sym_out: 2,
+            trans_info: 0x00_000005, // more_transitions=0, target=5
+        }];
+        assert_eq!(unweighted_max_tc(&transitions, 0), 0);
+    }
+
+    #[test]
+    fn weighted_max_tc_zero_more_transitions() {
+        let transitions = vec![WeightedTransition {
+            sym_in: 1,
+            sym_out: 2,
+            target_state: 5,
+            weight: 10,
+            more_transitions: 0,
+            _reserved: 0,
+        }];
+        assert_eq!(weighted_max_tc(&transitions, 0), 0);
+    }
+
+    #[test]
+    fn zero_copy_cast_roundtrip() {
+        let original = Transition {
+            sym_in: 42,
+            sym_out: 99,
+            trans_info: 0xAB_CDEF01,
+        };
+        let bytes = bytemuck::bytes_of(&original);
+        let recovered: &Transition = bytemuck::from_bytes(bytes);
+        assert_eq!(recovered.sym_in, 42);
+        assert_eq!(recovered.sym_out, 99);
+        assert_eq!(recovered.target_state(), 0x00CDEF01);
+        assert_eq!(recovered.more_transitions(), 0xAB);
+    }
+
+    #[test]
+    fn weighted_transition_zero_copy_roundtrip() {
+        let original = WeightedTransition {
+            sym_in: 100,
+            sym_out: 200,
+            target_state: 300,
+            weight: -50,
+            more_transitions: 7,
+            _reserved: 0,
+        };
+        let bytes = bytemuck::bytes_of(&original);
+        let recovered: &WeightedTransition = bytemuck::from_bytes(bytes);
+        assert_eq!(recovered.sym_in, 100);
+        assert_eq!(recovered.sym_out, 200);
+        assert_eq!(recovered.target_state, 300);
+        assert_eq!(recovered.weight, -50);
+        assert_eq!(recovered.more_transitions, 7);
+    }
 }

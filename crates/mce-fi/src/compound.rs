@@ -25,8 +25,8 @@
 use std::rc::Rc;
 
 use mce_core::compound::{CompoundAnalyzer, CompoundSplit, StemReconstructor};
-use mce_fst::VfstError;
 
+use crate::FiError;
 use crate::morphology::{Analyzer, FinnishAnalyzer};
 
 /// Type alias for the boxed dictionary predicate used in compound analysis.
@@ -89,7 +89,7 @@ impl FinnishCompoundAnalyzer {
     /// This sets up the compound analyzer with:
     /// - VFST-based dictionary lookup (a word is known if it has morphological analyses)
     /// - Finnish stem reconstruction for linking morphemes (nen-stems, etc.)
-    pub fn from_bytes(mor_vfst: &[u8]) -> Result<Self, VfstError> {
+    pub fn from_bytes(mor_vfst: &[u8]) -> Result<Self, FiError> {
         let analyzer = Rc::new(FinnishAnalyzer::from_bytes(mor_vfst)?);
         let analyzer_clone = Rc::clone(&analyzer);
 

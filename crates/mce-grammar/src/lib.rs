@@ -57,8 +57,11 @@
 //! assert_eq!(errors[0].code, "REPEATED_WORD");
 //! ```
 
+pub mod error;
 pub mod finnish;
 pub mod rules;
+
+pub use error::InitError;
 
 use mce_core::analysis::Analysis;
 

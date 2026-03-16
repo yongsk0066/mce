@@ -348,4 +348,189 @@ mod tests {
         assert_eq!(out, "y");
         assert!(!t.next(&mut cfg, &mut out));
     }
+
+    #[test]
+    fn empty_input_returns_too_short() {
+        let result = UnweightedTransducer::from_bytes(&[]);
+        assert!(matches!(result.unwrap_err(), VfstError::TooShort { .. }));
+    }
+
+    #[test]
+    fn header_only_returns_too_short() {
+        let data = build_header(false);
+        let result = UnweightedTransducer::from_bytes(&data);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn weighted_data_rejected_by_unweighted() {
+        let data = build_header(true);
+        let result = UnweightedTransducer::from_bytes(&data);
+        assert!(matches!(
+            result.unwrap_err(),
+            VfstError::TypeMismatch {
+                expected: false,
+                actual: true,
+            }
+        ));
+    }
+
+    #[test]
+    fn invalid_magic_rejected() {
+        let data = vec![0xFFu8; 64];
+        let result = UnweightedTransducer::from_bytes(&data);
+        assert!(matches!(result.unwrap_err(), VfstError::InvalidMagic));
+    }
+
+    #[test]
+    fn header_plus_symbols_but_no_transitions_rejected() {
+        let mut data = build_header(false);
+        data.extend_from_slice(&build_symbol_table(&["", "a"]));
+        // Pad to 8-byte alignment but add no transition data
+        let partial = data.len() % 8;
+        if partial > 0 {
+            data.extend(std::iter::repeat_n(0u8, 8 - partial));
+        }
+        let result = UnweightedTransducer::from_bytes(&data);
+        assert!(matches!(result.unwrap_err(), VfstError::TooShort { .. }));
+    }
+
+    #[test]
+    fn truncated_symbol_table_rejected() {
+        let mut data = build_header(false);
+        // Claim 10 symbols but only provide count bytes
+        data.extend_from_slice(&10u16.to_le_bytes());
+        let result = UnweightedTransducer::from_bytes(&data);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn transition_target_out_of_bounds_rejected() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&build_header(false));
+        data.extend_from_slice(&build_symbol_table(&["", "a"]));
+        let partial = data.len() % 8;
+        if partial > 0 {
+            data.extend(std::iter::repeat_n(0u8, 8 - partial));
+        }
+        // Single transition with target state pointing way past end
+        data.extend_from_slice(bytemuck::bytes_of(&make_transition(1, 1, 999, 0)));
+        let result = UnweightedTransducer::from_bytes(&data);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn final_transition_target_not_validated() {
+        // Final transitions (sym_in == 0xFFFF) should not have their target validated
+        let mut data = Vec::new();
+        data.extend_from_slice(&build_header(false));
+        data.extend_from_slice(&build_symbol_table(&["", "a"]));
+        let partial = data.len() % 8;
+        if partial > 0 {
+            data.extend(std::iter::repeat_n(0u8, 8 - partial));
+        }
+        // Final transition with out-of-bounds target (should be ignored during validation)
+        data.extend_from_slice(bytemuck::bytes_of(&make_transition(0xFFFF, 0, 999, 0)));
+        let result = UnweightedTransducer::from_bytes(&data);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn empty_input_word_with_accepting_start_state() {
+        // Build a transducer where state 0 has a final transition -> accepting empty string
+        let mut data = Vec::new();
+        data.extend_from_slice(&build_header(false));
+        data.extend_from_slice(&build_symbol_table(&["", "a"]));
+        let partial = data.len() % 8;
+        if partial > 0 {
+            data.extend(std::iter::repeat_n(0u8, 8 - partial));
+        }
+        data.extend_from_slice(bytemuck::bytes_of(&make_transition(0xFFFF, 0, 0, 0)));
+
+        let t = UnweightedTransducer::from_bytes(&data).unwrap();
+        let mut cfg = t.new_config(100);
+        t.prepare(&mut cfg, &[]);
+        let mut out = String::new();
+        // Empty input on a start-state that accepts -> should produce output
+        assert!(t.next(&mut cfg, &mut out));
+        assert_eq!(out, "");
+    }
+
+    #[test]
+    fn prepare_returns_false_for_unknown_chars() {
+        let t = UnweightedTransducer::from_bytes(&build_simple_vfst()).unwrap();
+        let mut cfg = t.new_config(100);
+        let all_known = t.prepare(&mut cfg, &['\u{1234}']);
+        assert!(!all_known);
+    }
+
+    #[test]
+    fn prepare_returns_true_for_known_chars() {
+        let t = UnweightedTransducer::from_bytes(&build_simple_vfst()).unwrap();
+        let mut cfg = t.new_config(100);
+        let all_known = t.prepare(&mut cfg, &['a']);
+        assert!(all_known);
+    }
+
+    #[test]
+    fn next_without_prepare_returns_false() {
+        let t = UnweightedTransducer::from_bytes(&build_simple_vfst()).unwrap();
+        let mut cfg = t.new_config(100);
+        // Don't call prepare — config is in initial state
+        let mut out = String::new();
+        assert!(!t.next(&mut cfg, &mut out));
+    }
+
+    #[test]
+    fn symbols_accessor_returns_correct_data() {
+        let t = UnweightedTransducer::from_bytes(&build_simple_vfst()).unwrap();
+        assert_eq!(t.symbols().symbol_strings.len(), 5);
+        assert_eq!(t.symbols().symbol_strings[1], "a");
+    }
+
+    #[test]
+    fn flag_feature_count_with_no_flags() {
+        let t = UnweightedTransducer::from_bytes(&build_simple_vfst()).unwrap();
+        assert_eq!(t.flag_feature_count(), 0);
+    }
+
+    #[test]
+    fn debug_impl_does_not_panic() {
+        let t = UnweightedTransducer::from_bytes(&build_simple_vfst()).unwrap();
+        let debug_str = format!("{:?}", t);
+        assert!(debug_str.contains("UnweightedTransducer"));
+    }
+
+    #[test]
+    fn next_prefix_accepts_partial_match() {
+        // Build: state 0 --a--> state 1 (final), state 1 --b--> state 2 (final)
+        let mut data = Vec::new();
+        data.extend_from_slice(&build_header(false));
+        data.extend_from_slice(&build_symbol_table(&["", "a", "b", "x", "y"]));
+        let partial = data.len() % 8;
+        if partial > 0 {
+            data.extend(std::iter::repeat_n(0u8, 8 - partial));
+        }
+        // State 0: a->state 1 (transition 0, more=0)
+        data.extend_from_slice(bytemuck::bytes_of(&make_transition(1, 3, 1, 0)));
+        // State 1: final + b->state 2 (transition 1, more=1)
+        data.extend_from_slice(bytemuck::bytes_of(&make_transition(0xFFFF, 0, 0, 1)));
+        data.extend_from_slice(bytemuck::bytes_of(&make_transition(2, 4, 3, 0)));
+        // State 2: final
+        data.extend_from_slice(bytemuck::bytes_of(&make_transition(0xFFFF, 0, 0, 0)));
+
+        let t = UnweightedTransducer::from_bytes(&data).unwrap();
+        let mut cfg = t.new_config(100);
+        t.prepare(&mut cfg, &['a', 'b']);
+        let mut out = String::new();
+        let mut prefix_len = 0usize;
+        // Should find prefix "a" -> "x" (prefix_length=1)
+        assert!(t.next_prefix(&mut cfg, &mut out, &mut prefix_len));
+        assert_eq!(out, "x");
+        assert_eq!(prefix_len, 1);
+        // Then full "ab" -> "xy" (prefix_length=2)
+        assert!(t.next_prefix(&mut cfg, &mut out, &mut prefix_len));
+        assert_eq!(out, "xy");
+        assert_eq!(prefix_len, 2);
+    }
 }

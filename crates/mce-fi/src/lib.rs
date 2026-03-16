@@ -6,11 +6,14 @@
 //! - 음운 상수: 모음, 자음, 모음 조화
 
 pub mod compound;
+pub mod error;
 pub mod generator;
 pub mod hyphenation;
 pub mod morphology;
 pub mod spellcheck;
 mod tag_parser;
+
+pub use error::FiError;
 
 /// Finnish vowels (lowercase): a, e, i, o, u, y, ä, ö.
 pub const VOWELS: &[char] = &['a', 'e', 'i', 'o', 'u', 'y', '\u{00E4}', '\u{00F6}'];

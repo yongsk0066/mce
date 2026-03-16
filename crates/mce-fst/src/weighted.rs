@@ -346,4 +346,150 @@ mod tests {
         assert_eq!(out, "xy");
         assert!(!t.next(&mut cfg, &mut out));
     }
+
+    #[test]
+    fn empty_input_returns_too_short() {
+        let result = WeightedTransducer::from_bytes(&[]);
+        assert!(matches!(result.unwrap_err(), VfstError::TooShort { .. }));
+    }
+
+    #[test]
+    fn header_only_returns_error() {
+        let data = build_header(true);
+        let result = WeightedTransducer::from_bytes(&data);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn unweighted_data_rejected_by_weighted() {
+        let data = build_header(false);
+        let result = WeightedTransducer::from_bytes(&data);
+        assert!(matches!(
+            result.unwrap_err(),
+            VfstError::TypeMismatch {
+                expected: true,
+                actual: false,
+            }
+        ));
+    }
+
+    #[test]
+    fn invalid_magic_rejected() {
+        let data = vec![0xFFu8; 64];
+        let result = WeightedTransducer::from_bytes(&data);
+        assert!(matches!(result.unwrap_err(), VfstError::InvalidMagic));
+    }
+
+    #[test]
+    fn header_plus_symbols_but_no_transitions_rejected() {
+        let mut data = build_header(true);
+        data.extend_from_slice(&build_symbol_table(&["", "a"]));
+        let partial = data.len() % 16;
+        if partial > 0 {
+            data.extend(std::iter::repeat_n(0u8, 16 - partial));
+        }
+        let result = WeightedTransducer::from_bytes(&data);
+        assert!(matches!(result.unwrap_err(), VfstError::TooShort { .. }));
+    }
+
+    #[test]
+    fn truncated_symbol_table_rejected() {
+        let mut data = build_header(true);
+        // Claim 10 symbols but only provide the count bytes
+        data.extend_from_slice(&10u16.to_le_bytes());
+        let result = WeightedTransducer::from_bytes(&data);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn prepare_returns_false_for_unknown_chars() {
+        let t = WeightedTransducer::from_bytes(&build_simple()).unwrap();
+        let mut cfg = t.new_config(100);
+        assert!(!t.prepare(&mut cfg, &['\u{1234}']));
+    }
+
+    #[test]
+    fn prepare_returns_true_for_known_chars() {
+        let t = WeightedTransducer::from_bytes(&build_simple()).unwrap();
+        let mut cfg = t.new_config(100);
+        assert!(t.prepare(&mut cfg, &['a', 'b']));
+    }
+
+    #[test]
+    fn empty_input_word_no_match() {
+        let t = WeightedTransducer::from_bytes(&build_simple()).unwrap();
+        let mut cfg = t.new_config(100);
+        t.prepare(&mut cfg, &[]);
+        let mut out = String::new();
+        // The simple FST requires input "ab", empty input should not match
+        assert!(!t.next(&mut cfg, &mut out));
+    }
+
+    #[test]
+    fn partial_input_no_match() {
+        let t = WeightedTransducer::from_bytes(&build_simple()).unwrap();
+        let mut cfg = t.new_config(100);
+        t.prepare(&mut cfg, &['a']); // only 'a', but FST requires 'a' then 'b'
+        let mut out = String::new();
+        assert!(!t.next(&mut cfg, &mut out));
+    }
+
+    #[test]
+    fn weight_accumulation() {
+        let t = WeightedTransducer::from_bytes(&build_simple()).unwrap();
+        let mut cfg = t.new_config(100);
+        t.prepare(&mut cfg, &['a', 'b']);
+        let mut out = String::new();
+        let mut r = WeightedResult {
+            weight: 0,
+            first_not_reached_position: 0,
+        };
+        assert!(t.next_weighted(&mut cfg, &mut out, &mut r));
+        // Weight: 10 (state 0->1) + 20 (state 1->2) + 5 (final) = 35
+        assert_eq!(r.weight, 35);
+        assert_eq!(r.first_not_reached_position, 2);
+    }
+
+    #[test]
+    fn symbols_accessor_returns_correct_data() {
+        let t = WeightedTransducer::from_bytes(&build_simple()).unwrap();
+        assert_eq!(t.symbols().symbol_strings.len(), 5);
+        assert_eq!(t.symbols().symbol_strings[1], "a");
+    }
+
+    #[test]
+    fn flag_feature_count_with_no_flags() {
+        let t = WeightedTransducer::from_bytes(&build_simple()).unwrap();
+        assert_eq!(t.flag_feature_count(), 0);
+    }
+
+    #[test]
+    fn debug_impl_does_not_panic() {
+        let t = WeightedTransducer::from_bytes(&build_simple()).unwrap();
+        let debug_str = format!("{:?}", t);
+        assert!(debug_str.contains("WeightedTransducer"));
+    }
+
+    #[test]
+    fn next_without_prepare_returns_false() {
+        let t = WeightedTransducer::from_bytes(&build_simple()).unwrap();
+        let mut cfg = t.new_config(100);
+        let mut out = String::new();
+        assert!(!t.next(&mut cfg, &mut out));
+    }
+
+    #[test]
+    fn insufficient_remaining_bytes_for_transition_alignment() {
+        // Build valid header+symbols but leave bytes that are too few for even one WeightedTransition
+        let mut data = build_header(true);
+        data.extend_from_slice(&build_symbol_table(&["", "a"]));
+        let partial = data.len() % 16;
+        if partial > 0 {
+            data.extend(std::iter::repeat_n(0u8, 16 - partial));
+        }
+        // Add only 8 bytes — not enough for a 16-byte WeightedTransition
+        data.extend_from_slice(&[0u8; 8]);
+        let result = WeightedTransducer::from_bytes(&data);
+        assert!(matches!(result.unwrap_err(), VfstError::TooShort { .. }));
+    }
 }

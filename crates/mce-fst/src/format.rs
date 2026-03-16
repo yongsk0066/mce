@@ -86,4 +86,91 @@ mod tests {
         data.extend_from_slice(&[0u8; 100]);
         assert!(!parse_header(&data).unwrap().weighted);
     }
+
+    #[test]
+    fn empty_input_returns_too_short() {
+        let result = parse_header(&[]);
+        assert!(matches!(
+            result.unwrap_err(),
+            VfstError::TooShort {
+                expected: 16,
+                actual: 0
+            }
+        ));
+    }
+
+    #[test]
+    fn single_byte_returns_too_short() {
+        let result = parse_header(&[0x42]);
+        assert!(matches!(
+            result.unwrap_err(),
+            VfstError::TooShort {
+                expected: 16,
+                actual: 1
+            }
+        ));
+    }
+
+    #[test]
+    fn fifteen_bytes_returns_too_short() {
+        let result = parse_header(&[0u8; 15]);
+        assert!(matches!(
+            result.unwrap_err(),
+            VfstError::TooShort {
+                expected: 16,
+                actual: 15
+            }
+        ));
+    }
+
+    #[test]
+    fn exactly_sixteen_bytes_valid() {
+        let data = make_header(false);
+        assert_eq!(data.len(), 16);
+        assert!(!parse_header(&data).unwrap().weighted);
+    }
+
+    #[test]
+    fn corrupt_cookie2_rejected() {
+        let mut data = make_header(false);
+        data[4] = 0xFF;
+        assert!(matches!(
+            parse_header(&data).unwrap_err(),
+            VfstError::InvalidMagic
+        ));
+    }
+
+    #[test]
+    fn both_cookies_corrupt_rejected() {
+        let data = vec![0xFFu8; HEADER_SIZE];
+        assert!(matches!(
+            parse_header(&data).unwrap_err(),
+            VfstError::InvalidMagic
+        ));
+    }
+
+    #[test]
+    fn all_zeros_rejected_as_invalid_magic() {
+        let data = vec![0u8; HEADER_SIZE];
+        assert!(matches!(
+            parse_header(&data).unwrap_err(),
+            VfstError::InvalidMagic
+        ));
+    }
+
+    #[test]
+    fn non_boolean_weighted_byte_treated_as_unweighted() {
+        let mut data = make_header(false);
+        data[8] = 0x02;
+        assert!(!parse_header(&data).unwrap().weighted);
+    }
+
+    #[test]
+    fn reserved_header_bytes_ignored() {
+        let mut data = make_header(true);
+        for i in 9..16 {
+            data[i] = 0xFF;
+        }
+        assert!(parse_header(&data).unwrap().weighted);
+    }
 }

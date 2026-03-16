@@ -40,6 +40,7 @@ use std::cell::RefCell;
 
 use wasm_bindgen::prelude::*;
 
+use mce_comonad::cg::{CgRule, apply_cg_rules, finnish_disambiguation_rules};
 use mce_core::analysis::{ATTR_BASEFORM, ATTR_CLASS, Analysis};
 use mce_core::compound::{CompoundAnalyzer, CompoundSplit};
 use mce_core::token::TokenType;
@@ -57,14 +58,19 @@ use mce_tokenizer::next_token;
 
 /// MCE engine instance for browser use.
 ///
-/// Holds a loaded VFST transducer, a Viterbi disambiguator, a grammar checker,
-/// and a hyphenator. Provides morphological analysis, spell checking, grammar
-/// checking, hyphenation, sentence-level disambiguation, suggestions, and
-/// compound splitting through a wasm-bindgen compatible API.
+/// Holds a loaded VFST transducer, CG-lite disambiguation rules, a Viterbi
+/// disambiguator, a grammar checker, and a hyphenator. Provides morphological
+/// analysis, spell checking, grammar checking, hyphenation, sentence-level
+/// disambiguation, suggestions, and compound splitting through a
+/// wasm-bindgen compatible API.
 #[wasm_bindgen]
 pub struct MceEngine {
     analyzer: FinnishAnalyzer,
     disambiguator: ViterbiDisambiguator,
+    /// CG-lite rules for pruning unlikely morphological readings before
+    /// Viterbi disambiguation. Initialized from [`finnish_disambiguation_rules`]
+    /// at load time (62 active rules, 24 types, 23 phases).
+    cg_rules: Vec<Box<dyn CgRule>>,
     grammar_checker: FinnishGrammarChecker,
     hyphenator: FinnishHyphenator,
     /// Optional M1 Succinct Trie for dictionary-based spell checking and
@@ -91,12 +97,14 @@ impl MceEngine {
         let analyzer =
             FinnishAnalyzer::from_bytes(mor_vfst).map_err(|e| JsValue::from_str(&e.to_string()))?;
         let disambiguator = ViterbiDisambiguator::with_finnish_defaults_and_emission();
+        let cg_rules = finnish_disambiguation_rules();
         let grammar_checker =
             FinnishGrammarChecker::new(mor_vfst).map_err(|e| JsValue::from_str(&e.to_string()))?;
         let hyphenator = FinnishHyphenator::new();
         Ok(MceEngine {
             analyzer,
             disambiguator,
+            cg_rules,
             grammar_checker,
             hyphenator,
             trie: None,
@@ -266,13 +274,15 @@ impl MceEngine {
         splits.iter().any(|s| s.word_parts().len() >= 2)
     }
 
-    /// Analyze a sentence with tokenization and disambiguation.
+    /// Analyze a sentence with tokenization, CG pruning, and disambiguation.
     ///
     /// Pipeline:
     /// 1. Tokenize the text into all tokens (words, punctuation, etc.)
     /// 2. Analyze each word with FinnishAnalyzer
-    /// 3. Disambiguate word tokens using ViterbiDisambiguator (POS bigram model)
-    /// 4. Return JSON array including all non-whitespace tokens
+    /// 3. CG-lite pruning: apply 62 constraint grammar rules to remove unlikely
+    ///    morphological readings based on local context
+    /// 4. Disambiguate word tokens using ViterbiDisambiguator (POS bigram model)
+    /// 5. Return JSON array including all non-whitespace tokens
     ///
     /// Word tokens get full analysis; punctuation tokens get `"type":"punctuation"`
     /// with `null` analysis, matching CoNLL-U conventions.
@@ -306,6 +316,13 @@ impl MceEngine {
                 self.analyzer.analyze(&chars, word_len)
             })
             .collect();
+
+        // Apply CG-lite rules to prune unlikely readings before disambiguation.
+        let word_analyses = if !self.cg_rules.is_empty() {
+            apply_cg_rules(&word_analyses, &self.cg_rules)
+        } else {
+            word_analyses
+        };
 
         let disambiguated = self
             .disambiguator
@@ -512,8 +529,10 @@ impl MceEngine {
     /// Full pipeline:
     /// 1. Tokenize the text into all tokens (words, punctuation, etc.)
     /// 2. Analyze each word with FinnishAnalyzer
-    /// 3. Disambiguate word tokens using ViterbiDisambiguator with emission scoring
-    /// 4. Return JSON with POS tags and baseforms, including punctuation tokens
+    /// 3. CG-lite pruning: apply 62 constraint grammar rules to remove unlikely
+    ///    morphological readings based on local context
+    /// 4. Disambiguate word tokens using ViterbiDisambiguator with emission scoring
+    /// 5. Return JSON with POS tags and baseforms, including punctuation tokens
     ///
     /// Example output:
     /// ```json
@@ -543,6 +562,13 @@ impl MceEngine {
                 self.analyzer.analyze(&chars, word_len)
             })
             .collect();
+
+        // Apply CG-lite rules to prune unlikely readings before disambiguation.
+        let word_analyses = if !self.cg_rules.is_empty() {
+            apply_cg_rules(&word_analyses, &self.cg_rules)
+        } else {
+            word_analyses
+        };
 
         let disambiguated = self
             .disambiguator
