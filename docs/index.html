@@ -5,17 +5,26 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MCE — Morphological Computation Engine</title>
 
-  <meta name="description" content="Browser-first Finnish NLP engine. Morphological analysis, spell/grammar checking, hyphenation, POS tagging (UPOS 94.58%) — all running offline in ~380 KB of WebAssembly. Companion code for the SCiL 2026 paper on comonadic morphophonology.">
+  <meta name="description" content="Browser-first Finnish NLP engine. Morphological analysis, spell/grammar checking, hyphenation, POS tagging (UPOS 94.66% on UD Finnish-TDT dev) — all running offline in ~380 KB of WebAssembly. Companion code for the SCiL 2026 paper on comonadic morphophonology.">
   <link rel="canonical" href="https://yongsk0066.github.io/mce/">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%230f62fe'/%3E%3Ctext x='32' y='44' font-family='IBM Plex Mono,monospace' font-size='32' font-weight='700' text-anchor='middle' fill='white'%3EM%3C/text%3E%3C/svg%3E">
+
+  <!-- Google Scholar citation tags (paper companion site) -->
+  <meta name="citation_title" content="Comonadic Morphophonology: A Compositional Framework for Context-Dependent Morphological Rules in Finnish">
+  <meta name="citation_author" content="Jang, Yongseok">
+  <meta name="citation_publication_date" content="2026">
+  <meta name="citation_conference_title" content="Proceedings of the Society for Computation in Linguistics (SCiL)">
+  <meta name="citation_abstract_html_url" content="https://openreview.net/forum?id=FYeH1Fiwx6">
+  <meta name="author" content="Yongseok Jang">
+
   <meta property="og:type" content="website">
   <meta property="og:title" content="MCE — Morphological Computation Engine">
-  <meta property="og:description" content="Browser-first Finnish NLP engine (UPOS 94.58%, ~380 KB WASM, offline). Companion code for SCiL 2026 paper on comonadic morphophonology.">
+  <meta property="og:description" content="Browser-first Finnish NLP engine (UPOS 94.66% dev, ~380 KB WASM, offline). Companion code for SCiL 2026 paper on comonadic morphophonology.">
   <meta property="og:url" content="https://yongsk0066.github.io/mce/">
   <meta property="og:site_name" content="MCE">
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="MCE — Morphological Computation Engine">
-  <meta name="twitter:description" content="Browser-first Finnish NLP engine (UPOS 94.58%, ~380 KB WASM, offline). Companion code for SCiL 2026 paper.">
+  <meta name="twitter:description" content="Browser-first Finnish NLP engine (UPOS 94.66% dev, ~380 KB WASM, offline). Companion code for SCiL 2026 paper.">
 
   <!-- Carbon: fonts + theme tokens + grid -->
   <link rel="stylesheet" href="https://1.www.s81c.com/common/carbon/plex/sans.css">
@@ -303,12 +312,12 @@
               </div>
 
               <div class="badge-row">
-                <cds-tag type="green">UPOS 94.58%</cds-tag>
-                <cds-tag type="blue">Lemma 88.44%</cds-tag>
-                <cds-tag type="teal">Coverage 99.64%</cds-tag>
+                <cds-tag type="green">UPOS 94.66% (dev)</cds-tag>
+                <cds-tag type="blue">Lemma 93.09% (dev)</cds-tag>
+                <cds-tag type="teal">Coverage 99.35%</cds-tag>
                 <cds-tag type="purple">88K tok/s</cds-tag>
-                <cds-tag type="cyan">~395KB WASM</cds-tag>
-                <cds-tag type="magenta">1,579 tests</cds-tag>
+                <cds-tag type="cyan">~380KB WASM</cds-tag>
+                <cds-tag type="magenta">1,994 tests</cds-tag>
                 <cds-tag type="warm-gray">11 crates</cds-tag>
                 <cds-tag type="high-contrast">~9.2MB deploy</cds-tag>
                 <a href="https://www.npmjs.com/package/@yongsk0066/mce" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;text-decoration:none;"><img src="https://img.shields.io/npm/v/@yongsk0066/mce?logo=npm&label=npm" alt="npm package" height="20"></a>
@@ -323,7 +332,7 @@
                   <li><strong>Complete offline operation</strong> &mdash; WASM + dictionary loaded once, works without network</li>
                   <li><strong>VFST dictionary format</strong> &mdash; Succinct trie with LOUDS encoding for compact storage</li>
                   <li><strong>Comonadic architecture</strong> &mdash; Writer comonad for composable morphophonological rules</li>
-                  <li><strong>Viterbi disambiguation</strong> &mdash; Weighted lattice + suffix tagger for 94.58% UPOS accuracy</li>
+                  <li><strong>Viterbi disambiguation</strong> &mdash; Weighted lattice + suffix tagger for 94.66% UPOS accuracy (UD Finnish-TDT dev)</li>
                   <li><strong>CG rules</strong> &mdash; 62 active constraint grammar rules for context-sensitive disambiguation</li>
                   <li><strong>Morphological generation</strong> &mdash; Noun declension (22 forms: 11 sg + 11 pl) + verb conjugation (4 types, beta)</li>
                   <li><strong>Grammar checking</strong> &mdash; 21 rules for common Finnish writing errors</li>
@@ -388,7 +397,7 @@
                   <li><strong>Browser writing tools</strong> &mdash; spell check, grammar check, and hyphenation running entirely client-side with no server</li>
                   <li><strong>Education</strong> &mdash; interactive morphology explorer (11 noun cases), verb conjugation trainer, hover-to-analyze reading assistant</li>
                   <li><strong>Privacy-first NLP</strong> &mdash; GDPR-compliant by design: text never leaves the browser; works in air-gapped environments</li>
-                  <li><strong>Research</strong> &mdash; corpus annotation at 94.58% UPOS, compound decomposition, Writer Comonad for morphophonological theory</li>
+                  <li><strong>Research</strong> &mdash; corpus annotation at 94.66% UPOS (dev), compound decomposition, Writer Comonad for morphophonological theory</li>
                   <li><strong>Developer integration</strong> &mdash; npm package, Rust crate, CLI (11 commands), and WASM API (22 methods)</li>
                   <li><strong>Only MCE</strong> &mdash; full Finnish NLP in a browser tab with no internet, complete paradigm generation client-side, all in under 9.2MB</li>
                 </ul>
@@ -418,9 +427,9 @@
 flowchart LR
   Input["Raw Text"] --> T["mce-tokenizer<br/>Sentence + Word"]
   T --> M1["M1: Succinct Trie<br/>mce-core<br/>LOUDS lookup"]
-  M1 --> M3["M3: PDT<br/>mce-fst<br/>Compound split"]
-  M3 --> M2["M2': Comonad<br/>mce-comonad<br/>Rule application"]
-  M2 --> M4["M4': Lattice<br/>mce-disambig<br/>Viterbi + CG"]
+  M1 --> M2["M2': Comonad<br/>mce-comonad<br/>Rule application"]
+  M2 --> M3["M3: PDT<br/>mce-fst<br/>Compound split"]
+  M3 --> M4["M4': Lattice<br/>mce-disambig<br/>Viterbi + CG"]
   M4 --> Out["CoNLL-U / JSON"]
 
   style Input fill:#d0e2ff,color:#161616,stroke:#0f62fe
@@ -592,7 +601,7 @@ flowchart TD
               <cds-tile data-action="pos" data-input="posInput">
                 <div class="tile-header"><h2 class="cds--type-heading-compact-01">POS Tagging</h2><cds-tag type="blue">analyze_sentence()</cds-tag></div>
                 <div class="tile-body">
-                  <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">The backbone of translation engines, grammar checkers, and reading assistants. POS tagging determines whether each word is a noun, verb, adjective, etc. In Finnish, words like <em>kuusi</em> can mean &lsquo;six&rsquo; (NUM), &lsquo;spruce tree&rsquo; (NOUN), or &lsquo;your moon&rsquo; (NOUN) &mdash; only context resolves the ambiguity. MCE runs the full pipeline: tokenize &rarr; FST analysis &rarr; CG rules &rarr; suffix tagger &rarr; Viterbi, achieving 94.58% UPOS accuracy.</p>
+                  <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">The backbone of translation engines, grammar checkers, and reading assistants. POS tagging determines whether each word is a noun, verb, adjective, etc. In Finnish, words like <em>kuusi</em> can mean &lsquo;six&rsquo; (NUM), &lsquo;spruce tree&rsquo; (NOUN), or &lsquo;your moon&rsquo; (NOUN) &mdash; only context resolves the ambiguity. MCE runs the full pipeline: tokenize &rarr; FST analysis &rarr; CG rules &rarr; suffix tagger &rarr; Viterbi, achieving 94.66% UPOS accuracy on the UD Finnish-TDT dev split.</p>
                   <div class="example-presets" style="display:flex;gap:var(--cds-spacing-02);flex-wrap:wrap;margin-bottom:var(--cds-spacing-04)">
                     <cds-tag type="green" class="example-tag" data-value="Koira juoksee nopeasti." data-target="posInput" data-hint="Simple SVO: &lsquo;The dog runs fast.&rsquo; Expect NOUN + VERB + ADV + PUNCT. The baseline test &mdash; all tags should be correct. A good starting point to see the output format.">Simple SVO</cds-tag>
                     <cds-tag type="purple" class="example-tag" data-value="Tulen kotiin huomenna." data-target="posInput" data-hint="Ambiguous &lsquo;tulen&rsquo;: could be &lsquo;I come&rsquo; (VERB) or genitive of &lsquo;tuli&rsquo;/fire (NOUN). The CG rules and suffix tagger should disambiguate to VERB based on the sentence context.">Ambiguous verb</cds-tag>
@@ -725,7 +734,7 @@ flowchart TD
               </cds-stack>
 
               <footer>
-                Powered by MCE &mdash; Rust compiled to WebAssembly (~395KB).
+                Powered by MCE &mdash; Rust compiled to WebAssembly (~380KB).
                 UI: <cds-link href="https://carbondesignsystem.com/">Carbon Design System</cds-link>.
               </footer>
             </div>
@@ -750,7 +759,7 @@ flowchart TD
 
                 <div class="api-method">
                   <h3>engine.load_model(data: Uint8Array): void</h3>
-                  <p>Load a suffix tagger model for POS disambiguation. Improves UPOS from 82.71% to 94.58%. Throws if <code>data</code> is not a valid MCET model.</p>
+                  <p>Load a suffix tagger model for POS disambiguation. Improves UPOS from 83.92% (rule-only) to 94.66% on UD Finnish-TDT dev. Throws if <code>data</code> is not a valid MCET model.</p>
                 </div>
 
                 <div class="api-method">
@@ -892,22 +901,22 @@ flowchart TD
                   <cds-table-body>
                     <cds-table-row>
                       <cds-table-cell><strong>MCE (CG + Suffix)</strong></cds-table-cell>
-                      <cds-table-cell><strong>94.58%</strong></cds-table-cell>
-                      <cds-table-cell>88.44%</cds-table-cell>
-                      <cds-table-cell>99.64%</cds-table-cell>
+                      <cds-table-cell><strong>94.66%</strong></cds-table-cell>
+                      <cds-table-cell>93.09%</cds-table-cell>
+                      <cds-table-cell>99.35%</cds-table-cell>
                       <cds-table-cell>Browser (WASM)</cds-table-cell>
                     </cds-table-row>
                     <cds-table-row>
                       <cds-table-cell>MCE (rule-only)</cds-table-cell>
-                      <cds-table-cell>82.71%</cds-table-cell>
-                      <cds-table-cell>88.44%</cds-table-cell>
-                      <cds-table-cell>99.64%</cds-table-cell>
+                      <cds-table-cell>83.92%</cds-table-cell>
+                      <cds-table-cell>93.09%</cds-table-cell>
+                      <cds-table-cell>99.35%</cds-table-cell>
                       <cds-table-cell>Browser (WASM)</cds-table-cell>
                     </cds-table-row>
                     <cds-table-row>
                       <cds-table-cell>TNPP (TurkuNLP)</cds-table-cell>
-                      <cds-table-cell>97.80%</cds-table-cell>
-                      <cds-table-cell>96.13%</cds-table-cell>
+                      <cds-table-cell>96.91%</cds-table-cell>
+                      <cds-table-cell>95.54%</cds-table-cell>
                       <cds-table-cell>~100%</cds-table-cell>
                       <cds-table-cell>Server (GPU)</cds-table-cell>
                     </cds-table-row>
@@ -928,7 +937,7 @@ flowchart TD
                   </cds-table-body>
                 </cds-table>
 
-                <p class="cds--type-helper-text-01" style="margin-top:var(--cds-spacing-03)"><em>UPOS and lemma accuracy measured with gold tokenization from UD Finnish-TDT. End-to-end accuracy including MCE's own tokenizer may differ slightly.</em></p>
+                <p class="cds--type-helper-text-01" style="margin-top:var(--cds-spacing-03)"><em>UPOS and lemma accuracy on the UD Finnish-TDT <strong>development split</strong>, with gold tokenization and PUNCT/SYM excluded (CoNLL standard). Numbers match those reported in the SCiL 2026 paper. TNPP and Omorfi figures are reproduced from <a href="https://aclanthology.org/W19-0312/">Pirinen (2019)</a> on an earlier UD Finnish-TDT version; comparison is approximate. End-to-end accuracy with MCE's own tokenizer may differ slightly. Test-split numbers: UPOS 94.58%, Lemma 88.44%.</em></p>
 
                 <h2 class="cds--type-heading-03">Deployment Size</h2>
                 <cds-table size="sm">
@@ -945,7 +954,7 @@ flowchart TD
                     <cds-table-row>
                       <cds-table-cell><strong>MCE</strong></cds-table-cell>
                       <cds-table-cell><strong>~9.2MB</strong></cds-table-cell>
-                      <cds-table-cell>~395KB</cds-table-cell>
+                      <cds-table-cell>~380KB</cds-table-cell>
                       <cds-table-cell>Dict 3.8MB + Model 5.0MB (gzip ~2-3MB total)</cds-table-cell>
                       <cds-table-cell>Yes</cds-table-cell>
                     </cds-table-row>
@@ -985,7 +994,7 @@ flowchart TD
                   <cds-table-body>
                     <cds-table-row>
                       <cds-table-cell>Throughput</cds-table-cell>
-                      <cds-table-cell><strong>84,973 tok/s</strong></cds-table-cell>
+                      <cds-table-cell><strong>88,285 tok/s</strong></cds-table-cell>
                       <cds-table-cell>Single-threaded, Chrome V8</cds-table-cell>
                     </cds-table-row>
                     <cds-table-row>
@@ -1048,9 +1057,9 @@ flowchart TD
                     </cds-table-row>
                     <cds-table-row>
                       <cds-table-cell>POS tagging</cds-table-cell>
-                      <cds-table-cell>Yes (94.58%)</cds-table-cell>
+                      <cds-table-cell>Yes (94.66%)</cds-table-cell>
                       <cds-table-cell>Yes (83.88%)</cds-table-cell>
-                      <cds-table-cell>Yes (97.80%)</cds-table-cell>
+                      <cds-table-cell>Yes (96.91%)</cds-table-cell>
                       <cds-table-cell>Yes (98.48%)</cds-table-cell>
                     </cds-table-row>
                     <cds-table-row>
