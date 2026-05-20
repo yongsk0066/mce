@@ -244,7 +244,7 @@ The Writer Comonad (M2') expresses all Finnish morphophonological rules -- conso
 The MCE engine code (all Rust crates) is licensed under Apache-2.0.
 
 The Finnish morphological dictionary (`mor.vfst`) is loaded at runtime and
-is distributed under GPL-3.0-or-later as part of the Voikko project. See
+is distributed under GPL-2.0-or-later as part of the Voikko project. See
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for complete attribution
 and compliance details.
 
@@ -261,6 +261,30 @@ If you use MCE in your research, please cite:
   year      = {2026}
 }
 ```
+
+## Reproducing the SCiL 2026 Results
+
+The accuracy and throughput figures in the paper are produced by the
+`just eval` / `just eval-test` / `just bench-throughput` recipes against
+the UD Finnish-TDT treebank and the dictionary/model assets shipped in
+`data/`. To reproduce them on a fresh clone:
+
+```bash
+git clone https://github.com/yongsk0066/mce.git
+cd mce
+git submodule update --init vendor/ud-finnish-tdt    # CC-BY-SA 4.0
+export MCE_DICT_PATH="$(pwd)/data"
+just eval          # dev split   -- expect UPOS 94.66%, Lemma 93.09%
+just eval-test     # test split  -- expect UPOS 94.58%
+just bench-throughput   # expect ~88k tok/s on a recent laptop CPU
+just wasm-size     # WASM binary -- expect ~380 KB (budget 420 KB)
+```
+
+The `scil-2026-camera-ready-results` git tag marks the exact commit
+whose measurements are reported in the paper. Bundled assets
+(`data/mor.vfst`, `data/suffix_tagger.bin`, `data/lemma_dict.tsv`) and
+the pinned `vendor/ud-finnish-tdt` submodule revision together make the
+pipeline deterministic from a clean clone.
 
 ## Contributing
 
