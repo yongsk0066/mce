@@ -5,6 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MCE — Morphological Computation Engine</title>
 
+  <meta name="description" content="Browser-first Finnish NLP engine. Morphological analysis, spell/grammar checking, hyphenation, POS tagging (UPOS 94.58%) — all running offline in ~380 KB of WebAssembly. Companion code for the SCiL 2026 paper on comonadic morphophonology.">
+  <link rel="canonical" href="https://yongsk0066.github.io/mce/">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%230f62fe'/%3E%3Ctext x='32' y='44' font-family='IBM Plex Mono,monospace' font-size='32' font-weight='700' text-anchor='middle' fill='white'%3EM%3C/text%3E%3C/svg%3E">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="MCE — Morphological Computation Engine">
+  <meta property="og:description" content="Browser-first Finnish NLP engine (UPOS 94.58%, ~380 KB WASM, offline). Companion code for SCiL 2026 paper on comonadic morphophonology.">
+  <meta property="og:url" content="https://yongsk0066.github.io/mce/">
+  <meta property="og:site_name" content="MCE">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="MCE — Morphological Computation Engine">
+  <meta name="twitter:description" content="Browser-first Finnish NLP engine (UPOS 94.58%, ~380 KB WASM, offline). Companion code for SCiL 2026 paper.">
+
   <!-- Carbon: fonts + theme tokens + grid -->
   <link rel="stylesheet" href="https://1.www.s81c.com/common/carbon/plex/sans.css">
   <link rel="stylesheet" href="https://1.www.s81c.com/common/carbon/plex/mono.css">
@@ -239,6 +251,8 @@
     <cds-header-menu-button button-label-active="Close menu" button-label-inactive="Open menu"></cds-header-menu-button>
     <cds-header-name href="#/overview" prefix="">MCE</cds-header-name>
     <cds-header-nav>
+      <cds-header-nav-item href="#/cite">Cite</cds-header-nav-item>
+      <cds-header-nav-item href="https://openreview.net/forum?id=FYeH1Fiwx6" target="_blank">Paper (SCiL 2026)</cds-header-nav-item>
       <cds-header-nav-item href="https://github.com/yongsk0066/mce" target="_blank">GitHub</cds-header-nav-item>
     </cds-header-nav>
   </cds-header>
@@ -252,6 +266,7 @@
       <cds-side-nav-link href="#/doc/ARCHITECTURE.md">Architecture</cds-side-nav-link>
       <cds-side-nav-link href="#/api">API Reference</cds-side-nav-link>
       <cds-side-nav-link href="#/performance">Performance</cds-side-nav-link>
+      <cds-side-nav-link href="#/cite">Cite</cds-side-nav-link>
       <cds-side-nav-divider></cds-side-nav-divider>
       <cds-side-nav-link href="#/doc/README.md">README</cds-side-nav-link>
       <cds-side-nav-link href="#/doc/LEARNING.md">Learning Guide</cds-side-nav-link>
@@ -1077,6 +1092,59 @@ flowchart TD
             </div>
 
             <!-- ============================================== -->
+            <!-- CITE                                           -->
+            <!-- ============================================== -->
+            <div id="cite-view" class="section-view">
+              <div class="section-header">
+                <h1 class="cds--type-heading-05">Cite this work</h1>
+                <p class="cds--type-body-compact-01">MCE is the companion implementation for the SCiL 2026 paper on comonadic morphophonology. If MCE supports your research, please cite the paper.</p>
+              </div>
+
+              <div class="markdown">
+                <h2 class="cds--type-heading-03">Reference</h2>
+                <p class="cds--type-body-01">
+                  Jang, Yongseok (2026). <em>Comonadic Morphophonology: A Compositional Framework for Context-Dependent Morphological Rules in Finnish</em>.
+                  In <strong>Proceedings of the Society for Computation in Linguistics (SCiL 2026)</strong>.
+                  Accepted as poster (reviewer ratings 9 / 7 / 9).
+                  ORCID: <cds-link href="https://orcid.org/0009-0007-1306-0263">0009-0007-1306-0263</cds-link>.
+                </p>
+                <p class="cds--type-body-01">
+                  <cds-link href="https://openreview.net/forum?id=FYeH1Fiwx6">OpenReview submission</cds-link>
+                  &nbsp;&middot;&nbsp;
+                  <cds-link href="https://github.com/yongsk0066/mce/blob/main/CITATION.cff">CITATION.cff</cds-link>
+                  &nbsp;&middot;&nbsp;
+                  <cds-link href="https://github.com/yongsk0066/mce/releases/tag/scil-2026-camera-ready-results">scil-2026-camera-ready-results tag</cds-link>
+                </p>
+
+                <h2 class="cds--type-heading-03">BibTeX</h2>
+                <cds-code-snippet type="multi">@inproceedings{jang2026comonadic,
+  title     = {Comonadic Morphophonology: A Compositional Framework
+               for Context-Dependent Morphological Rules in {F}innish},
+  author    = {Jang, Yongseok},
+  booktitle = {Proceedings of the Society for Computation in Linguistics (SCiL)},
+  year      = {2026}
+}</cds-code-snippet>
+
+                <h2 class="cds--type-heading-03">Reproducing the paper results</h2>
+                <p class="cds--type-body-01">The accuracy, throughput, and binary-size figures reported in the paper come from the <code>scil-2026-camera-ready-results</code> tag. From a clean clone:</p>
+                <cds-code-snippet type="multi">git clone https://github.com/yongsk0066/mce.git
+cd mce
+git checkout scil-2026-camera-ready-results
+git submodule update --init vendor/ud-finnish-tdt
+export MCE_DICT_PATH="$(pwd)/data"
+just eval          # UPOS 94.66% dev, Lemma 93.09% dev
+just eval-test     # UPOS 94.58% test
+just bench-throughput   # ~88k tok/s
+just wasm-size     # ~380 KB</cds-code-snippet>
+              </div>
+
+              <footer>
+                MCE &mdash; SCiL 2026 companion code.
+                See <cds-link href="https://github.com/yongsk0066/mce/blob/main/THIRD_PARTY_NOTICES.md">THIRD_PARTY_NOTICES.md</cds-link> for data and dictionary licenses.
+              </footer>
+            </div>
+
+            <!-- ============================================== -->
             <!-- GETTING STARTED                                -->
             <!-- ============================================== -->
             <div id="getting-started-view" class="section-view">
@@ -1232,6 +1300,7 @@ mce/
       demo:              $('#demo-view'),
       api:               $('#api-view'),
       performance:       $('#performance-view'),
+      cite:              $('#cite-view'),
       'getting-started': $('#getting-started-view'),
       doc:               $('#doc-view'),
     };
