@@ -22,9 +22,62 @@
   <meta property="og:description" content="Browser-first Finnish NLP engine (UPOS 94.66% dev, ~380 KB WASM, offline). Companion code for SCiL 2026 paper on comonadic morphophonology.">
   <meta property="og:url" content="https://yongsk0066.github.io/mce/">
   <meta property="og:site_name" content="MCE">
-  <meta name="twitter:card" content="summary">
+  <meta property="og:image" content="https://yongsk0066.github.io/mce/og-image.svg">
+  <meta property="og:image:type" content="image/svg+xml">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="MCE — UPOS 94.66%, ~380 KB WASM, browser-first Finnish NLP. SCiL 2026 companion code.">
+  <meta property="og:locale" content="en_US">
+  <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="MCE — Morphological Computation Engine">
   <meta name="twitter:description" content="Browser-first Finnish NLP engine (UPOS 94.66% dev, ~380 KB WASM, offline). Companion code for SCiL 2026 paper.">
+  <meta name="twitter:image" content="https://yongsk0066.github.io/mce/og-image.svg">
+
+  <!-- Structured data: SoftwareSourceCode + ScholarlyArticle (companion paper) -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "SoftwareSourceCode",
+        "name": "MCE — Morphological Computation Engine",
+        "description": "Browser-first Finnish NLP engine. Morphological analysis, spell/grammar checking, hyphenation, POS tagging at 94.66% UPOS (UD Finnish-TDT dev) in ~380 KB of WebAssembly.",
+        "url": "https://yongsk0066.github.io/mce/",
+        "codeRepository": "https://github.com/yongsk0066/mce",
+        "programmingLanguage": ["Rust", "JavaScript", "TypeScript"],
+        "runtimePlatform": "WebAssembly",
+        "license": "https://www.apache.org/licenses/LICENSE-2.0",
+        "author": {
+          "@type": "Person",
+          "name": "Yongseok Jang",
+          "identifier": "https://orcid.org/0009-0007-1306-0263"
+        }
+      },
+      {
+        "@type": "ScholarlyArticle",
+        "headline": "Comonadic Morphophonology: A Compositional Framework for Context-Dependent Morphological Rules in Finnish",
+        "name": "Comonadic Morphophonology: A Compositional Framework for Context-Dependent Morphological Rules in Finnish",
+        "author": {
+          "@type": "Person",
+          "name": "Yongseok Jang",
+          "identifier": "https://orcid.org/0009-0007-1306-0263"
+        },
+        "isPartOf": {
+          "@type": "PublicationIssue",
+          "isPartOf": {
+            "@type": "PublicationVolume",
+            "isPartOf": {
+              "@type": "Periodical",
+              "name": "Proceedings of the Society for Computation in Linguistics (SCiL)"
+            }
+          }
+        },
+        "datePublished": "2026",
+        "url": "https://openreview.net/forum?id=FYeH1Fiwx6"
+      }
+    ]
+  }
+  </script>
 
   <!-- Carbon: fonts + theme tokens + grid -->
   <link rel="stylesheet" href="https://1.www.s81c.com/common/carbon/plex/sans.css">
@@ -698,7 +751,12 @@ flowchart TD
                   <p class="cds--type-body-compact-01" style="color:var(--cds-text-secondary);margin-bottom:var(--cds-spacing-04)">Ideal for language learning apps, dictionary tools, and flashcard generators. Finnish nouns inflect across 11 grammatical cases in both singular and plural, yielding 22 forms per word. The generation pipeline applies consonant gradation (e.g., pp&rarr;p in <em>kauppa</em>&rarr;<em>kaupan</em>) and vowel harmony (front vs. back suffixes) automatically through the Writer Comonad.</p>
                   <div class="example-presets" style="display:flex;gap:var(--cds-spacing-02);flex-wrap:wrap;margin-bottom:var(--cds-spacing-04)">
                     <cds-tag type="green" class="example-tag" data-value="koira" data-target="paradigmInput" data-hint="Regular noun &lsquo;dog.&rsquo; Expect 22 forms (11 sg + 11 pl): koira, koiran, koiraa, &hellip; koirat, koirien, koiria. A good starting point to see the full case system at a glance.">koira</cds-tag>
-                    <cds-tag type="purple" class="example-tag" data-value="kauppa" data-target="paradigmInput" data-hint="Consonant gradation: &lsquo;kauppa&rsquo; (shop) &rarr; &lsquo;kaupan&rsquo; (genitive, pp&rarr;p). This alternation is one of the trickiest parts of Finnish morphology for learners. The Writer Comonad handles it as a pure coKleisli arrow.">kauppa (gradation)</cds-tag>
+                    <cds-tag type="purple" class="example-tag" data-value="kauppa" data-target="paradigmInput" data-hint="Paper-3 Table 1, pattern pp&rarr;p: &lsquo;kauppa&rsquo; (shop) &rarr; &lsquo;kaupan&rsquo; (genitive). Quantitative gradation, one of the 11 patterns handled as coKleisli arrows over the Writer Comonad.">kauppa (pp→p)</cds-tag>
+                    <cds-tag type="purple" class="example-tag" data-value="ranta" data-target="paradigmInput" data-hint="Paper-3 Table 1, pattern nt&rarr;nn: &lsquo;ranta&rsquo; (shore) &rarr; &lsquo;rannan&rsquo; (genitive). Qualitative cluster gradation; the deletion of t is what motivates the Writer Comonad in the first place.">ranta (nt→nn)</cds-tag>
+                    <cds-tag type="purple" class="example-tag" data-value="parta" data-target="paradigmInput" data-hint="Paper-3 Table 1, pattern rt&rarr;rr: &lsquo;parta&rsquo; (beard) &rarr; &lsquo;parran&rsquo; (genitive). Another qualitative cluster, parallel in structure to ranta&rarr;rannan.">parta (rt→rr)</cds-tag>
+                    <cds-tag type="purple" class="example-tag" data-value="kenkä" data-target="paradigmInput" data-hint="Paper-3 Table 1, pattern nk&rarr;ng: &lsquo;kenk&auml;&rsquo; (shoe) &rarr; &lsquo;keng&auml;n&rsquo; (genitive). Cluster gradation interacting with front-vowel harmony &mdash; exercises both M2&rsquo; pipelines at once.">kenkä (nk→ng)</cds-tag>
+                    <cds-tag type="blue" class="example-tag" data-value="talo" data-target="paradigmInput" data-hint="Paper-3 §4 vowel harmony, back class: &lsquo;talo&rsquo; (house) &rarr; &lsquo;talossa&rsquo; (inessive). All suffixes select back-vowel variants. Compare with kynä (front class).">talo (back harmony)</cds-tag>
+                    <cds-tag type="blue" class="example-tag" data-value="kynä" data-target="paradigmInput" data-hint="Paper-3 §4 vowel harmony, front class: &lsquo;kyn&auml;&rsquo; (pen) &rarr; &lsquo;kyn&auml;ss&auml;&rsquo; (inessive). Mirror of talo&rsquo;s back-harmony pattern; together they show MCE picking the right archiphoneme A&rarr;a/&auml;.">kynä (front harmony)</cds-tag>
                     <cds-tag type="blue" class="example-tag" data-value="pöytä" data-target="paradigmInput" data-hint="Vowel harmony test: &lsquo;p&ouml;yt&auml;&rsquo; (table) has front vowels (&ouml;, &auml;), so all suffixes must use front variants: -ss&auml;, -st&auml;, -ll&auml;, etc. Back-vowel equivalents (-ssa, -sta, -lla) would be incorrect.">pöytä (harmony)</cds-tag>
                   </div>
                   <div class="input-row">
@@ -1163,11 +1221,44 @@ just wasm-size     # ~380 KB</cds-code-snippet>
               </div>
 
               <div class="markdown">
-                <h2 class="cds--type-heading-03">Prerequisites</h2>
+                <h2 class="cds--type-heading-03">Install from npm (recommended for most users)</h2>
+                <p class="cds--type-body-01">The fastest way to use MCE in the browser or Node.js. No Rust toolchain required.</p>
+                <cds-code-snippet type="multi">
+npm install @yongsk0066/mce
+
+# Or pin a specific version:
+npm install @yongsk0066/mce@0.3.4</cds-code-snippet>
+
+                <p class="cds--type-body-01">Minimal browser usage:</p>
+                <cds-code-snippet type="multi">
+import init, { MceEngine } from '@yongsk0066/mce';
+
+// 1. Init WASM
+await init();
+
+// 2. Load dictionary + suffix tagger model.
+//    The two binary assets (mor.vfst, suffix_tagger.bin) are NOT
+//    bundled by npm; download them from the latest GitHub release:
+//    https://github.com/yongsk0066/mce/releases
+const [dictBytes, modelBytes] = await Promise.all([
+  fetch('/mor.vfst').then(r =&gt; r.arrayBuffer()),
+  fetch('/suffix_tagger.bin').then(r =&gt; r.arrayBuffer()),
+]);
+
+const engine = MceEngine.load(new Uint8Array(dictBytes));
+engine.load_model(new Uint8Array(modelBytes));   // 83.92% -&gt; 94.66% UPOS (dev)
+
+// 3. Use it
+console.log(engine.spell_check('koira'));                          // true
+console.log(engine.analyze_sentence('Koira juoksee nopeasti.'));  // JSON</cds-code-snippet>
+
+                <p class="cds--type-body-01">For the full API (22 methods, including <code>compound_split</code>, <code>grammar_check</code>, <code>generate_paradigm</code>, etc.) see <cds-link href="#/api">API Reference</cds-link>.</p>
+
+                <h2 class="cds--type-heading-03">Prerequisites for building from source</h2>
                 <ul class="cds--type-body-01">
                   <li>Rust toolchain (stable, 1.86+)</li>
                   <li><code>wasm-pack</code> for WASM builds</li>
-                  <li>Node.js 18+ (for npm package / docs site)</li>
+                  <li>Node.js 18+ (for the npm package and the docs site)</li>
                 </ul>
 
                 <h2 class="cds--type-heading-03">Build from Source</h2>

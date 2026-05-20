@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f62fe"/>
+      <stop offset="1" stop-color="#0043ce"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+
+  <!-- top: project name -->
+  <text x="80" y="130" font-family="IBM Plex Sans, Helvetica, Arial, sans-serif" font-size="58" font-weight="700" fill="#ffffff">MCE</text>
+  <text x="80" y="180" font-family="IBM Plex Sans, Helvetica, Arial, sans-serif" font-size="28" font-weight="400" fill="#c1d3ff">Morphological Computation Engine</text>
+
+  <!-- middle: headline numbers -->
+  <g font-family="IBM Plex Mono, Menlo, Consolas, monospace" fill="#ffffff">
+    <text x="80" y="300" font-size="42" font-weight="600">UPOS 94.66%</text>
+    <text x="80" y="350" font-size="20" font-weight="300" fill="#c1d3ff">UD Finnish-TDT dev split, CG + Suffix Tagger</text>
+
+    <text x="80" y="430" font-size="42" font-weight="600">~380 KB WASM</text>
+    <text x="80" y="460" font-size="20" font-weight="300" fill="#c1d3ff">Browser-first, fully offline after first load</text>
+  </g>
+
+  <!-- bottom: paper reference -->
+  <text x="80" y="560" font-family="IBM Plex Sans, Helvetica, Arial, sans-serif" font-size="22" font-weight="600" fill="#ffffff">SCiL 2026 &#x2014; Comonadic Morphophonology</text>
+  <text x="80" y="590" font-family="IBM Plex Mono, Menlo, Consolas, monospace" font-size="16" fill="#c1d3ff">github.com/yongsk0066/mce</text>
+
+  <!-- decorative "M" badge in corner -->
+  <g transform="translate(1020, 80)">
+    <rect width="100" height="100" rx="16" fill="#ffffff" opacity="0.12"/>
+    <text x="50" y="74" font-family="IBM Plex Mono, monospace" font-size="60" font-weight="700" text-anchor="middle" fill="#ffffff">M</text>
+  </g>
+</svg>
