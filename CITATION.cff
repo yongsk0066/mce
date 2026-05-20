@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use MCE in your research, please cite the following paper."
+title: "MCE: Morphological Computation Engine"
+authors:
+  - family-names: "Jang"
+    given-names: "Yongseok"
+    orcid: "https://orcid.org/0009-0007-1306-0263"
+repository-code: "https://github.com/yongsk0066/mce"
+license: Apache-2.0
+type: software
+preferred-citation:
+  type: conference-paper
+  title: "Comonadic Morphophonology: A Compositional Framework for Context-Dependent Morphological Rules in Finnish"
+  authors:
+    - family-names: "Jang"
+      given-names: "Yongseok"
+      orcid: "https://orcid.org/0009-0007-1306-0263"
+  collection-title: "Proceedings of the Society for Computation in Linguistics (SCiL)"
+  year: 2026

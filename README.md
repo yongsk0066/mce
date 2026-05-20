@@ -241,7 +241,26 @@ The Writer Comonad (M2') expresses all Finnish morphophonological rules -- conso
 
 ## License
 
-Apache-2.0
+The MCE engine code (all Rust crates) is licensed under Apache-2.0.
+
+The Finnish morphological dictionary (`mor.vfst`) is loaded at runtime and
+is distributed under GPL-3.0-or-later as part of the Voikko project. See
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for complete attribution
+and compliance details.
+
+## Citation
+
+If you use MCE in your research, please cite:
+
+```bibtex
+@inproceedings{jang2026comonadic,
+  title     = {Comonadic Morphophonology: A Compositional Framework
+               for Context-Dependent Morphological Rules in {F}innish},
+  author    = {Jang, Yongseok},
+  booktitle = {Proceedings of the Society for Computation in Linguistics (SCiL)},
+  year      = {2026}
+}
+```
 
 ## Contributing
 
@@ -250,6 +269,10 @@ Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for developmen
 ## Credits
 
 MCE is built by Yongseok Jang as the analytical core for [corevoikko](https://github.com/yongsk0066/corevoikko), a Rust+WASM rewrite of [Voikko](https://voikko.puimula.org/). The Finnish dictionary data originates from the Voikko project contributors.
+
+Development was assisted by Anthropic's Claude for English-language editing
+and portions of the Rust implementation. All design decisions, mathematical
+correctness, and final code review are the author's responsibility.
 
 ## Documentation
 
