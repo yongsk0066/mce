@@ -11,7 +11,7 @@
 use std::hint::black_box;
 use std::path::PathBuf;
 
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use mce_comonad::cg::{apply_cg_rules, finnish_disambiguation_rules};
 use mce_disambig::{Disambiguator, ViterbiDisambiguator};
 use mce_fi::morphology::{Analyzer, FinnishAnalyzer};
@@ -22,8 +22,7 @@ use mce_fi::morphology::{Analyzer, FinnishAnalyzer};
 fn vfst_path() -> PathBuf {
     // CARGO_MANIFEST_DIR = crates/mce-fi/
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
-    PathBuf::from(manifest_dir)
-        .join("../../data/mor.vfst")
+    PathBuf::from(manifest_dir).join("../../data/mor.vfst")
 }
 
 /// Try to load the FinnishAnalyzer. Returns None if the data file is missing.

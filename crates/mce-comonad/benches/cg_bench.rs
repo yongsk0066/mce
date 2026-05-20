@@ -9,12 +9,12 @@
 
 use std::hint::black_box;
 
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
+use mce_comonad::Zipper;
 use mce_comonad::cg::{
     CgRule, ReadingSet, RemoveIfPreceded, SelectIfFollowed, apply_cg_rules,
     finnish_disambiguation_rules,
 };
-use mce_comonad::Zipper;
 use mce_core::analysis::{ATTR_BASEFORM, ATTR_CLASS, ATTR_SIJAMUOTO, Analysis};
 
 // ── Synthetic data ────────────────────────────────────────────────────

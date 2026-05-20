@@ -9,7 +9,7 @@
 
 use std::hint::black_box;
 
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use mce_core::analysis::{ATTR_BASEFORM, ATTR_CLASS, Analysis};
 use mce_disambig::{Disambiguator, ViterbiDisambiguator};
 
@@ -28,12 +28,12 @@ fn make_analysis(class: &str, baseform: &str) -> Analysis {
 fn build_ambiguous_sentence() -> Vec<Vec<Analysis>> {
     vec![
         vec![
-            make_analysis("laatusana", "iso"),   // ADJ
-            make_analysis("nimisana", "iso"),     // NOUN (rare)
+            make_analysis("laatusana", "iso"), // ADJ
+            make_analysis("nimisana", "iso"),  // NOUN (rare)
         ],
         vec![
-            make_analysis("nimisana", "koira"),   // NOUN
-            make_analysis("teonsana", "koira"),   // VERB (unlikely)
+            make_analysis("nimisana", "koira"), // NOUN
+            make_analysis("teonsana", "koira"), // VERB (unlikely)
         ],
         vec![make_analysis("teonsana", "juosta")], // VERB
         vec![

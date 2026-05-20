@@ -643,9 +643,7 @@ fn gradate_stem(word: &str, grade: Grade) -> String {
             let graded_suffix = gradate(&suffix, grade);
             format!("{}{}", prefix, graded_suffix)
         }
-        None => {
-            gradate(word, grade)
-        }
+        None => gradate(word, grade),
     }
 }
 
@@ -1357,9 +1355,7 @@ fn extract_conditional_stem(infinitive: &str, verb_type: VerbType) -> String {
             }
             stem
         }
-        VerbType::Type4 => {
-            chars[..chars.len() - 2].iter().collect()
-        }
+        VerbType::Type4 => chars[..chars.len() - 2].iter().collect(),
         _ => extract_past_stem(infinitive, verb_type),
     }
 }

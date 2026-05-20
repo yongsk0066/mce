@@ -284,24 +284,22 @@ impl FinnishSpellChecker {
                 self.checker
                     .suggest_ranked(word, max_edits, MAX_SUGGESTIONS, Some(rank_fn))
             }
-            None => {
-                match &self.freq_list {
-                    Some(fl) => {
-                        let rank_fn = |candidate: &str| -> f64 {
-                            let rel = fl.relative_frequency(candidate);
-                            (1.0 + rel * 1_000_000.0).ln()
-                        };
-                        self.checker
-                            .suggest_ranked(word, max_edits, MAX_SUGGESTIONS, Some(rank_fn))
-                    }
-                    None => self.checker.suggest_ranked(
-                        word,
-                        max_edits,
-                        MAX_SUGGESTIONS,
-                        None::<fn(&str) -> f64>,
-                    ),
+            None => match &self.freq_list {
+                Some(fl) => {
+                    let rank_fn = |candidate: &str| -> f64 {
+                        let rel = fl.relative_frequency(candidate);
+                        (1.0 + rel * 1_000_000.0).ln()
+                    };
+                    self.checker
+                        .suggest_ranked(word, max_edits, MAX_SUGGESTIONS, Some(rank_fn))
                 }
-            }
+                None => self.checker.suggest_ranked(
+                    word,
+                    max_edits,
+                    MAX_SUGGESTIONS,
+                    None::<fn(&str) -> f64>,
+                ),
+            },
         }
     }
 
