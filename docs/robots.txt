@@ -1,0 +1,58 @@
+# robots.txt for https://yongsk0066.github.io/mce/
+# MCE — Morphological Computation Engine
+# Companion code for the SCiL 2026 paper
+#   "Comonadic Morphophonology: A Compositional Framework for
+#    Context-Dependent Morphological Rules in Finnish" (Jang, 2026)
+# Contact: yongsk0066@gmail.com   ORCID: 0009-0007-1306-0263
+
+# Default: open to all crawlers.
+User-agent: *
+Allow: /
+
+# Major AI crawlers — academic OSS, broad permission.
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+User-agent: Bytespider
+Allow: /
+
+User-agent: Amazonbot
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: cohere-ai
+Allow: /
+
+User-agent: Meta-ExternalAgent
+Allow: /
+
+# Content signals (draft-romm-aipref-contentsignals, https://contentsignals.org/).
+# Academic OSS released for broad reuse: AI training, search indexing,
+# and inference-time context are all explicitly permitted.
+Content-Signal: ai-train=yes, search=yes, ai-input=yes
