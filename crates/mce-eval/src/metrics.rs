@@ -174,7 +174,7 @@ impl EvalResults {
             .iter()
             .map(|(k, &v)| (k.clone(), v))
             .collect();
-        pairs.sort_by(|a, b| b.1.cmp(&a.1));
+        pairs.sort_by_key(|(_, count)| std::cmp::Reverse(*count));
         pairs.truncate(n);
         pairs
     }
