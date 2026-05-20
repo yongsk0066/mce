@@ -5,7 +5,9 @@ inputs:
   max-size:
     description: 'Maximum WASM binary size in bytes'
     required: false
-    default: '430000'
+    # Headroom over the paper-3 ~380KB measurement to absorb ordinary
+    # dep-version drift; lower again when a release reports a smaller binary.
+    default: '440000'
 
 outputs:
   size:

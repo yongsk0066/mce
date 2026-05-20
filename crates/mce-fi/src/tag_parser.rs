@@ -9,6 +9,11 @@
 // This module extracts structured morphological information from these strings
 // without requiring an FST transducer, making the functions unit-testable.
 
+// The tag-dispatch `match` arms below use an inner `if` per arm to keep the
+// per-tag conditions readable; collapsing them into match guards would only
+// duplicate the outer pattern and obscure the per-tag logic.
+#![allow(clippy::collapsible_match)]
+
 use mce_core::character::{simple_lower, simple_upper};
 
 // ---------------------------------------------------------------------------
