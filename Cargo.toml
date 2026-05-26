@@ -17,7 +17,7 @@ criterion = { version = "0.8", features = ["html_reports"] }
 proptest = "1"
 thiserror = "2"
 bytemuck = { version = "1", features = ["derive"] }
-hashbrown = "0.16"
+hashbrown = "0.17"
 wasm-bindgen = "0.2"
 
 # Internal crates
